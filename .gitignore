@@ -1,0 +1,5 @@
+/target/
+/.serena/
+/bin/
+__pycache__/
+*.log
