@@ -87,6 +87,7 @@ Profiles are UTF-8 `key=value` text, at most 16 KiB, with mandatory `model=studi
 
 - Hardware requests need an explicit address and Studio Pro protocol selection. Model selection is not device-identity detection
 - `discover` reads cached paired devices. There is no active scan, pairing, automatic target choice, or automatic connection on startup
+- Multipoint peer management (list, disconnect, reconnect, switch) is refused before any byte is sent until a verified Studio Pro capture exists; the dual toggle is a separate verified setting
 - A valid device-info preflight precedes setting writes; matching readback is required to report success
 - Writes are not automatically retried. A timeout may mean a setting changed but its acknowledgement was lost; query status before trying again
 - No firmware updates, factory reset, raw-transmit command, find-headphones sound, actual volume changes, or ANC-button remapping
@@ -100,7 +101,16 @@ A phone app may already occupy the RFCOMM control channel. Close its control ses
 ugreen decode 'DD EE FF 04 01 1E 14 FF FF A0 00 01 00 00 08 0B 00 07 00 00 00 00 02 00 00 09 00 00 04 05 00 00 00 0C 0D 0E D0 E3'
 ```
 
-This validates the upstream fixture without Bluetooth access. Request CRC is MODBUS; response CRC is CCITT-FALSE. Malformed, noisy, incomplete, or checksum-invalid capture streams exit nonzero. The [protocol notes](docs/protocol.md) explain the evidence and decoder limits.
+This validates the upstream fixture without Bluetooth access. Request CRC is MODBUS; response CRC is CCITT-FALSE. Malformed, noisy, incomplete, checksum-invalid, or unknown-framed capture streams exit nonzero. Six-byte notifications decode with `event=unknown`.
+
+To record a live session instead, `capture` tees every TX/RX byte and prints fixture-style hex on stdout (context on stderr), so it can be saved, fed back to `decode`, or reviewed as a future fixture:
+
+```sh
+ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro capture > session.hex
+ugreen decode "$(cat session.hex)"
+```
+
+`#` starts a comment in hex input. The [protocol notes](docs/protocol.md) explain the evidence and decoder limits.
 
 ## Documentation and verification
 

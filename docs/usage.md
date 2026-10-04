@@ -96,7 +96,7 @@ Address entry accepts hexadecimal digits and colons, Backspace deletes, Ctrl+U c
 
 Settings are grouped into four categories — Audio (ANC, equalizer, game mode, spatial audio), Connection (dual connection), Environment (wind reduction) and Feedback (prompts, volume-button actions). `Tab` switches category, digits `1`–`9` jump within it, and Up/Down cross into the adjacent category at a boundary. With no proposal pending, `Enter` opens a value list for the selected setting: Up/Down move, `Enter` applies, `Esc` closes, and a click applies the clicked value at once. The value the device currently reports is marked `*`.
 
-A listed device is just a cached paired device and may be offline or a different model. Selecting it alone does not open a Bluetooth connection.
+A listed device is just a paired device of this OS and may be offline or a different model. Rows show the link state when the OS reports one (`(CONNECTED)`) and the registry-confirmed model (`model=studio-pro`) when you confirmed it for that address; enumeration never guesses a model. Selecting a device alone does not open a Bluetooth connection, and the protocol confirmation is re-derived for the selected address — confirming one device does not confirm another.
 
 The interface distinguishes last-read state from a proposed value. Editing a proposal is local. Fields missing or unknown in device readback cannot be written from the TUI, and proposing the current value does not send a redundant write. Applying with Enter requires device-info preflight, acknowledgement (except spatial audio: retail firmware applies the write but answers with an `85 86 87` notification instead of a `DD EE FF` ack, so only the readback verifies it), and matching readback. If a write fails or its result is uncertain, further writes are blocked until an explicit successful refresh. Do not infer failure to apply from a timeout alone.
 
@@ -131,7 +131,8 @@ translate the strings you can, and register the variant in `Lang`.
 | `commands` | Offline supported keys/values |
 | `decode HEX` | Offline response-frame validation |
 | `profile example` | Offline example profile |
-| `discover` | Read OS paired cache; no scan or connection |
+| `discover` | Read OS paired devices; annotate the registry-confirmed model; no scan or connection |
+| `capture` | Connect; print the session's raw TX/RX bytes as fixture hex on stdout |
 | `status` | Connect; query device info, then firmware |
 | `set KEY VALUE` | Connect; preflight, write, acknowledge, read back |
 | `profile export` | Connect; query info; emit known settings |
@@ -146,7 +147,7 @@ Place global options **before** the command:
 - `--lang en`: interface language `en`, `es`, `pt`, `de`, `fr`, `it`, `nl`, `ru`, `zh`, `ja` or `ko`; without it, `UGREEN_LANG`, then the OS locale
 - `--dry-run`: preview packets for `set` or `profile apply`; no connection or writes
 
-`--dry-run` is not a simulated status query. It is rejected with `tui`, `discover`, `status`, and `profile export`. Use `decode` for captured response bytes and `profile example` for an offline template.
+`--dry-run` is not a simulated status query. It is rejected with `tui`, `discover`, `status`, `capture`, and `profile export`. Use `decode` for captured response bytes and `profile example` for an offline template.
 
 ## Interpreting status
 
@@ -213,8 +214,17 @@ $utf8 = [System.Text.UTF8Encoding]::new($false)
 .\target\release\ugreen.exe --dry-run profile apply my-profile.conf
 ```
 
-## Decode and scripting
+## Decode, capture and scripting
 
-Pass a capture as one quoted argument. Whitespace and colons between hexadecimal bytes are accepted; `0x` prefixes are not. `decode` accepts only a clean, complete response stream for success. It can print valid frames yet exit nonzero if there is also noise, an incomplete frame, or a rejected checksum. It never sends captured bytes.
+Pass a capture as one quoted argument. Whitespace and colons between hexadecimal bytes are accepted; `0x` prefixes are not, but `#` starts a comment that runs to the end of its line, so a recorded capture file can be passed unchanged. `decode` accepts only a clean, complete response stream for success: it prints valid frames yet exits nonzero when the input also contains noise, an incomplete frame, a rejected checksum, or well-framed `AA BB CC` bytes with no verified RX meaning. Six-byte notifications print with `event=unknown` and count as decoded frames, not noise. It never sends captured bytes.
+
+To record a live session instead of copying hex from a terminal, use `capture`. It runs the same read-only queries as `status` and prints every byte the session exchanged as fixture-style hex on stdout — TX folded into `#` comments, RX as hex lines — while the human-readable context goes to stderr, so redirection keeps the record pure:
+
+```sh
+ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro capture > session.hex
+ugreen decode "$(cat session.hex)"
+```
+
+If a query fails mid-session, the bytes recorded so far are still printed before the error exits nonzero, because a failed session is exactly when the record matters. The output shape matches `tests/fixtures/protocol/`, so a reported session can become a reviewed fixture after review.
 
 Successful CLI commands exit 0; errors exit nonzero and are written to stderr. Shells can separate output from errors, but diagnostic output is not a versioned machine-readable API. For an uncertain setting write, do not build an automatic retry loop around a nonzero exit code.

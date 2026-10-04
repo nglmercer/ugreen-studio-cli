@@ -49,6 +49,20 @@ CRC-16/CCITT-FALSE uses initial value `0xFFFF`, polynomial `0x1021`, no reflecti
 
 The maximum response is 263 bytes: 3 header + 1 instruction + 1 success + 1 length + 255 payload + 2 checksum. The implementation treats a nonzero success byte as success; zero is rejection. Requests are sequential and matched by instruction, not a sequence number.
 
+### Unsolicited notification frames
+
+Retail firmware also emits six-byte frames with their own magic, observed on firmware 0.2.5:
+
+```text
+85 86 87  kind  payload_lo payload_hi
+```
+
+The only shapes seen are `85 86 87 02 0A <echo>` (following a spatial-audio write) and `85 86 87 02 05 00`. There is no length field and no checksum, so the frame is fixed at six bytes; bytes after the sixth are re-examined as new input. The decoder classifies these as notifications, never as responses. Their event mapping is deliberately empty: until a capture from the official UGREEN app attributes a meaning, every notification reports an unknown event rather than a guessed one.
+
+### Unknown but well-framed input
+
+`AA BB CC` frames are this application's own TX layout. If such bytes appear on RX with a valid MODBUS checksum, framing is intact but no RX meaning has been verified for them; the decoder counts them as an unknown frame and never reinterprets them as status. Bytes that match no known magic are discarded and counted for resynchronization.
+
 ## CRC evidence and reference correction
 
 Known algorithm checks for ASCII `123456789`:
@@ -100,11 +114,17 @@ For ANC off/ambient, some firmware preserves a prior depth in the high nibble. R
 
 Firmware interpretation uses the first three response payload bytes unless all three are zero, then bytes 3–5; the selected bytes are formatted as decimal `major.minor.patch`. Insufficient bytes are an error.
 
+## Multipoint peer operations (not verified)
+
+The dual-device toggle (`0x06`) is verified. The peer-list query and the peer disconnect/reconnect/switch writes are not: no Studio Pro capture from the official app has shown their packet formats, so no instruction numbers are invented here, no model capability bit is set, and the client refuses those operations with `UnsupportedFeature` before any bytes are written. There is deliberately no `peers` subcommand. Recorded sessions that eventually show these frames belong in `tests/fixtures/protocol/`.
+
 ## Decoder behavior and limits
 
-RFCOMM provides a stream, not message boundaries. The decoder accepts splits at arbitrary byte boundaries, concatenated frames and noise. It retains at most 263 pending bytes. A bad CRC increments a rejection counter and resynchronization resumes; non-response bytes, including unsupported unsolicited data, are discarded rather than interpreted as status.
+RFCOMM provides a stream, not message boundaries. The decoder accepts splits at arbitrary byte boundaries, concatenated frames and noise. It retains at most 263 pending bytes and classifies input into three frame shapes: CRC-valid responses, six-byte notifications, and well-framed unknown input. Four counters record what happened: response CRC failures, discarded bytes, unknown frames, and pending (incomplete) bytes. A bad CRC increments the rejection counter and resynchronization resumes; bytes with no framing are discarded rather than interpreted as status.
 
-A corrupted length can hold a partial candidate until enough data arrives or the client times out. There is no length-repair heuristic and no fabricated acknowledgement. The live client can ignore unrelated instructions while waiting. The offline `decode` command instead returns failure if any bytes were discarded, rejected, or left pending.
+A corrupted length can hold a partial candidate until enough data arrives or the client times out. There is no length-repair heuristic and no fabricated acknowledgement. The live client can ignore unrelated instructions and notifications while waiting. The offline `decode` command instead returns failure if any bytes were discarded, rejected, left pending, or classified as an unknown frame — its success condition is one clean, complete response stream.
+
+Sessions can be recorded rather than reconstructed from memory: `ugreen capture` tees every TX and RX byte through a monitor and prints the session as fixture-style hex (`#` provenance comments plus RX hex lines). The output feeds `ugreen decode` unchanged, because `#` starts a comment in hex input, and it has the same shape as the reviewed files under [`tests/fixtures/protocol/`](../tests/fixtures/protocol/), so a reported session can become a reviewed fixture.
 
 ### Spatial-audio write replies
 

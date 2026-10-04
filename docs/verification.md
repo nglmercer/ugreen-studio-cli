@@ -108,6 +108,38 @@ volume-up-action=next volume-down-action=previous`.
   connections; retry succeeds. One stale `target/debug/ugreen` process held
   the channel during testing and was killed
 
+## Multi-device refactor checks (2026-10-04)
+
+The host-side refactor (Bluetooth enumeration, device registry, protocol
+split, multipoint scaffolding, capture tooling) was verified locally on
+Linux x86-64:
+
+- Default-feature suite: **184 tests passed** (155 library, 7 binary unit,
+  6 fixture-capture integration, 16 CLI integration)
+- CLI-only suite: **111 tests passed** (82 library, 7 binary unit,
+  6 fixture-capture integration, 16 CLI integration)
+- `cargo fmt --all -- --check` passed
+- Strict all-target Clippy (`-D warnings`) passed with default,
+  all-features and CLI-only feature sets
+- `cargo check --target x86_64-pc-windows-msvc` passed with default and
+  all features
+- **Live D-Bus enumeration:** `ugreen discover` listed two real paired
+  devices through the system bus on the test machine
+- Live RFCOMM smoke (`capture`/`status`) hit transient `EBUSY` because
+  another process held channel 1; the command failed cleanly with the
+  documented guidance and printed no partial stdout before connection
+- Documentation checker passed: 244 local links across 11 Markdown files,
+  including fixture-directory and capture-output links added by this work
+- Fixture suite (`tests/fixtures/protocol/`) decodes the upstream
+  device-info response, both observed notifications, a mixed
+  response/notification stream, and the TX-layout-on-RX unknown case
+- Peer operations were exercised only in mock tests: they refuse with
+  `UnsupportedFeature` before writing any byte
+
+Live RFCOMM command verification against retail firmware remains the
+earlier 2026-10-04 session above; the enumeration and offline paths are
+what the refactor changed.
+
 ## Not established
 
 - No native Windows runtime test has been established for this version

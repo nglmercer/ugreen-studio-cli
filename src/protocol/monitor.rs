@@ -5,8 +5,10 @@
 //! interprets or alters bytes. RX bytes can be replayed through the
 //! regular [`Decoder`] to reconstruct the frame view, and [`Monitor::export`]
 //! prints the session in the same whitespace-hex style as the files
-//! under `tests/fixtures/protocol/`, with `# tx` / `# rx` provenance
-//! lines, so a recorded session can become a reviewed fixture directly.
+//! under `tests/fixtures/protocol/`: RX bytes get `# rx` provenance
+//! comments and their own hex lines, TX bytes are folded into `# tx`
+//! comments, so stripping the comments leaves exactly the RX stream —
+//! ready for `ugreen decode` or for review as a new fixture.
 
 use super::{Decoder, DecoderStats, IncomingFrame};
 use std::{
@@ -77,19 +79,30 @@ impl Monitor {
         }
         (frames, decoder.stats)
     }
-    /// Fixture-style export of the whole session: one `# tx`/`# rx`
-    /// provenance line followed by one hex line per recorded chunk.
-    /// Strip the comment lines to obtain the raw byte stream.
+    /// Fixture-style export of the whole session. TX bytes are folded
+    /// into `# tx ...` provenance comments and RX bytes get a `# rx`
+    /// comment plus their own hex line, so stripping the comment lines
+    /// yields the RX stream alone — directly usable as the argument of
+    /// `ugreen decode` and directly usable as a protocol fixture.
     pub fn export(&self) -> String {
         let mut out = String::new();
         for event in &self.events {
-            out.push_str("# ");
-            out.push_str(event.direction.label());
-            out.push(' ');
-            out.push_str(&event.bytes.len().to_string());
-            out.push_str(" bytes\n");
-            out.push_str(&super::hex(&event.bytes));
-            out.push('\n');
+            match event.direction {
+                Direction::Tx => {
+                    out.push_str("# tx ");
+                    out.push_str(&event.bytes.len().to_string());
+                    out.push_str(" bytes: ");
+                    out.push_str(&super::hex(&event.bytes));
+                    out.push('\n');
+                }
+                Direction::Rx => {
+                    out.push_str("# rx ");
+                    out.push_str(&event.bytes.len().to_string());
+                    out.push_str(" bytes\n");
+                    out.push_str(&super::hex(&event.bytes));
+                    out.push('\n');
+                }
+            }
         }
         out
     }
@@ -259,29 +272,30 @@ mod tests {
     }
 
     #[test]
-    fn export_is_fixture_style_and_roundtrips_to_the_same_bytes() {
+    fn export_is_fixture_style_and_the_rx_side_feeds_decode() {
         let mut monitor = Monitor::default();
         let request = protocol::request(4, &[0]).unwrap();
         let reply = response(4, &[20; 8]);
         monitor.record(Direction::Tx, &request);
         monitor.record(Direction::Rx, &reply);
         let export = monitor.export();
-        assert!(export.contains("# tx 8 bytes"), "{export}");
-        assert!(export.contains("# rx 16 bytes"), "{export}");
-        let raw: String = export
-            .lines()
-            .filter(|line| !line.trim_start().starts_with('#'))
-            .collect::<Vec<_>>()
-            .join(" ");
-        assert_eq!(
-            protocol::parse_hex(&raw).unwrap(),
-            [&request[..], &reply[..]].concat()
+        assert!(
+            export.contains("# tx 8 bytes: AA BB CC 04 01 00 31 91"),
+            "{export}"
         );
-        // The RX-only view feeds `ugreen decode` unchanged.
-        assert_eq!(monitor.rx_hex(), protocol::hex(&reply));
+        assert!(export.contains("# rx 16 bytes"), "{export}");
+        // Stripping comments (as parse_hex does) yields the RX stream
+        // alone: decode-ready and fixture-ready.
+        assert_eq!(
+            protocol::parse_hex(&export).unwrap(),
+            reply,
+            "export must decode as the recorded RX stream"
+        );
         let mut decoder = Decoder::default();
-        let frames = decoder.feed(&protocol::parse_hex(&monitor.rx_hex()).unwrap());
+        let frames = decoder.feed(&protocol::parse_hex(&export).unwrap());
         assert_eq!(frames.len(), 1);
         assert_eq!(decoder.stats, DecoderStats::default());
+        // Programmatic raw view stays available without comments.
+        assert_eq!(monitor.rx_hex(), protocol::hex(&reply));
     }
 }

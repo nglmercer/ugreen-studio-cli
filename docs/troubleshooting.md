@@ -21,10 +21,10 @@ If normal exit leaves the terminal damaged, close and reopen that terminal tab. 
 On Linux:
 
 - Check that the Bluetooth service and adapter are available through your normal OS tools
-- Ensure BlueZ's `bluetoothctl` is installed and accessible on `PATH`
-- This implementation requires `bluetoothctl devices Paired`; unexpected output from an incompatible version is reported instead of guessing
+- The primary listing path reads the system D-Bus; a missing or restricted bus is reported, not guessed around
+- The fallback uses BlueZ's `bluetoothctl devices Paired`; unexpected output from an incompatible version is reported instead of guessing
 - A missing-controller or collection-timeout error is not a reason to reset the headphones
-- If you already know the correct paired address, direct connection does not require `bluetoothctl`
+- If you already know the correct paired address, direct connection requires neither listing path
 
 On Windows, listing uses Microsoft's cached authenticated-device APIs with radio inquiry disabled. Check pairing and adapter state in Windows settings. The application does not enable an adapter, request pairing, or change permissions for you.
 
@@ -47,7 +47,7 @@ Do not automatically elevate privileges or change system security settings to wo
 
 Unknown is intentional. Optional bytes may be absent or have an unrecognized value. Battery 0, 255 and values outside 1–100 are reported as unknown. Do not interpret this as a measured 0% charge. Firmware can fail independently after settings are printed, causing a nonzero exit status.
 
-Codec reporting and codec selection are not implemented for this Studio Pro mapping. Features found in a Max5c project must not be copied over by assuming matching command IDs. Provide a read-only capture and exact model/firmware details for protocol investigation instead.
+Codec reporting and codec selection are not implemented for this Studio Pro mapping. Features found in a Max5c project must not be copied over by assuming matching command IDs. Provide a read-only capture — `ugreen --address ... --model studio-pro capture > session.hex` records one — together with exact model/firmware details for protocol investigation instead.
 
 ## A setting timed out or readback did not match
 
@@ -65,9 +65,9 @@ Older Windows PowerShell redirection can produce UTF-16 or BOM-prefixed text. Se
 
 ## Capture decoding exits nonzero
 
-Put the whole capture in one quoted argument. Hex digits may be separated by spaces or colons, but omit `0x`. The decoder expects complete `DD EE FF` response frames with CCITT-FALSE CRC, not `AA BB CC` requests or unrelated notifications. Noise, truncated bytes, a wrong length, and a bad checksum all make the offline command fail, even if another frame was valid.
+Put the whole capture in one quoted argument, or pass a capture file's contents directly; hex digits may be separated by spaces or colons, `#` starts a comment, and `0x` must be omitted. The offline command succeeds only for a clean, complete stream: complete `DD EE FF` response frames with CCITT-FALSE CRC, optionally with six-byte `85 86 87` notifications (these print with `event=unknown` and do not fail the command). Noise, truncated bytes, a wrong length, a bad checksum, or well-framed `AA BB CC` bytes with no verified RX meaning all make the command exit nonzero, even when another frame was valid.
 
-See [Protocol](protocol.md) for the known fixture and CRC difference. Offline decoding sends nothing.
+Record a suspect session with `capture` instead of reconstructing it from logs: its stdout is already in decode/fixture format, and the bytes printed before a mid-session failure are kept. See [Protocol](protocol.md) for the known fixture and CRC difference. Offline decoding sends nothing.
 
 ## Build failures or an executable will not run
 
@@ -79,6 +79,6 @@ See [Protocol](protocol.md) for the known fixture and CRC difference. Offline de
 
 ## Useful issue information
 
-Use `l` in the TUI to inspect the latest 100 session events; the log exists only in memory. Collect the application version, OS/architecture, Rust version if built locally, feature set, exact command or TUI action, error text, headphone retail/model label, and firmware if a read succeeds. Include whether a write may already have happened. A minimal profile and offline capture can help reproduce parsing issues.
+Use `l` in the TUI to inspect the latest 100 session events; the log exists only in memory. Collect the application version, OS/architecture, Rust version if built locally, feature set, exact command or TUI action, error text, headphone retail/model label, and firmware if a read succeeds. A `capture` file from the failing session is the single most useful attachment. Include whether a write may already have happened. A minimal profile and offline capture can help reproduce parsing issues.
 
 Bluetooth addresses and paired-device names can identify devices or people; redact them from public reports. Never include account credentials or unrelated captures. No report should describe a mock/cross-target test as a physical headphone test.

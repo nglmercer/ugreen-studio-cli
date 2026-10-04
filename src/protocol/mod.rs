@@ -34,8 +34,18 @@ pub fn request(instruction: u8, payload: &[u8]) -> io::Result<Vec<u8>> {
     Ok(frame)
 }
 
+/// Parse whitespace-separated hex bytes, optionally in a capture
+/// fixture: `#` starts a comment that runs to the end of its line, so
+/// the output of `ugreen capture` can be passed unchanged.
 pub fn parse_hex(text: &str) -> Result<Vec<u8>, String> {
-    let compact: String = text
+    let cleaned: String = text
+        .lines()
+        .map(|line| match line.find('#') {
+            Some(at) => &line[..at],
+            None => line,
+        })
+        .collect();
+    let compact: String = cleaned
         .chars()
         .filter(|c| !c.is_ascii_whitespace() && *c != ':')
         .collect();
@@ -83,5 +93,13 @@ mod tests {
         for bad in ["abc", "GG", "é", "0x01"] {
             assert!(parse_hex(bad).is_err());
         }
+    }
+
+    #[test]
+    fn hex_accepts_capture_fixture_comments() {
+        let fixture = "# tx 8 bytes: AA BB CC 04 01 00 31 91\n# rx 2 bytes\nA0 BF # trailing\n";
+        assert_eq!(parse_hex(fixture).unwrap(), [0xA0, 0xBF]);
+        // Comment-only input is an empty stream, like an empty string.
+        assert_eq!(parse_hex("# nothing here").unwrap(), Vec::<u8>::new());
     }
 }

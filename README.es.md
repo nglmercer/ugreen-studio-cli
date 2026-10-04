@@ -87,6 +87,7 @@ Los perfiles son archivos UTF-8 con líneas `clave=valor`, de hasta 16 KiB y con
 
 - Las solicitudes al dispositivo requieren una dirección y la selección explícita del protocolo Studio Pro. Seleccionar el modelo no verifica la identidad física
 - `discover` consulta dispositivos ya emparejados. No realiza búsquedas activas, emparejamientos, elección automática de destino ni conexiones al iniciar
+- La gestión multipunto (lista, desconexión, reconexión y cambio de dispositivo activo) se rechaza antes de enviar ningún byte hasta existir una captura verificada; la conmutación dual es un ajuste distinto y verificado
 - Antes de escribir se consulta la información del dispositivo; solo se anuncia éxito cuando la lectura posterior coincide
 - No se reintentan escrituras automáticamente. Un tiempo de espera agotado puede indicar que el ajuste cambió, pero se perdió la respuesta; consulta el estado antes de repetir
 - No hay actualización de firmware, restablecimiento de fábrica, envío de bytes arbitrarios, sonido de localización, cambio del volumen real ni reasignación del botón ANC
@@ -100,7 +101,16 @@ Una aplicación del móvil puede ocupar el canal de control RFCOMM. Cierra esa s
 ugreen decode 'DD EE FF 04 01 1E 14 FF FF A0 00 01 00 00 08 0B 00 07 00 00 00 00 02 00 00 09 00 00 04 05 00 00 00 0C 0D 0E D0 E3'
 ```
 
-Valida la captura de referencia sin acceder a Bluetooth. Las solicitudes usan CRC MODBUS; las respuestas, CCITT-FALSE. Una captura mal formada, con ruido, incompleta o con CRC incorrecto devuelve un código de salida distinto de cero. Las [notas del protocolo](docs/protocol.md) detallan las pruebas y los límites del decodificador.
+Valida la captura de referencia sin acceder a Bluetooth. Las solicitudes usan CRC MODBUS; las respuestas, CCITT-FALSE. Una captura mal formada, con ruido, incompleta, con CRC incorrecto o con tramas `AA BB CC` sin significado RX verificado devuelve un código de salida distinto de cero. Las notificaciones de seis bytes se decodifican con `event=unknown`.
+
+Para grabar una sesión en vivo, `capture` registra cada byte TX/RX y lo imprime como hex en estilo de archivo de prueba en la salida estándar (el contexto va a la salida de error), listo para guardarlo, volver a pasarlo a `decode` o revisarlo como posible archivo de prueba:
+
+```sh
+ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro capture > session.hex
+ugreen decode "$(cat session.hex)"
+```
+
+`#` inicia un comentario en la entrada hexadecimal. Las [notas del protocolo](docs/protocol.md) detallan las pruebas y los límites del decodificador.
 
 ## Documentación y verificación
 
