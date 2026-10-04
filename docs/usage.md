@@ -37,7 +37,7 @@ The TUI cannot be used with redirected stdin/stdout. Use explicit CLI commands f
 
 ## Language
 
-Both the CLI and the TUI speak English and Spanish. The CLI follows `--lang en|es` first, then the `UGREEN_LANG` environment variable, then the OS locale (`LANG`/`LC_*`/`LANGUAGE`); protocol values, profile syntax and `key=value` output labels always stay in English. The TUI starts in the CLI's language and `L` toggles live.
+Both the CLI and the TUI speak English and Spanish. The CLI follows `--lang en|es` first, then the `UGREEN_LANG` environment variable, then the OS locale (`LANG`/`LC_*`/`LANGUAGE`); protocol values, profile syntax and `key=value` output labels always stay in English. The TUI starts in the CLI's language and `s` opens app settings to change it.
 
 You can supply a target and protocol before launching:
 
@@ -49,7 +49,8 @@ This supplies the initial choices; connect remains a separate action. For offlin
 
 ## Terminal controls
 
-The `?` key opens the shortcuts screen with every binding, including mouse.
+The `?` key opens the shortcuts screen with every binding, including
+mouse, as a two-column table (key, action) grouped by section.
 The footer bar mirrors the same keys; clicking a footer label presses it.
 
 | Key / mouse | Action |
@@ -60,17 +61,20 @@ The footer bar mirrors the same keys; clicking a footer label presses it.
 | `c` | Connect to the selected target and read status |
 | `r` | Refresh status explicitly |
 | `d` | Disconnect |
-| Up / Down, wheel | Select a setting; navigate the paired-device list |
+| `s` | Open app settings: language, RFCOMM channel, timeout, target |
+| Up / Down, wheel | Select a setting (crossing category boundaries), navigate the paired-device list |
+| Tab / Shift+Tab | Switch the setting category (Audio, Connection, Environment, Feedback) |
+| `1`–`9` | Jump to the Nth setting of the active category |
 | Click | Select a setting or device; second click advances the proposal |
-| Left / Right | Cycle a setting's proposed value |
-| Enter | Apply the proposed setting change, or accept a dialog choice |
+| Left / Right | Cycle a setting's proposed value; in app settings, change the selected option |
+| Enter | Apply the proposed change, open the value list when no proposal exists, or accept a dialog choice |
 | Right-click / Esc | Cancel a dialog, discard the selected proposal, or request cancellation of busy work |
 | `l` | Open/close the session log; Up/Down and Home/End navigate |
-| `L` | Switch language English/Español |
+| `L` | Open app settings with the language row selected |
 | `?` | Open/close the shortcuts screen; Up/Down scroll and Home returns to the top |
 | `q` or Ctrl+C | Quit; while a write or refresh is in flight, ask for `q`/Enter again to exit (a lone paired-cache load quits at once) |
 
-The TUI remembers your last target, channel and language in
+The TUI remembers your last target, channel, timeout and language in
 `~/.config/ugreen-cli/state` (override with `UGREEN_STATE_FILE`). On the next
 start the address is pre-filled and the protocol choice is already confirmed, so
 connecting is a single `c`. Pass `--autoconnect` once to also connect at startup
@@ -78,11 +82,19 @@ on every later run; `--no-autoconnect` turns it off. The cache only stores your
 own explicit choices — it never detects the device model, and every connection
 still runs its preflight query.
 
+App settings (`s`) change the interface language from a direct list
+(`Enter` on the language row, or Left/Right to cycle), the RFCOMM channel
+(1–30) and the operation timeout (1–60 s). Channel and timeout apply to the
+next connection, not to an open session; the language applies at once.
+Changes are saved to the same cache file the TUI reads at startup.
+
 Mouse clicks and the wheel need a terminal that reports mouse events; when
 capture is unavailable the keyboard keeps full control. Quitting while busy
 disables capture cleanup through Ratatui's normal restore path.
 
 Address entry accepts hexadecimal digits and colons, Backspace deletes, Ctrl+U clears, Enter validates, and Esc discards the edit; follow the dialog hints. In the protocol dialog, `n` also cancels. The session log retains the latest 100 status events in memory and is not saved to disk. Esc also closes the log or help.
+
+Settings are grouped into four categories — Audio (ANC, equalizer, game mode, spatial audio), Connection (dual connection), Environment (wind reduction) and Feedback (prompts, volume-button actions). `Tab` switches category, digits `1`–`9` jump within it, and Up/Down cross into the adjacent category at a boundary. With no proposal pending, `Enter` opens a value list for the selected setting: Up/Down move, `Enter` applies, `Esc` closes, and a click applies the clicked value at once. The value the device currently reports is marked `*`.
 
 A listed device is just a cached paired device and may be offline or a different model. Selecting it alone does not open a Bluetooth connection.
 
@@ -102,8 +114,9 @@ translates. A string left in English is a deliberate fallback, not a
 missing entry. `{}` placeholders keep the same argument order in
 every translation, and a test asserts the placeholder count matches
 English for all argument-carrying fields, so a translation cannot
-break formatting. `L` in the TUI cycles all installed languages and
-remembers the choice in the target cache. Protocol values, profile
+break formatting. `L` in the TUI opens the app settings, where a
+language list picks the language directly and the choice is
+remembered in the target cache. Protocol values, profile
 syntax, `key=value` output labels and wire bytes are never
 translated. To add a language, copy `en.rs` to a new module,
 translate the strings you can, and register the variant in `Lang`.

@@ -126,6 +126,13 @@ impl Lang {
     }
 }
 
+/// One shortcuts-screen section: a heading and its
+/// key/description rows, rendered as an aligned table.
+pub struct ShortcutSection {
+    pub title: &'static str,
+    pub items: &'static [(&'static str, &'static str)],
+}
+
 /// Every user-facing prose string, in every language. `{}`
 /// placeholders keep the same argument order in all translations.
 pub struct L {
@@ -149,6 +156,10 @@ pub struct L {
     pub rfcomm_line: &'static str,
     pub labels: [&'static str; 9],
     pub proposed: &'static str,
+    pub categories: [&'static str; 4],
+    pub picker_title: &'static str,
+    pub picker_hint: &'static str,
+    pub status_category: &'static str,
     pub settings_title: &'static str,
     pub settings_blocked: &'static str,
     pub settings_stale: &'static str,
@@ -156,7 +167,17 @@ pub struct L {
     pub status_working: &'static str,
     pub log_title: &'static str,
     pub shortcuts_title: &'static str,
-    pub shortcuts: &'static [&'static str],
+    pub shortcuts: &'static [ShortcutSection],
+    pub options_title: &'static str,
+    pub options_hint: &'static str,
+    pub options_language: &'static str,
+    pub options_channel: &'static str,
+    pub options_timeout: &'static str,
+    pub options_target: &'static str,
+    pub options_pick_title: &'static str,
+    pub options_pick_hint: &'static str,
+    pub status_channel_saved: &'static str,
+    pub status_timeout_saved: &'static str,
     pub edit_title: &'static str,
     pub edit_lines: &'static [&'static str],
     pub model_title: &'static str,

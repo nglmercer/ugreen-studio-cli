@@ -17,7 +17,7 @@ struct Options {
     address: Option<String>,
     model: Option<String>,
     channel: Option<u8>,
-    timeout: Duration,
+    timeout: Option<Duration>,
     dry_run: bool,
     lang: Option<Lang>,
     autoconnect: Option<bool>,
@@ -45,7 +45,7 @@ fn parse(args: Vec<String>) -> Result<Options, String> {
         address: None,
         model: None,
         channel: None,
-        timeout: Duration::from_secs(3),
+        timeout: None,
         dry_run: false,
         lang: None,
         autoconnect: None,
@@ -105,7 +105,7 @@ fn parse(args: Vec<String>) -> Result<Options, String> {
                 if !(1..=60).contains(&n) {
                     return Err(ugreen_cli::i18n::txt(lang_of(&o)).cli_bad_timeout.into());
                 }
-                o.timeout = Duration::from_secs(n);
+                o.timeout = Some(Duration::from_secs(n));
             }
             "--lang" => {
                 let raw = args.next().ok_or(
@@ -163,8 +163,9 @@ fn connect(o: &Options) -> Result<Client<transport::Connection>, String> {
             &[&address, &o.channel.unwrap_or(1).to_string()]
         )
     );
-    transport::Connection::connect(address, o.channel.unwrap_or(1), o.timeout)
-        .map(|io| Client::new(io, o.timeout))
+    let timeout = o.timeout.unwrap_or(Duration::from_secs(3));
+    transport::Connection::connect(address, o.channel.unwrap_or(1), timeout)
+        .map(|io| Client::new(io, timeout))
         .map_err(|e| fill(t.cli_connect_fail, &[&e.to_string()]))
 }
 fn exact(args: &[String], count: usize, usage: &str) -> Result<(), String> {
@@ -220,8 +221,9 @@ fn run(o: Options) -> Result<(), String> {
             }
             #[cfg(feature = "tui")]
             {
-                // The cached target, protocol choice, channel and
-                // language fill defaults; explicit flags always win.
+                // The cached target, protocol choice, channel,
+                // timeout and language fill defaults; explicit
+                // flags always win.
                 let cache = ugreen_cli::cache::load();
                 let autoconnect = o.autoconnect.unwrap_or(cache.autoconnect);
                 if let Some(autoconnect) = o.autoconnect {
@@ -235,7 +237,10 @@ fn run(o: Options) -> Result<(), String> {
                     model_confirmed: o.model.as_deref() == Some("studio-pro")
                         || cache.model_confirmed,
                     channel: o.channel.or(cache.channel).unwrap_or(1),
-                    timeout: o.timeout,
+                    timeout: o
+                        .timeout
+                        .or(cache.timeout.map(Duration::from_secs))
+                        .unwrap_or(Duration::from_secs(3)),
                     lang: o.lang.or(cache.lang).unwrap_or_else(Lang::detect),
                     skip_autoload: false,
                     autoconnect,

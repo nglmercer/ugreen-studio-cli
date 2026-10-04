@@ -13,6 +13,7 @@ pub struct Cache {
     pub address: Option<String>,
     pub model_confirmed: bool,
     pub channel: Option<u8>,
+    pub timeout: Option<u64>,
     pub lang: Option<Lang>,
     pub autoconnect: bool,
 }
@@ -65,6 +66,13 @@ pub fn load_from(path: Option<&Path>) -> Cache {
                     }
                 }
             }
+            "timeout" => {
+                if let Ok(timeout) = value.parse::<u64>() {
+                    if (1..=60).contains(&timeout) {
+                        cache.timeout = Some(timeout);
+                    }
+                }
+            }
             "lang" => {
                 if let Ok(lang) = Lang::from_code(value) {
                     cache.lang = Some(lang);
@@ -94,6 +102,9 @@ pub fn save_to(path: &Path, cache: &Cache) -> std::io::Result<()> {
     if let Some(channel) = cache.channel {
         text.push_str(&format!("channel={channel}\n"));
     }
+    if let Some(timeout) = cache.timeout {
+        text.push_str(&format!("timeout={timeout}\n"));
+    }
     if let Some(lang) = cache.lang {
         text.push_str("lang=");
         text.push_str(lang.code());
@@ -121,6 +132,7 @@ mod tests {
             address: Some("AA:BB:CC:DD:EE:FF".into()),
             model_confirmed: true,
             channel: Some(7),
+            timeout: Some(5),
             lang: Some(Lang::Es),
             autoconnect: true,
         };
@@ -133,7 +145,7 @@ mod tests {
         let path = temp_path("invalid");
         fs::write(
             &path,
-            "address=not-an-address\nmodel=max5c\nchannel=99\nlang=xx\nautoconnect=yes\n",
+            "address=not-an-address\nmodel=max5c\nchannel=99\ntimeout=99\nlang=xx\nautoconnect=yes\n",
         )
         .unwrap();
         assert_eq!(load_from(Some(&path)), Cache::default());

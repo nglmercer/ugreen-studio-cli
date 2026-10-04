@@ -41,34 +41,6 @@ pub fn catalog() -> L {
     l.status_working = " Trabalhando / Esc cancela as etapas seguintes ";
     l.log_title = " Registro / Cima Baixo Início Fim / l Esc fechar ";
     l.shortcuts_title = " Atalhos / Cima Baixo para rolar / ? Esc fechar ";
-    l.shortcuts = &[
-        "Conexão",
-        "  a ......... Editar endereço de destino (desconectado)",
-        "  p ......... Carregar dispositivos emparelhados (auto ao iniciar)",
-        "  Enter ..... Escolher dispositivo: confirma o protocolo ou conecta",
-        "  m então y . Confirmar protocolo Studio Pro HP206 (conecta se o endereço for válido)",
-        "  c / r / d . Conectar / atualizar estado / desconectar",
-        "  Cache ..... Destino, canal e idioma ficam memorizados",
-        "Ajustes",
-        "  Cima/Baixo Selecionar ajuste",
-        "  Esq/Dir .... Propor valor (só local, não escreve)",
-        "  Enter ...... Aplicar a mudança proposta",
-        "Vista",
-        "  l ......... Registro da sessão (últimos 100 eventos)",
-        "  L ......... Mudar idioma (percorre todos)",
-        "  ? ......... Esta tela de atalhos",
-        "  q ......... Sair (pergunta se há trabalho em curso)",
-        "Rato",
-        "  Clique .... Selecionar ajuste, dispositivo ou botão",
-        "  Outro clique Avançar o valor proposto",
-        "  Roda ..... Mover seleção ou rolar",
-        "  Clique dir Cancelar / voltar (Esc)",
-        "Segurança",
-        "  Escrita com consulta prévia, confirmação (áudio",
-        "  espacial: só leitura) e leitura correspondente.",
-        "  Após resultado incerto, atualizar antes de escrever.",
-        "  Escolher modelo não verifica a identidade do hardware.",
-    ];
     l.edit_title = " Editar endereço de destino ";
     l.edit_lines = &[
         "Digite dígitos hexadecimais e dois pontos. Backspace apaga; Ctrl-U limpa.",

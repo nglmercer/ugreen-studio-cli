@@ -41,34 +41,6 @@ pub fn catalog() -> L {
     l.status_working = " Bezig / Esc breekt latere stappen af ";
     l.log_title = " Sessielogboek / Omhoog Omlaag Home Eind / l Esc sluiten ";
     l.shortcuts_title = " Sneltoetsen / Omhoog Omlaag scrollen / ? Esc sluiten ";
-    l.shortcuts = &[
-        "Verbinding",
-        "  a ......... Doeladres bewerken (niet verbonden)",
-        "  p ......... Cache van gekoppelde apparaten laden (auto bij start)",
-        "  Enter ..... Apparaat kiezen: bevestigt het protocol of verbindt",
-        "  m dan y .. Studio Pro HP206-protocol bevestigen (verbindt bij geldig adres)",
-        "  c / r / d . Verbinden / status verversen / verbreken",
-        "  Cache ..... Doel, kanaal en taal blijven onthouden",
-        "Instellingen",
-        "  Omhoog/Omlaag Instelling kiezen",
-        "  Links/Rechts Waarde voorstellen (alleen lokaal, geen schrijf)",
-        "  Enter ..... Voorgestelde wijziging toepassen",
-        "Beeld",
-        "  l ......... Sessielogboek (laatste 100 gebeurtenissen)",
-        "  L ......... Taal wisselen (doorloopt alle)",
-        "  ? ......... Dit scherm met sneltoetsen",
-        "  q ......... Afsluiten (vraagt opnieuw tijdens lopend werk)",
-        "Muis",
-        "  Klik ..... Instelling, apparaat of knop kiezen",
-        "  Nog een klik De voorgestelde waarde verder zetten",
-        "  Wiel ..... Selectie verplaatsen of scrollen",
-        "  Rechterklik Annuleren / terug (Esc)",
-        "Veiligheid",
-        "  Schrijfbewerkingen vereisen preflight, bevestiging (spatiaal",
-        "  geluid: alleen uitlezing) en bijbehorende apparaatuitlezing.",
-        "  Onzekere schrijfbewerkingen blijven geblokkeerd tot een verversing.",
-        "  Modelkeuze verifieert geen hardware-identiteit.",
-    ];
     l.edit_title = " Doeladres bewerken ";
     l.edit_lines = &[
         "Typ hexadecimale cijfers en dubbele punten. Backspace verwijdert; Ctrl-U leegt.",

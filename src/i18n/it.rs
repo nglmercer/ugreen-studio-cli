@@ -41,34 +41,6 @@ pub fn catalog() -> L {
     l.status_working = " Lavorazione / Esc annulla le fasi successive ";
     l.log_title = " Registro / Su Giù Home Fine / l Esc chiudi ";
     l.shortcuts_title = " Scorciatoie / Su Giù scorre / ? Esc chiudi ";
-    l.shortcuts = &[
-        "Connessione",
-        "  a ......... Modifica indirizzo di destinazione (scollegato)",
-        "  p ......... Carica cache dispositivi appaiati (auto all'avvio)",
-        "  Invio ..... Scegli un dispositivo: conferma il protocollo o connette",
-        "  m poi y .. Conferma protocollo Studio Pro HP206 (connette se l'indirizzo è valido)",
-        "  c / r / d . Connetti / aggiorna stato / scollega",
-        "  Cache ..... Destinazione, canale e lingua restano memorizzati",
-        "Impostazioni",
-        "  Su/Giù ... Seleziona impostazione",
-        "  Sinistra/Destra Proponi un valore (solo locale, nessuna scrittura)",
-        "  Invio ..... Applica la modifica proposta",
-        "Vista",
-        "  l ......... Registro di sessione (ultimi 100 eventi)",
-        "  L ......... Cambia lingua (percorre tutte)",
-        "  ? ......... Questo schermo delle scorciatoie",
-        "  q ......... Esci (chiede ancora se c'è lavoro in corso)",
-        "Mouse",
-        "  Clic ..... Seleziona impostazione, dispositivo o pulsante",
-        "  Altro clic Fai avanzare il valore proposto",
-        "  Rotella .. Muovi la selezione o scorri",
-        "  Clic destro Annulla / torna indietro (Esc)",
-        "Sicurezza",
-        "  Le scritture richiedono preflight, conferma (audio",
-        "  spaziale: solo lettura) e lettura del dispositivo corrispondente.",
-        "  Le scritture incerte restano bloccate fino a un aggiornamento esplicito.",
-        "  La scelta del modello non verifica l'identità dell'hardware.",
-    ];
     l.edit_title = " Modifica indirizzo di destinazione ";
     l.edit_lines = &[
         "Digita cifre esadecimali e due punti. Backspace cancella; Ctrl-U svuota.",

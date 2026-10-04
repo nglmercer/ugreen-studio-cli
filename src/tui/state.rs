@@ -34,6 +34,11 @@ pub(super) enum Intent {
     Cancel,
     Quit,
 }
+/// Setting categories, as absolute indices into
+/// `settings::KEYS`: Audio, Connection, Environment, Feedback.
+pub(super) const CATEGORIES: [&[usize]; 4] = [&[0, 1, 2, 3], &[4], &[5], &[6, 7, 8]];
+/// App-settings rows: language, channel, timeout, target.
+const OPTIONS: usize = 4;
 fn fill(template: &str, args: &[&dyn std::fmt::Display]) -> String {
     let mut out = template.to_owned();
     for arg in args {
@@ -59,6 +64,8 @@ pub(super) struct App {
     pub writes_blocked: bool,
     pub selected: usize,
     pub proposals: [Option<String>; 9],
+    pub tab: usize,
+    pub picker: Option<usize>,
     pub busy: Option<(u64, Action)>,
     pub status: String,
     pub address_edit: Option<String>,
@@ -68,6 +75,10 @@ pub(super) struct App {
     pub quit_confirmation: bool,
     pub help: bool,
     pub help_scroll: u16,
+    pub options: bool,
+    pub options_index: usize,
+    pub lang_picker: bool,
+    pub lang_index: usize,
     pub log_open: bool,
     pub log_index: usize,
     pub history: VecDeque<String>,
@@ -95,6 +106,8 @@ impl App {
             writes_blocked: false,
             selected: 0,
             proposals: Default::default(),
+            tab: 0,
+            picker: None,
             busy: None,
             status: t.status_startup.into(),
             address_edit: None,
@@ -104,6 +117,10 @@ impl App {
             quit_confirmation: false,
             help: false,
             help_scroll: 0,
+            options: false,
+            options_index: 0,
+            lang_picker: false,
+            lang_index: 0,
             log_open: false,
             log_index: 0,
             history: VecDeque::new(),
@@ -128,24 +145,44 @@ impl App {
         self.status = self.t().status_loading.into();
         self.busy = Some((id, Action::Paired));
     }
-    /// Cycle through every installed language and remember
-    /// the choice in the target cache.
-    pub fn cycle_lang(&mut self) {
-        let next = (Lang::ALL
-            .iter()
-            .position(|&lang| lang == self.lang)
-            .unwrap_or(0)
-            + 1)
-            % Lang::ALL.len();
-        self.lang = Lang::ALL[next];
-        self.status = fill(self.t().status_lang, &[&self.lang.name()]);
+    /// Open the app-settings screen. Every other modal
+    /// closes first; the language row is selected because
+    /// that is the most common change.
+    pub fn open_options(&mut self) {
+        self.help = false;
+        self.log_open = false;
+        self.address_edit = None;
+        self.model_confirmation = false;
+        self.paired = None;
+        self.picker = None;
+        self.options = true;
+        self.options_index = 0;
+        self.lang_picker = false;
+    }
+    /// Select one language directly and remember the choice
+    /// in the target cache.
+    pub fn apply_lang(&mut self, lang: Lang) {
+        self.lang = lang;
+        self.status = fill(self.t().status_lang, &[&lang.name()]);
+        self.save_cache();
+    }
+    /// Remember the current target, channel, timeout and
+    /// language so the next start can offer them.
+    fn save_cache(&self) {
         crate::cache::save(&crate::cache::Cache {
             address: (!self.address.is_empty()).then(|| self.address.clone()),
             model_confirmed: self.model_confirmed,
             channel: Some(self.channel),
+            timeout: Some(self.timeout_seconds),
             lang: Some(self.lang),
             autoconnect: self.config_autoconnect(),
         });
+    }
+    /// Report and persist a channel or timeout change;
+    /// the worker applies it to the next connection.
+    fn save_config_change(&mut self, template: &str, args: &[&dyn std::fmt::Display]) {
+        self.status = fill(template, args);
+        self.save_cache();
     }
     pub fn record_status(&mut self) {
         if self.status == self.last_logged_status {
@@ -193,6 +230,9 @@ impl App {
                 };
                 fill(&template, &[&setting.key, &setting.value])
             }
+            // The options screen already set the saved
+            // status before submitting the change.
+            Action::Configure { .. } => self.status.clone(),
         };
         if matches!(action, Action::Refresh | Action::Set(_)) {
             self.stale = true;
@@ -240,6 +280,9 @@ impl App {
                 self.clear_snapshot();
                 self.status = t.status_disconnected.into();
             }
+            // The status was set when the change was
+            // submitted; nothing else to update.
+            Ok(Output::Configured) => {}
             Err(error) => {
                 if !matches!(action, Action::Paired) {
                     self.stale = self.info.is_some();
@@ -308,6 +351,74 @@ impl App {
         if width < super::view::MIN_WIDTH || height < super::view::MIN_HEIGHT {
             return Intent::None;
         }
+        // Value list: clicking a row applies that value at once.
+        if self.picker.is_some() {
+            let rect = super::view::picker_rect(
+                ratatui::layout::Rect::new(0, 0, width, height),
+                choices(self.selected).len(),
+            );
+            let row = y.saturating_sub(rect.y) as usize;
+            if y >= rect.y
+                && y < rect.y + rect.height
+                && x >= rect.x
+                && x < rect.x + rect.width
+                && row >= 2
+            {
+                let values = choices(self.selected);
+                if row - 2 < values.len() {
+                    return self.apply_value(self.selected, values[row - 2]);
+                }
+            }
+            return Intent::None;
+        }
+        // App settings: a click selects the row; the
+        // language row opens the language list, and a
+        // language in that list applies at once.
+        if self.lang_picker {
+            let rect = super::view::options_rect(
+                ratatui::layout::Rect::new(0, 0, width, height),
+                1 + Lang::ALL.len(),
+            );
+            let row = y.saturating_sub(rect.y) as usize;
+            if y >= rect.y
+                && y < rect.y + rect.height
+                && x >= rect.x
+                && x < rect.x + rect.width
+                && row >= 2
+                && row - 2 < Lang::ALL.len()
+            {
+                self.lang_index = row - 2;
+                let lang = Lang::ALL[self.lang_index];
+                self.lang_picker = false;
+                self.options = false;
+                self.apply_lang(lang);
+            }
+            return Intent::None;
+        }
+        if self.options {
+            let rect = super::view::options_rect(
+                ratatui::layout::Rect::new(0, 0, width, height),
+                1 + OPTIONS,
+            );
+            let row = y.saturating_sub(rect.y) as usize;
+            if y >= rect.y
+                && y < rect.y + rect.height
+                && x >= rect.x
+                && x < rect.x + rect.width
+                && row >= 2
+                && row - 2 < OPTIONS
+            {
+                self.options_index = row - 2;
+                if self.options_index == 0 {
+                    self.lang_index = Lang::ALL
+                        .iter()
+                        .position(|&lang| lang == self.lang)
+                        .unwrap_or(0);
+                    self.lang_picker = true;
+                }
+            }
+            return Intent::None;
+        }
         // Footer: 3 rows at the bottom; each row holds 6 shortcut slots.
         let footer_top = height.saturating_sub(3);
         if y >= footer_top {
@@ -326,6 +437,7 @@ impl App {
             let code = match key {
                 "Enter" => KeyCode::Enter,
                 "Esc" => KeyCode::Esc,
+                "Tab" => KeyCode::Tab,
                 "<" => KeyCode::Left,
                 ">" => KeyCode::Right,
                 c => KeyCode::Char(c.chars().next().unwrap_or('?')),
@@ -353,16 +465,18 @@ impl App {
         if self.help || self.log_open {
             return Intent::None;
         }
-        // Settings list: header takes 7 rows; row i selects, second click
-        // proposes the next value. Applying always needs an explicit Enter.
-        if y >= 7 {
-            let idx = (y - 7) as usize;
-            if idx < settings::KEYS.len() {
-                if self.selected == idx && self.busy.is_none() {
-                    self.selected = idx;
+        // Settings list: 7 header rows, 1 tab row, 1 panel
+        // border; visible row i selects the category's i-th
+        // setting. A second click proposes the next value.
+        if y >= 9 {
+            let visible = CATEGORIES[self.tab];
+            let index = (y - 9) as usize;
+            if index < visible.len() {
+                let absolute = visible[index];
+                if self.selected == absolute && self.busy.is_none() {
                     return self.key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
                 }
-                self.selected = idx;
+                self.selected = absolute;
             }
         }
         Intent::None
@@ -400,6 +514,108 @@ impl App {
                 _ => Intent::None,
             };
         }
+        if let Some(index) = self.picker {
+            // Value list: pick directly instead of stepping
+            // through values with Left/Right.
+            let values = choices(self.selected);
+            let count = values.len();
+            match key.code {
+                KeyCode::Esc => self.picker = None,
+                KeyCode::Up => self.picker = Some(index.saturating_sub(1)),
+                KeyCode::Down => self.picker = Some((index + 1).min(count.saturating_sub(1))),
+                KeyCode::Home => self.picker = Some(0),
+                KeyCode::End => self.picker = Some(count.saturating_sub(1)),
+                KeyCode::Enter => {
+                    return self.apply_value(self.selected, values[index]);
+                }
+                _ => {}
+            }
+            return Intent::None;
+        }
+        if self.lang_picker {
+            // Language list: choose directly instead of
+            // cycling through every installed language.
+            let count = Lang::ALL.len();
+            match key.code {
+                KeyCode::Esc => self.lang_picker = false,
+                KeyCode::Up => self.lang_index = self.lang_index.saturating_sub(1),
+                KeyCode::Down => self.lang_index = (self.lang_index + 1).min(count - 1),
+                KeyCode::Home => self.lang_index = 0,
+                KeyCode::End => self.lang_index = count - 1,
+                KeyCode::Enter => {
+                    let lang = Lang::ALL[self.lang_index];
+                    self.lang_picker = false;
+                    self.options = false;
+                    self.apply_lang(lang);
+                }
+                _ => {}
+            }
+            return Intent::None;
+        }
+        if self.options {
+            match key.code {
+                KeyCode::Esc => self.options = false,
+                KeyCode::Up => self.options_index = self.options_index.saturating_sub(1),
+                KeyCode::Down => self.options_index = (self.options_index + 1).min(OPTIONS - 1),
+                KeyCode::Home => self.options_index = 0,
+                KeyCode::End => self.options_index = OPTIONS - 1,
+                KeyCode::Enter if self.options_index == 0 => {
+                    self.lang_index = Lang::ALL
+                        .iter()
+                        .position(|&lang| lang == self.lang)
+                        .unwrap_or(0);
+                    self.lang_picker = true;
+                }
+                KeyCode::Left | KeyCode::Right => {
+                    let forward = key.code == KeyCode::Right;
+                    match self.options_index {
+                        0 => {
+                            let position = Lang::ALL
+                                .iter()
+                                .position(|&lang| lang == self.lang)
+                                .unwrap_or(0);
+                            let next = if forward {
+                                (position + 1) % Lang::ALL.len()
+                            } else {
+                                (position + Lang::ALL.len() - 1) % Lang::ALL.len()
+                            };
+                            self.apply_lang(Lang::ALL[next]);
+                        }
+                        1 => {
+                            self.channel = if forward {
+                                self.channel % 30 + 1
+                            } else {
+                                (self.channel + 28) % 30 + 1
+                            };
+                            let template = self.t().status_channel_saved;
+                            let channel = self.channel;
+                            self.save_config_change(template, &[&channel]);
+                            return Intent::Request(Action::Configure {
+                                channel: self.channel,
+                                timeout_seconds: self.timeout_seconds,
+                            });
+                        }
+                        2 => {
+                            self.timeout_seconds = if forward {
+                                self.timeout_seconds % 60 + 1
+                            } else {
+                                (self.timeout_seconds + 58) % 60 + 1
+                            };
+                            let template = self.t().status_timeout_saved;
+                            let timeout = self.timeout_seconds;
+                            self.save_config_change(template, &[&timeout]);
+                            return Intent::Request(Action::Configure {
+                                channel: self.channel,
+                                timeout_seconds: self.timeout_seconds,
+                            });
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+            return Intent::None;
+        }
         if self.log_open {
             match key.code {
                 KeyCode::Esc | KeyCode::Char('l') => self.log_open = false,
@@ -417,7 +633,14 @@ impl App {
             match key.code {
                 KeyCode::Esc | KeyCode::Char('?') => self.help = false,
                 KeyCode::Up => self.help_scroll = self.help_scroll.saturating_sub(1),
-                KeyCode::Down => self.help_scroll = self.help_scroll.saturating_add(1).min(32),
+                KeyCode::Down => {
+                    // The help renders one row per shortcut
+                    // line plus a blank row after each
+                    // section; generous is fine because
+                    // scrolling past the content just
+                    // shows the panel border.
+                    self.help_scroll = self.help_scroll.saturating_add(1).min(64);
+                }
                 KeyCode::Home => self.help_scroll = 0,
                 _ => {}
             }
@@ -513,8 +736,12 @@ impl App {
             self.log_index = self.history.len().saturating_sub(1);
             return Intent::None;
         }
+        if key.code == KeyCode::Char('s') {
+            self.open_options();
+            return Intent::None;
+        }
         if key.code == KeyCode::Char('L') {
-            self.cycle_lang();
+            self.open_options();
             return Intent::None;
         }
         if key.code == KeyCode::Char('?') {
@@ -556,8 +783,19 @@ impl App {
                 self.status = self.t().status_must_disconnect.into()
             }
             KeyCode::Char('r') => self.status = self.t().status_must_connect.into(),
-            KeyCode::Up => self.selected = self.selected.saturating_sub(1),
-            KeyCode::Down => self.selected = (self.selected + 1).min(settings::KEYS.len() - 1),
+            KeyCode::Tab => self.switch_tab((self.tab + 1) % CATEGORIES.len()),
+            KeyCode::BackTab => {
+                self.switch_tab((self.tab + CATEGORIES.len() - 1) % CATEGORIES.len())
+            }
+            KeyCode::Char(c) if c.is_ascii_digit() && c != '0' => {
+                let visible = CATEGORIES[self.tab];
+                let index = usize::from(c as u8 - b'0');
+                if index <= visible.len() {
+                    self.selected = visible[index - 1];
+                }
+            }
+            KeyCode::Up => self.move_selection(false),
+            KeyCode::Down => self.move_selection(true),
             KeyCode::Left | KeyCode::Right if self.can_write() => {
                 let values = choices(self.selected);
                 let current = self.proposals[self.selected]
@@ -578,25 +816,27 @@ impl App {
                 }
             }
             KeyCode::Enter if self.can_write() => {
-                if let Some(value) = &self.proposals[self.selected] {
-                    if self
-                        .info
-                        .as_ref()
-                        .and_then(|info| info.value(settings::KEYS[self.selected]))
-                        .as_ref()
-                        == Some(value)
-                    {
-                        self.status = self.t().status_already_matches.into();
-                    } else if let Ok(setting) =
-                        Setting::parse_in(self.lang, settings::KEYS[self.selected], value)
-                    {
-                        // Enter applies directly; the write itself is
-                        // preflight-checked, sent and readback-verified.
-                        self.proposals[self.selected] = None;
-                        return Intent::Request(Action::Set(setting));
+                if let Some(value) = self.proposals[self.selected].clone() {
+                    // A proposal applies directly; the write itself is
+                    // preflight-checked, sent and readback-verified.
+                    return self.apply_value(self.selected, &value);
+                }
+                // No proposal yet: open the value list so a value can
+                // be selected directly instead of stepping with arrows.
+                let values = choices(self.selected);
+                match self
+                    .info
+                    .as_ref()
+                    .and_then(|info| info.value(settings::KEYS[self.selected]))
+                {
+                    Some(current) => {
+                        let index = values
+                            .iter()
+                            .position(|value| *value == current)
+                            .unwrap_or(0);
+                        self.picker = Some(index);
                     }
-                } else {
-                    self.status = self.t().status_pick_first.into();
+                    None => self.status = self.t().status_unavailable_setting.into(),
                 }
             }
             KeyCode::Left | KeyCode::Right | KeyCode::Enter => {
@@ -614,5 +854,79 @@ impl App {
             && !self.writes_blocked
             && self.busy.is_none()
             && self.worker_alive
+    }
+    /// Switch the setting category and select its first setting.
+    fn switch_tab(&mut self, tab: usize) {
+        self.tab = tab % CATEGORIES.len();
+        self.selected = CATEGORIES[self.tab][0];
+        self.status = fill(self.t().status_category, &[&self.t().categories[self.tab]]);
+    }
+    /// Move within the active category; at a boundary, cross
+    /// into the adjacent category instead of wrapping around.
+    fn move_selection(&mut self, forward: bool) {
+        let visible = CATEGORIES[self.tab];
+        match visible.iter().position(|&index| index == self.selected) {
+            Some(position) => {
+                let next = if forward {
+                    position + 1
+                } else {
+                    position.wrapping_sub(1)
+                };
+                if next < visible.len() {
+                    self.selected = visible[next];
+                    return;
+                }
+                let target = if forward {
+                    self.tab + 1
+                } else {
+                    self.tab.wrapping_sub(1)
+                };
+                if target < CATEGORIES.len() {
+                    let items = CATEGORIES[target];
+                    self.tab = target;
+                    self.selected = if forward {
+                        items[0]
+                    } else {
+                        items[items.len() - 1]
+                    };
+                    self.status = fill(self.t().status_category, &[&self.t().categories[target]]);
+                }
+            }
+            None => {
+                // The selection belongs to another category: snap
+                // into this one at the edge the motion came from.
+                self.selected = if forward {
+                    visible[0]
+                } else {
+                    visible[visible.len() - 1]
+                };
+            }
+        }
+    }
+    /// Send one value as a write. Writing the value the device
+    /// already reports is a no-op; anything else goes through
+    /// the worker's preflight, acknowledgement and readback.
+    fn apply_value(&mut self, absolute: usize, value: &str) -> Intent {
+        self.picker = None;
+        if self
+            .info
+            .as_ref()
+            .and_then(|info| info.value(settings::KEYS[absolute]))
+            .as_deref()
+            == Some(value)
+        {
+            self.status = self.t().status_already_matches.into();
+            return Intent::None;
+        }
+        match Setting::parse_in(self.lang, settings::KEYS[absolute], value) {
+            Ok(setting) => {
+                self.proposals[absolute] = None;
+                Intent::Request(Action::Set(setting))
+            }
+            Err(_) => {
+                self.status = self.t().status_unavailable_setting.into();
+                Intent::None
+            }
+        }
     }
 }

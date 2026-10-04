@@ -119,6 +119,7 @@ fn event_loop(
                         address: Some(app.address.clone()),
                         model_confirmed: true,
                         channel: Some(app.channel),
+                        timeout: Some(app.timeout_seconds),
                         lang: Some(app.lang),
                         autoconnect: app.config_autoconnect(),
                     });

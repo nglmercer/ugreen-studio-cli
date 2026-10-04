@@ -41,34 +41,6 @@ pub fn catalog() -> L {
     l.status_working = " Travail / Échap annule les étapes suivantes ";
     l.log_title = " Journal / Haut Bas Début Fin / l Échap fermer ";
     l.shortcuts_title = " Raccourcis / Haut Bas défile / ? Échap fermer ";
-    l.shortcuts = &[
-        "Connexion",
-        "  a ......... Éditer l'adresse cible (déconnecté)",
-        "  p ......... Charger le cache des appareils appairés (auto au démarrage)",
-        "  Entrée .... Choisir un appareil : confirme le protocole ou connecte",
-        "  m puis y .. Confirmer le protocole Studio Pro HP206 (connecte si l'adresse est valide)",
-        "  c / r / d . Connecter / actualiser l'état / déconnecter",
-        "  Cache ..... Cible, canal et langue sont mémorisés",
-        "Réglages",
-        "  Haut/Bas ... Sélectionner un réglage",
-        "  Gauche/Droite Proposer une valeur (local seul, pas d'écriture)",
-        "  Entrée ..... Appliquer la modification proposée",
-        "Affichage",
-        "  l ......... Journal de session (100 derniers événements)",
-        "  L ......... Changer de langue (parcourt toutes)",
-        "  ? ......... Cet écran de raccourcis",
-        "  q ......... Quitter (redemande pendant un travail)",
-        "Souris",
-        "  Clic ...... Sélectionner un réglage, appareil ou bouton",
-        "  Autre clic Faire avancer la valeur proposée",
-        "  Molette .. Déplacer la sélection ou défiler",
-        "  Clic droit Annuler / retour (Échap)",
-        "Sécurité",
-        "  Les écritures exigent un pré-vol, une confirmation (audio",
-        "  spatial : relevé seul) et un relevé d'appareil correspondant.",
-        "  Les écritures incertaines restent bloquées jusqu'à l'actualisation.",
-        "  Le choix du modèle ne vérifie pas l'identité du matériel.",
-    ];
     l.edit_title = " Éditer l'adresse cible ";
     l.edit_lines = &[
         "Tapez des chiffres hexadécimaux et des deux-points. Retour arrière efface ; Ctrl-U vide.",

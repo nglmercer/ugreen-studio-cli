@@ -78,6 +78,17 @@ fn startup_is_disconnected_without_implicit_actions() {
     assert!(app.status.contains("No Bluetooth access"));
 }
 #[test]
+fn configure_updates_future_connect_settings() {
+    let (mut engine, _state) = engine();
+    let reply = engine.execute(request(Action::Configure {
+        channel: 9,
+        timeout_seconds: 12,
+    }));
+    assert!(reply.result.is_ok());
+    assert!(!reply.connected);
+    assert!(!reply.writes_blocked);
+}
+#[test]
 fn connect_requires_address_and_model() {
     let mut app = App::new(&Config::default());
     assert!(matches!(app.key(key(KeyCode::Char('c'))), Intent::None));
@@ -245,6 +256,76 @@ fn escape_discards_proposal_without_writing() {
     app.key(key(KeyCode::Right));
     assert!(matches!(app.key(key(KeyCode::Esc)), Intent::None));
     assert!(app.proposals[0].is_none());
+}
+#[test]
+fn tab_switches_category_and_digits_jump_within_it() {
+    let mut app = ready();
+    assert_eq!(app.tab, 0);
+    assert_eq!(app.selected, 0);
+    app.key(key(KeyCode::Tab));
+    assert_eq!(app.tab, 1);
+    assert_eq!(app.selected, 4);
+    app.key(key(KeyCode::BackTab));
+    assert_eq!(app.tab, 0);
+    assert_eq!(app.selected, 0);
+    app.key(key(KeyCode::Char('3')));
+    assert_eq!(app.selected, 2);
+    app.key(key(KeyCode::Char('4')));
+    assert_eq!(app.selected, 3);
+    app.key(key(KeyCode::Char('2')));
+    assert_eq!(app.selected, 1);
+}
+#[test]
+fn up_down_cross_category_boundaries() {
+    let mut app = ready();
+    app.key(key(KeyCode::Char('4')));
+    app.key(key(KeyCode::Down));
+    assert_eq!(app.tab, 1);
+    assert_eq!(app.selected, 4);
+    app.key(key(KeyCode::Up));
+    assert_eq!(app.tab, 0);
+    assert_eq!(app.selected, 3);
+}
+#[test]
+fn enter_without_proposal_opens_value_list() {
+    let mut app = ready();
+    assert!(app.picker.is_none());
+    app.key(key(KeyCode::Enter));
+    assert_eq!(app.picker, Some(0));
+    app.key(key(KeyCode::Down));
+    assert_eq!(app.picker, Some(1));
+    assert!(
+        matches!(app.key(key(KeyCode::Enter)), Intent::Request(Action::Set(setting)) if setting.key == "anc" && setting.value == "ultra")
+    );
+    assert!(app.picker.is_none());
+}
+#[test]
+fn picker_escape_and_same_value_do_not_write() {
+    let mut app = ready();
+    app.key(key(KeyCode::Enter));
+    app.key(key(KeyCode::Esc));
+    assert!(app.picker.is_none());
+    app.key(key(KeyCode::Enter));
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    assert!(app.status.contains("already"));
+    assert!(app.picker.is_none());
+}
+#[test]
+fn mouse_click_applies_picked_value() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let mut app = ready();
+    app.key(key(KeyCode::Enter));
+    assert!(app.picker.is_some());
+    let click = |row: u16| MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 35,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    assert!(
+        matches!(app.mouse(click(13), 100, 30), Intent::Request(Action::Set(setting)) if setting.key == "anc" && setting.value == "ultra")
+    );
+    assert!(app.picker.is_none());
 }
 #[test]
 fn same_value_and_unavailable_value_do_not_write() {
@@ -425,6 +506,8 @@ fn rendering_handles_all_small_dimensions_and_resize() {
     ] {
         let _ = render(&app, w, h);
     }
+    // The Feedback category holds the volume-button settings.
+    app.tab = 3;
     assert!(render(&app, 56, 20).contains("Volume-down action"));
     assert!(render(&app, 30, 6).contains("Resize"));
 }
@@ -440,24 +523,84 @@ fn every_modal_renders_and_quit_warning_has_priority() {
     app.model_confirmation = true;
     assert!(render(&app, 80, 24).contains("Max5c"));
     app.model_confirmation = false;
+    app.picker = Some(1);
+    assert!(render(&app, 80, 24).contains("Select value"));
+    app.picker = None;
     app.quit_confirmation = true;
     assert!(render(&app, 80, 24).contains("Quit while work"));
 }
 #[test]
-fn language_toggle_rewrites_status_and_render() {
+fn options_and_language_picker_render() {
+    let mut app = ready();
+    app.options = true;
+    assert!(render(&app, 80, 24).contains("App settings"));
+    assert!(render(&app, 80, 24).contains("Language"));
+    app.lang_picker = true;
+    assert!(render(&app, 80, 24).contains("Select language"));
+    assert!(render(&app, 80, 24).contains("Español"));
+    app.options = false;
+    app.lang_picker = false;
+}
+#[test]
+fn language_picker_sets_and_renders_translation() {
     let mut app = App::new(&Config::default());
     assert!(app.status.contains("No Bluetooth access"));
-    // L cycles every installed language.
+    // L opens the app settings with the language row
+    // selected; Enter lists every language directly.
     app.key(key(KeyCode::Char('L')));
+    assert!(app.options);
+    assert_eq!(app.options_index, 0);
+    app.key(key(KeyCode::Enter));
+    assert!(app.lang_picker);
+    app.key(key(KeyCode::Down));
+    assert_eq!(app.lang_index, 1);
+    app.key(key(KeyCode::Enter));
+    assert!(!app.options);
+    assert!(!app.lang_picker);
     assert!(app.status.contains("Español"));
     assert!(render(&app, 100, 30).contains("DESCONECTADO"));
     assert!(render(&app, 100, 30).contains("Destino:"));
+    // Left/Right on the language row cycles without the list.
     app.key(key(KeyCode::Char('L')));
+    app.key(key(KeyCode::Right));
     assert!(app.status.contains("Português"));
     assert!(render(&app, 100, 30).contains("DESCONECTADO"));
-    app.key(key(KeyCode::Char('L')));
-    assert!(app.status.contains("Deutsch"));
-    assert!(render(&app, 100, 30).contains("GETRENNT"));
+    app.key(key(KeyCode::Left));
+    assert!(app.status.contains("Español"));
+    assert!(render(&app, 100, 30).contains("DESCONECTADO"));
+}
+#[test]
+fn options_screen_changes_channel_and_timeout() {
+    let mut app = ready();
+    assert!(!app.options);
+    app.key(key(KeyCode::Char('s')));
+    assert!(app.options);
+    assert_eq!(app.options_index, 0);
+    // Channel row: Right raises it and asks the worker
+    // to apply the new values on the next connect.
+    app.key(key(KeyCode::Down));
+    assert_eq!(app.options_index, 1);
+    let before = app.channel;
+    assert!(matches!(
+        app.key(key(KeyCode::Right)),
+        Intent::Request(Action::Configure { channel, .. }) if channel == before + 1
+    ));
+    assert_eq!(app.channel, before + 1);
+    // Timeout row wraps within 1..=60.
+    app.key(key(KeyCode::Down));
+    assert_eq!(app.options_index, 2);
+    app.timeout_seconds = 60;
+    assert!(matches!(
+        app.key(key(KeyCode::Right)),
+        Intent::Request(Action::Configure { timeout_seconds, .. }) if timeout_seconds == 1
+    ));
+    assert_eq!(app.timeout_seconds, 1);
+    // Target row is view-only; Escape closes.
+    app.key(key(KeyCode::Down));
+    assert_eq!(app.options_index, 3);
+    assert!(matches!(app.key(key(KeyCode::Right)), Intent::None));
+    app.key(key(KeyCode::Esc));
+    assert!(!app.options);
 }
 #[test]
 fn spanish_render_shows_translated_panels() {
@@ -492,9 +635,9 @@ fn mouse_click_selects_setting_and_second_click_proposes() {
         row,
         modifiers: KeyModifiers::NONE,
     };
-    assert!(matches!(app.mouse(click(9), 110, 30), Intent::None));
+    assert!(matches!(app.mouse(click(11), 110, 30), Intent::None));
     assert_eq!(app.selected, 2);
-    let intent = app.mouse(click(9), 110, 30);
+    let intent = app.mouse(click(11), 110, 30);
     assert!(matches!(intent, Intent::None));
     assert_eq!(app.proposals[2].as_deref(), Some("on"));
 }
@@ -983,7 +1126,7 @@ fn supplied_address_is_terminal_safe_and_dark_background_is_explicit() {
 fn help_scrolls_on_minimum_screen() {
     let mut app = ready();
     app.key(key(KeyCode::Char('?')));
-    for _ in 0..18 {
+    for _ in 0..30 {
         app.key(key(KeyCode::Down));
     }
     assert!(app.help_scroll > 0);

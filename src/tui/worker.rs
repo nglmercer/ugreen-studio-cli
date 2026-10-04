@@ -15,6 +15,7 @@ use std::{
         Arc,
     },
     thread,
+    time::Duration,
 };
 
 pub(super) trait Session: Send {
@@ -62,6 +63,12 @@ pub(super) enum Action {
     Refresh,
     Disconnect,
     Set(Setting),
+    /// App-settings change; the new channel and timeout
+    /// apply to the next connection, never to a live one.
+    Configure {
+        channel: u8,
+        timeout_seconds: u64,
+    },
 }
 impl Action {
     pub fn is_write(&self) -> bool {
@@ -80,6 +87,7 @@ pub(super) enum Output {
     Snapshot(Snapshot),
     Disconnected,
     Verified { info: DeviceInfo, setting: Setting },
+    Configured,
 }
 pub(super) struct Request {
     pub id: u64,
@@ -216,6 +224,14 @@ impl<B: Backend> Engine<B> {
             Action::Disconnect => {
                 self.session = None;
                 Ok(Output::Disconnected)
+            }
+            Action::Configure {
+                channel,
+                timeout_seconds,
+            } => {
+                self.config.channel = *channel;
+                self.config.timeout = Duration::from_secs(*timeout_seconds);
+                Ok(Output::Configured)
             }
             Action::Set(setting) => {
                 if self.uncertain {

@@ -1,6 +1,6 @@
 //! Spanish catalog. Starts from English and overrides every
 //! translated string; `{}` placeholders keep the same order.
-use super::L;
+use super::{ShortcutSection, L};
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
@@ -38,37 +38,74 @@ pub fn catalog() -> L {
     l.settings_blocked = " Ajustes / ESCRITURA BLOQUEADA: r para actualizar ";
     l.settings_stale = " Ajustes / última lectura obsoleta ";
     l.status_title = " Estado ";
+    l.categories = ["Audio", "Conexión", "Entorno", "Respuestas"];
+    l.picker_title = " Seleccionar valor ";
+    l.picker_hint = "Arriba Abajo mueve / Enter aplica / Esc cierra";
+    l.status_category = "Categoría: {}";
     l.status_working = " Trabajando / Esc cancela las siguientes etapas ";
     l.log_title = " Registro / Arriba Abajo Inicio Fin / l Esc cerrar ";
-    l.shortcuts_title = " Atajos / Arriba Abajo para ver / ? Esc cerrar ";
+    l.shortcuts_title = " Atajos / Arriba Abajo ver / ? Esc cerrar ";
     l.shortcuts = &[
-        "Conexión",
-        "  a ......... Editar dirección de destino (desconectado)",
-        "  p ......... Cargar dispositivos emparejados (auto al iniciar)",
-        "  Enter ..... Elegir dispositivo: confirma el protocolo o conecta",
-        "  m luego y . Confirmar protocolo Studio Pro HP206 (conecta si la dirección es válida)",
-        "  c / r / d . Conectar / actualizar estado / desconectar",
-        "  Cache ..... Se recuerdan destino, canal e idioma",
-        "Ajustes",
-        "  Arriba/Abajo Seleccionar ajuste",
-        "  Izq/Der .... Proponer valor (solo local, no escribe)",
-        "  Enter ...... Aplicar el cambio propuesto",
-        "Vista",
-        "  l ......... Registro de sesión (últimos 100 eventos)",
-        "  L ......... Cambiar idioma (recorre todos)",
-        "  ? ......... Esta pantalla de atajos",
-        "  q ......... Salir (pregunta si hay trabajo en curso)",
-        "Ratón",
-        "  Clic ...... Seleccionar ajuste, dispositivo o botón",
-        "  Otro clic . Avanzar el valor propuesto",
-        "  Rueda ..... Mover selección o desplazar",
-        "  Clic der .. Cancelar / volver (Esc)",
-        "Seguridad",
-        "  Escritura con consulta previa, confirmación (audio",
-        "  espacial: solo lectura) y lectura coincidente.",
-        "  Tras un resultado incierto, actualizar antes de escribir.",
-        "  Elegir modelo no verifica la identidad del hardware.",
+        ShortcutSection {
+            title: "Conexión",
+            items: &[
+                ("a", "Editar dirección de destino (desconectado)"),
+                ("p", "Cargar dispositivos emparejados (auto al iniciar)"),
+                ("Enter", "Elegir dispositivo: confirma el protocolo o conecta"),
+                ("m luego y", "Confirmar protocolo Studio Pro HP206 (conecta si la dirección es válida)"),
+                ("c / r / d", "Conectar / actualizar estado / desconectar"),
+                ("", "Se recuerdan destino, canal, espera e idioma"),
+            ],
+        },
+        ShortcutSection {
+            title: "Ajustes",
+            items: &[
+                ("Tab / S-Tab", "Cambiar la categoría de ajustes"),
+                ("1-9", "Ir al enésimo ajuste de la categoría"),
+                ("Arriba/Abajo", "Seleccionar ajuste (cruza categorías)"),
+                ("Izq/Der", "Proponer valor (solo local, no escribe)"),
+                ("Enter", "Aplicar la propuesta o abrir la lista"),
+                ("", "Clic en un valor de la lista para aplicarlo ya"),
+            ],
+        },
+        ShortcutSection {
+            title: "App",
+            items: &[
+                ("s", "Ajustes de la app: idioma, canal, espera"),
+                ("L", "Ajustes de la app, fila de idioma elegida"),
+                ("l", "Registro de sesión (últimos 100 eventos)"),
+                ("?", "Esta pantalla de atajos"),
+                ("q", "Salir (pregunta si hay trabajo en curso)"),
+            ],
+        },
+        ShortcutSection {
+            title: "Ratón",
+            items: &[
+                ("Clic", "Seleccionar ajuste, dispositivo o botón"),
+                ("", "Otro clic avanza el valor propuesto"),
+                ("Rueda", "Mover selección o desplazar"),
+                ("Clic der", "Cancelar / volver (Esc)"),
+            ],
+        },
+        ShortcutSection {
+            title: "Seguridad",
+            items: &[
+                ("", "Escritura con consulta previa, confirmación (audio espacial: solo lectura) y lectura coincidente."),
+                ("", "Tras un resultado incierto, actualizar antes de escribir."),
+                ("", "Elegir modelo no verifica la identidad del hardware."),
+            ],
+        },
     ];
+    l.options_title = " Ajustes de la aplicación ";
+    l.options_hint = "Arriba Abajo elige / Izq Der cambia / Enter elige idioma / Esc cierra";
+    l.options_language = "Idioma";
+    l.options_channel = "Canal RFCOMM";
+    l.options_timeout = "Tiempo de espera";
+    l.options_target = "Destino";
+    l.options_pick_title = " Elegir idioma ";
+    l.options_pick_hint = "Arriba Abajo mueve / Enter elige / Esc vuelve";
+    l.status_channel_saved = "Canal: {} (se aplica en la próxima conexión)";
+    l.status_timeout_saved = "Espera: {} s (se aplica en la próxima conexión)";
     l.edit_title = " Editar dirección de destino ";
     l.edit_lines = &[
         "Escribe dígitos hexadecimales y dos puntos. Retroceso borra; Ctrl-U limpia.",
@@ -111,14 +148,14 @@ pub fn catalog() -> L {
             ("Enter", "aplicar"),
             ("y", "confirmar"),
             ("Esc", "atrás"),
-            ("", ""),
+            ("Tab", "pestañas"),
         ],
         [
             ("l", "registro"),
             ("?", "atajos"),
             ("L", "idioma"),
+            ("s", "opciones"),
             ("q", "salir"),
-            ("", ""),
             ("", ""),
         ],
     ];

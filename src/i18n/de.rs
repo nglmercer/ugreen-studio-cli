@@ -41,34 +41,6 @@ pub fn catalog() -> L {
     l.status_working = " Arbeitend / Esc bricht spätere Schritte ab ";
     l.log_title = " Sitzungsprotokoll / Hoch Runter Pos1 Ende / l Esc schließen ";
     l.shortcuts_title = " Tasten / Hoch Runter scrollen / ? Esc schließen ";
-    l.shortcuts = &[
-        "Verbindung",
-        "  a ......... Zieladresse bearbeiten (getrennt)",
-        "  p ......... Cache der Paarungen laden (auto beim Start)",
-        "  Enter ..... Gerät wählen: bestätigt das Protokoll oder verbindet",
-        "  m dann y .. Studio Pro HP206-Protokoll bestätigen (verbindet bei gültiger Adresse)",
-        "  c / r / d . Verbinden / Status aktualisieren / trennen",
-        "  Cache ..... Ziel, Kanal und Sprache bleiben gespeichert",
-        "Einstellungen",
-        "  Hoch/Runter Einstellung wählen",
-        "  Links/Rechts Wert vorschlagen (nur lokal, keine Schreibvorgang)",
-        "  Enter ...... Vorgeschlagene Änderung anwenden",
-        "Ansicht",
-        "  l ......... Sitzungsprotokoll (letzte 100 Ereignisse)",
-        "  L ......... Sprache wechseln (alle durchlaufen)",
-        "  ? ......... Diese Tastenübersicht",
-        "  q ......... Beenden (fragt erneut bei laufender Arbeit)",
-        "Maus",
-        "  Klick ..... Einstellung, Gerät oder Tasten-Schalter wählen",
-        "  Erneut klicken Vorgeschlagenen Wert weiterdrehen",
-        "  Rad ...... Auswahl bewegen oder scrollen",
-        "  Rechtsklick Abbrechen / zurück (Esc)",
-        "Sicherheit",
-        "  Schreibvorgänge brauchen Preflight, Bestätigung (Spatialaudio:",
-        "  nur Auslesen) und passende Geräteauslesung.",
-        "  Unsichere Schreibvorgänge bleiben gesperrt bis zur Aktualisierung.",
-        "  Modellauswahl prüft keine Hardware-Identität.",
-    ];
     l.edit_title = " Zieladresse bearbeiten ";
     l.edit_lines = &[
         "Hexadezimalziffern und Doppelpunkte eingeben. Rücktaste löscht; Ctrl-U leert.",

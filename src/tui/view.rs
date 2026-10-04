@@ -1,4 +1,5 @@
-use super::state::App;
+use super::state::{choices, App, CATEGORIES};
+use crate::{i18n::Lang, settings};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -67,6 +68,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
     }
     let sections = Layout::vertical([
         Constraint::Length(7),
+        Constraint::Length(1),
         Constraint::Min(4),
         Constraint::Length(4),
         Constraint::Length(3),
@@ -134,14 +136,36 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         Paragraph::new(header).block(panel(t.app_title)),
         sections[0],
     );
-    let rows = crate::settings::KEYS
+    // Category tab bar: the active category is inverted so
+    // the settings below it are easy to attribute.
+    let tabs: Vec<Span> = t
+        .categories
         .iter()
         .enumerate()
-        .map(|(index, key)| {
+        .map(|(index, name)| {
+            let label = format!(" {name} ");
+            if index == app.tab {
+                Span::styled(
+                    label,
+                    Style::default()
+                        .fg(Color::Rgb(15, 20, 30))
+                        .bg(ACCENT)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                Span::styled(label, Style::default().fg(MUTED))
+            }
+        })
+        .collect();
+    frame.render_widget(Paragraph::new(Line::from(tabs)), sections[1]);
+    let visible = CATEGORIES[app.tab];
+    let rows = visible
+        .iter()
+        .map(|&index| {
             let actual = app
                 .info
                 .as_ref()
-                .and_then(|info| info.value(key))
+                .and_then(|info| info.value(settings::KEYS[index]))
                 .unwrap_or_else(|| t.unavailable.into());
             let proposal = app.proposals[index]
                 .as_ref()
@@ -153,7 +177,8 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             ]))
         })
         .collect::<Vec<_>>();
-    let mut list_state = ListState::default().with_selected(Some(app.selected));
+    let highlight = visible.iter().position(|&index| index == app.selected);
+    let mut list_state = ListState::default().with_selected(highlight);
     let title = if app.writes_blocked {
         t.settings_blocked
     } else if app.stale {
@@ -166,7 +191,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             .block(panel(title))
             .highlight_symbol("> ")
             .highlight_style(Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
-        sections[1],
+        sections[2],
         &mut list_state,
     );
     let status_title = if app.busy.is_some() {
@@ -178,7 +203,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         Paragraph::new(clean(&app.status))
             .block(panel(status_title))
             .wrap(Wrap { trim: true }),
-        sections[2],
+        sections[3],
     );
     let footer: Vec<Line> = t
         .footer
@@ -194,7 +219,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         .collect();
     frame.render_widget(
         Paragraph::new(footer).wrap(Wrap { trim: true }),
-        sections[3],
+        sections[4],
     );
     if app.log_open {
         let rect = centered(
@@ -222,12 +247,25 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             &mut state,
         );
     } else if app.help {
-        overlay_scrolled(
-            frame,
-            t.shortcuts_title,
-            t.shortcuts.iter().map(|s| (*s).into()).collect(),
-            app.help_scroll,
-        );
+        // Two-column table: an aligned key column and a
+        // description column, grouped by bold headings.
+        let mut lines: Vec<Line> = Vec::new();
+        for section in t.shortcuts {
+            lines.push(Line::styled(
+                section.title.to_string(),
+                Style::default()
+                    .fg(Color::Rgb(218, 226, 239))
+                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            ));
+            for (key, description) in section.items {
+                lines.push(Line::from(vec![
+                    Span::styled(format!(" {key:<12}"), Style::default().fg(ACCENT)),
+                    Span::raw(*description),
+                ]));
+            }
+            lines.push(Line::raw(""));
+        }
+        overlay_lines(frame, t.shortcuts_title, lines, app.help_scroll);
     } else if let Some(edit) = &app.address_edit {
         let mut lines = vec![clean(edit)];
         lines.extend(t.edit_lines.iter().map(|s| (*s).into()));
@@ -238,6 +276,75 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             t.model_title,
             t.model_lines.iter().map(|s| (*s).into()).collect(),
         );
+    } else if let Some(index) = app.picker {
+        // Value list: pick directly instead of stepping
+        // through values with Left/Right. The current
+        // device value is marked with *.
+        let values = choices(app.selected);
+        let current = app
+            .info
+            .as_ref()
+            .and_then(|info| info.value(settings::KEYS[app.selected]))
+            .unwrap_or_default();
+        let mut lines = vec![t.picker_hint.into()];
+        lines.extend(values.iter().enumerate().map(|(position, value)| {
+            let cursor = if position == index { "> " } else { "  " };
+            let mark = if *value == current { "*" } else { " " };
+            format!("{cursor}{value} {mark}")
+        }));
+        let rect = picker_rect(area, values.len());
+        frame.render_widget(Clear, rect);
+        frame.render_widget(
+            Paragraph::new(lines.into_iter().map(Line::from).collect::<Vec<_>>())
+                .block(panel(t.picker_title))
+                .wrap(Wrap { trim: false }),
+            rect,
+        );
+    } else if app.lang_picker {
+        // Language list: pick one directly instead of
+        // cycling; the active language is marked *.
+        let mut lines = vec![Line::from(t.options_pick_hint)];
+        lines.extend(Lang::ALL.iter().enumerate().map(|(position, lang)| {
+            let cursor = if position == app.lang_index {
+                "> "
+            } else {
+                "  "
+            };
+            let mark = if *lang == app.lang { "*" } else { " " };
+            Line::raw(format!("{cursor}{} {mark}", lang.name()))
+        }));
+        let rect = options_rect(area, 1 + Lang::ALL.len());
+        frame.render_widget(Clear, rect);
+        frame.render_widget(
+            Paragraph::new(lines).block(panel(t.options_pick_title)),
+            rect,
+        );
+    } else if app.options {
+        // App settings: language, channel, timeout and
+        // target. Channel and timeout apply to the next
+        // connection; every change is remembered.
+        let rows = [
+            (t.options_language, app.lang.name().to_string()),
+            (t.options_channel, app.channel.to_string()),
+            (t.options_timeout, format!("{} s", app.timeout_seconds)),
+            (t.options_target, clean(&app.address)),
+        ];
+        let mut lines = vec![Line::from(t.options_hint)];
+        lines.extend(rows.iter().enumerate().map(|(position, (label, value))| {
+            let cursor = if position == app.options_index {
+                "> "
+            } else {
+                "  "
+            };
+            Line::from(vec![
+                Span::raw(cursor),
+                Span::styled(format!(" {label:<16}"), Style::default().fg(MUTED)),
+                Span::raw(value),
+            ])
+        }));
+        let rect = options_rect(area, 1 + rows.len());
+        frame.render_widget(Clear, rect);
+        frame.render_widget(Paragraph::new(lines).block(panel(t.options_title)), rect);
     } else if let Some(devices) = &app.paired {
         let rect = centered(
             area,
@@ -292,25 +399,45 @@ fn centered(area: Rect, width: u16, height: u16) -> Rect {
         height,
     )
 }
-fn overlay(frame: &mut Frame<'_>, title: &str, lines: Vec<String>) {
-    overlay_scrolled(frame, title, lines, 0);
+/// Geometry of the value-list modal, shared with the mouse
+/// handler so a click maps to the same row that is drawn.
+pub(super) fn picker_rect(area: Rect, count: usize) -> Rect {
+    let width = area.width.saturating_sub(4).min(40);
+    let height = (count as u16 + 4).min(area.height.saturating_sub(2));
+    centered(area, width, height)
 }
-fn overlay_scrolled(frame: &mut Frame<'_>, title: &str, lines: Vec<String>, scroll: u16) {
+/// Geometry of the app-settings and language modals,
+/// shared with the mouse handler like `picker_rect`.
+pub(super) fn options_rect(area: Rect, lines: usize) -> Rect {
+    let width = area.width.saturating_sub(4).min(56);
+    let height = (lines as u16 + 3).min(area.height.saturating_sub(2));
+    centered(area, width, height)
+}
+fn line_width(line: &Line) -> usize {
+    line.spans
+        .iter()
+        .map(|span| span.content.chars().count())
+        .sum()
+}
+fn overlay_lines(frame: &mut Frame<'_>, title: &str, lines: Vec<Line>, scroll: u16) {
     let width = frame.area().width.saturating_sub(4).min(100);
     let inner_width = usize::from(width.saturating_sub(2)).max(1);
     let height = lines
         .iter()
-        .map(|line| line.chars().count().max(1).div_ceil(inner_width))
+        .map(|line| line_width(line).max(1).div_ceil(inner_width))
         .sum::<usize>()
         .saturating_add(2)
         .min(usize::from(frame.area().height.saturating_sub(2))) as u16;
     let rect = centered(frame.area(), width, height);
     frame.render_widget(Clear, rect);
     frame.render_widget(
-        Paragraph::new(lines.into_iter().map(Line::from).collect::<Vec<_>>())
+        Paragraph::new(lines)
             .block(panel(title))
             .scroll((scroll, 0))
             .wrap(Wrap { trim: true }),
         rect,
     );
+}
+fn overlay(frame: &mut Frame<'_>, title: &str, lines: Vec<String>) {
+    overlay_lines(frame, title, lines.into_iter().map(Line::from).collect(), 0);
 }
