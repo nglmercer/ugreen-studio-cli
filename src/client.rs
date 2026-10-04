@@ -1,5 +1,6 @@
 use crate::{
     i18n::Lang,
+    multipoint::{MultipointPeer, UnsupportedFeature},
     protocol::{self, Decoder, IncomingFrame, ResponseFrame},
     settings::{Setting, StudioProState},
 };
@@ -112,6 +113,25 @@ impl<T: Read + Write> Client<T> {
         self.io
             .write_all(&protocol::request(setting.instruction, &setting.payload)?)?;
         self.io.flush()
+    }
+    /// Multipoint peer list. Refused with [`UnsupportedFeature`] before
+    /// any frame is assembled: no Studio Pro capture has verified the
+    /// query, so nothing reaches the wire and the error is a refusal,
+    /// not a timeout. See `crate::multipoint`.
+    pub fn multipoint_peers(&mut self) -> io::Result<Vec<MultipointPeer>> {
+        Err(UnsupportedFeature::PeerList.into())
+    }
+    /// Refused before any write, like [`Self::multipoint_peers`].
+    pub fn peer_disconnect(&mut self, _peer: &MultipointPeer) -> io::Result<()> {
+        Err(UnsupportedFeature::PeerDisconnect.into())
+    }
+    /// Refused before any write, like [`Self::multipoint_peers`].
+    pub fn peer_reconnect(&mut self, _peer: &MultipointPeer) -> io::Result<()> {
+        Err(UnsupportedFeature::PeerReconnect.into())
+    }
+    /// Refused before any write, like [`Self::multipoint_peers`].
+    pub fn peer_switch(&mut self, _peer: &MultipointPeer) -> io::Result<()> {
+        Err(UnsupportedFeature::PeerSwitch.into())
     }
     pub fn into_inner(self) -> T {
         self.io
@@ -272,5 +292,26 @@ mod tests {
             Duration::from_secs(1),
         );
         assert!(c.set(&Setting::parse("spatial", "on").unwrap()).is_ok());
+    }
+
+    #[test]
+    fn peer_operations_are_refused_before_any_byte_leaves() {
+        let mut c = Client::new(Mock::default(), Duration::from_secs(1));
+        let peer = MultipointPeer {
+            address: crate::bluetooth::BluetoothAddress::parse("11:22:33:44:55:66").unwrap(),
+            connected: true,
+        };
+        for result in [
+            c.multipoint_peers().map(|_| ()),
+            c.peer_disconnect(&peer),
+            c.peer_reconnect(&peer),
+            c.peer_switch(&peer),
+        ] {
+            let error = result.expect_err("unverified peer operations must refuse");
+            assert_eq!(error.kind(), io::ErrorKind::Unsupported, "{error}");
+            assert!(error.to_string().contains("not verified"), "{error}");
+        }
+        // Nothing was written, so nothing needs a reply either.
+        assert!(c.into_inner().written.is_empty());
     }
 }

@@ -8,11 +8,13 @@
 
 pub mod crc;
 pub mod decoder;
+pub mod monitor;
 pub mod notification;
 pub mod response;
 
 pub use crc::{crc_ccitt, crc_modbus};
 pub use decoder::{Decoder, DecoderStats, IncomingFrame, UnknownFrame};
+pub use monitor::{shared_monitor, Direction, Monitor, MonitorEvent, Monitored, SharedMonitor};
 pub use notification::{
     HeadsetEvent, NotificationFrame, NOTIFICATION_FRAME_LEN, NOTIFICATION_MAGIC,
 };
