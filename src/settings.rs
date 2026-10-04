@@ -1,5 +1,5 @@
 //! Model-specific settings. These instruction IDs must NOT be used for HiTune Max5c.
-use crate::protocol;
+use crate::{i18n::Lang, protocol};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Setting {
@@ -29,25 +29,29 @@ const ANC: [(&str, u8); 6] = [
 pub const HELP: &str = "anc: off|ultra|general|gentle|adaptive|ambient\neq: classic|jazz|electronic|pop|classical|rock|bass|treble\ngame, spatial, dual, wind: on|off\nprompts: voice|beeps\nvolume-up-action, volume-down-action: none|next|previous";
 impl Setting {
     pub fn parse(key: &str, value: &str) -> Result<Self, String> {
+        Self::parse_in(Lang::En, key, value)
+    }
+    pub fn parse_in(lang: Lang, key: &str, value: &str) -> Result<Self, String> {
+        let t = crate::i18n::txt(lang);
         let (instruction, byte) = match key {
             "anc" => (
                 9,
                 ANC.iter()
                     .find(|(name, _)| *name == value)
                     .map(|(_, b)| *b)
-                    .ok_or("invalid ANC value")?,
+                    .ok_or(t.set_bad_anc)?,
             ),
             "eq" => (
                 5,
                 EQ.iter()
                     .position(|name| *name == value)
-                    .ok_or("invalid EQ value")? as u8,
+                    .ok_or(t.set_bad_eq)? as u8,
             ),
             "game" | "spatial" | "dual" | "wind" => {
                 let byte = match value {
                     "on" => 1,
                     "off" => 0,
-                    _ => return Err("expected on or off".into()),
+                    _ => return Err(t.set_bad_onoff.into()),
                 };
                 (
                     match key {
@@ -64,7 +68,7 @@ impl Setting {
                 match value {
                     "voice" => 0,
                     "beeps" => 2,
-                    _ => return Err("expected voice or beeps".into()),
+                    _ => return Err(t.set_bad_prompts.into()),
                 },
             ),
             "volume-up-action" | "volume-down-action" => (
@@ -73,10 +77,10 @@ impl Setting {
                     "none" => 0,
                     "next" => 4,
                     "previous" => 5,
-                    _ => return Err("expected none, next or previous".into()),
+                    _ => return Err(t.set_bad_button.into()),
                 },
             ),
-            _ => return Err(format!("unknown setting '{key}'\n{HELP}")),
+            _ => return Err(t.set_unknown.replacen("{}", key, 1).replacen("{}", HELP, 1)),
         };
         Ok(Self {
             key: key.into(),
@@ -87,6 +91,9 @@ impl Setting {
     }
     pub fn packet(&self) -> Vec<u8> {
         protocol::request(self.instruction, &self.payload).expect("known setting payload fits")
+    }
+    pub fn expects_ack(&self) -> bool {
+        self.instruction != 18
     }
     pub fn matches(&self, info: &DeviceInfo) -> bool {
         let idx = match self.key.as_str() {
@@ -188,8 +195,12 @@ pub const KEYS: [&str; 9] = [
 
 /// Read a bounded, simple profile; reject duplicates, wrong models and unknown commands before any write.
 pub fn parse_profile(text: &str) -> Result<Vec<Setting>, String> {
+    parse_profile_in(Lang::En, text)
+}
+pub fn parse_profile_in(lang: Lang, text: &str) -> Result<Vec<Setting>, String> {
+    let t = crate::i18n::txt(lang);
     if text.len() > 16_384 {
-        return Err("profile exceeds 16 KiB".into());
+        return Err(t.profile_big.into());
     }
     let mut settings = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -201,25 +212,25 @@ pub fn parse_profile(text: &str) -> Result<Vec<Setting>, String> {
         }
         let (key, value) = line
             .split_once('=')
-            .ok_or_else(|| format!("profile line {} must be key=value", i + 1))?;
+            .ok_or_else(|| t.profile_line.replacen("{}", &format!("{}", i + 1), 1))?;
         let (key, value) = (key.trim(), value.trim());
         if !seen.insert(key) {
-            return Err(format!("duplicate profile key '{key}'"));
+            return Err(t.profile_dup.replacen("{}", key, 1));
         }
         if key == "model" {
             if value != "studio-pro" {
-                return Err("profile model must be studio-pro".into());
+                return Err(t.profile_model.into());
             }
             model = true;
         } else {
-            settings.push(Setting::parse(key, value)?);
+            settings.push(Setting::parse_in(lang, key, value)?);
         }
     }
     if !model {
-        return Err("profile requires model=studio-pro".into());
+        return Err(t.profile_need_model.into());
     }
     if settings.is_empty() {
-        return Err("profile has no settings".into());
+        return Err(t.profile_empty.into());
     }
     Ok(settings)
 }

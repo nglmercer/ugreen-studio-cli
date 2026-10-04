@@ -1,5 +1,6 @@
 //! Unofficial Studio Pro protocol. No hardware access occurs until explicitly requested.
 pub mod client;
+pub mod i18n;
 pub mod protocol;
 pub mod settings;
 pub mod transport;

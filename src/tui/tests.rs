@@ -350,7 +350,7 @@ fn default_render_truthfully_shows_missing_data() {
     assert!(text.contains("DISCONNECTED"));
     assert!(text.contains("Battery: unavailable"));
     assert!(text.contains("Codec: unavailable"));
-    assert!(text.contains("hardware unverified"));
+    assert!(text.contains("fw 0.2.5 checked"));
 }
 #[test]
 fn connected_render_only_shows_deviceinfo_battery() {
@@ -381,7 +381,7 @@ fn rendering_handles_all_small_dimensions_and_resize() {
 fn every_modal_renders_and_quit_warning_has_priority() {
     let mut app = ready();
     app.help = true;
-    assert!(render(&app, 100, 32).contains("Help / Up Down"));
+    assert!(render(&app, 100, 32).contains("Shortcuts"));
     app.help = false;
     app.address_edit = Some("AA:BB".into());
     assert!(render(&app, 80, 24).contains("Edit target"));
@@ -393,6 +393,114 @@ fn every_modal_renders_and_quit_warning_has_priority() {
     assert!(render(&app, 80, 24).contains("Confirm one setting"));
     app.quit_confirmation = true;
     assert!(render(&app, 80, 24).contains("Quit while work"));
+}
+#[test]
+fn language_toggle_rewrites_status_and_render() {
+    let mut app = App::new(&Config::default());
+    assert!(app.status.contains("No Bluetooth access"));
+    app.key(key(KeyCode::Char('L')));
+    assert!(app.status.contains("español"));
+    assert!(render(&app, 100, 30).contains("DESCONECTADO"));
+    assert!(render(&app, 100, 30).contains("Destino:"));
+    app.key(key(KeyCode::Char('L')));
+    assert!(app.status.contains("English"));
+    assert!(render(&app, 100, 30).contains("DISCONNECTED"));
+}
+#[test]
+fn spanish_render_shows_translated_panels() {
+    let mut cfg = config();
+    cfg.lang = crate::i18n::Lang::Es;
+    let app = App::new(&cfg);
+    let text = render(&app, 100, 30);
+    assert!(text.contains("Batería:"));
+    assert!(text.contains("Ajustes"));
+    assert!(text.contains("Estado"));
+}
+#[test]
+fn footer_and_shortcuts_screen_list_new_bindings() {
+    let app = App::new(&Config::default());
+    let text = render(&app, 110, 30);
+    assert!(text.contains("shortcuts"));
+    assert!(text.contains("language"));
+    let mut app = ready();
+    app.help = true;
+    let help = render(&app, 110, 40);
+    assert!(help.contains("Mouse"));
+    assert!(help.contains("Click"));
+    assert!(help.contains("L "));
+}
+#[test]
+fn mouse_click_selects_setting_and_second_click_proposes() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let mut app = ready();
+    let click = |row| MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 5,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    assert!(matches!(app.mouse(click(9), 110, 30), Intent::None));
+    assert_eq!(app.selected, 2);
+    let intent = app.mouse(click(9), 110, 30);
+    assert!(matches!(intent, Intent::None));
+    assert_eq!(app.proposals[2].as_deref(), Some("on"));
+}
+#[test]
+fn mouse_wheel_scrolls_and_right_click_cancels() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let mut app = ready();
+    let wheel = |down: bool| MouseEvent {
+        kind: if down {
+            MouseEventKind::ScrollDown
+        } else {
+            MouseEventKind::ScrollUp
+        },
+        column: 5,
+        row: 10,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.mouse(wheel(true), 110, 30);
+    assert_eq!(app.selected, 1);
+    app.mouse(wheel(false), 110, 30);
+    assert_eq!(app.selected, 0);
+    app.key(key(KeyCode::Char('l')));
+    assert!(app.log_open);
+    let right = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Right),
+        column: 5,
+        row: 10,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.mouse(right, 110, 30);
+    assert!(!app.log_open);
+}
+#[test]
+fn mouse_footer_shortcuts_dispatch() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let mut app = ready();
+    let click = |col: u16| MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: col,
+        row: 29,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.mouse(click(2), 120, 30);
+    assert!(app.log_open);
+}
+#[test]
+fn autoload_flag_defaults_skip_for_tests() {
+    let app = App::new(&Config::default());
+    assert!(app.config_skip_autoload());
+}
+#[test]
+fn quit_through_paired_load_needs_no_confirmation() {
+    let mut app = App::new(&Config::default());
+    app.accepted(1, Action::Paired);
+    assert!(matches!(app.key(key(KeyCode::Char('q'))), Intent::Quit));
+    let mut app = ready();
+    app.accepted(2, Action::Refresh);
+    assert!(matches!(app.key(key(KeyCode::Char('q'))), Intent::Cancel));
+    assert!(app.quit_confirmation);
 }
 #[test]
 fn untrusted_names_and_errors_cannot_inject_terminal_control_sequences() {

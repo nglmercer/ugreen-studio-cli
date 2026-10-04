@@ -3,6 +3,7 @@
 use super::Config;
 use crate::{
     client::Client,
+    i18n::{Lang, L},
     settings::{DeviceInfo, Setting},
     transport::{self, Device},
 };
@@ -29,8 +30,12 @@ impl Session for Client<transport::Connection> {
         Client::firmware(self)
     }
     fn acknowledge(&mut self, setting: &Setting) -> io::Result<()> {
-        self.request(setting.instruction, &setting.payload)
-            .map(|_| ())
+        if setting.expects_ack() {
+            self.request(setting.instruction, &setting.payload)
+                .map(|_| ())
+        } else {
+            self.send(setting)
+        }
     }
 }
 pub(super) trait Backend: Send + 'static {
@@ -111,32 +116,42 @@ impl<B: Backend> Engine<B> {
     fn cancelled(&self, request: &Request) -> bool {
         request.cancelled.load(Ordering::SeqCst) || self.shutdown.load(Ordering::SeqCst)
     }
+    fn t(&self) -> &'static L {
+        crate::i18n::txt(self.config.lang)
+    }
     fn check(&self, request: &Request) -> Result<(), String> {
         if self.cancelled(request) {
             Err(if self.uncertain {
-                "Cancelled later stages. An in-flight write may have completed; explicitly refresh before another write."
-            } else { "Cancelled; no further stages will start." }.into())
+                self.t().err_cancel_uncertain.into()
+            } else {
+                self.t().err_cancel.into()
+            })
         } else {
             Ok(())
         }
     }
     fn session(&mut self) -> Result<&mut Box<dyn Session>, String> {
+        let lang = self.config.lang;
         self.session
             .as_mut()
-            .ok_or_else(|| "Disconnected; connect first.".into())
+            .ok_or_else(|| crate::i18n::txt(lang).err_gone.into())
     }
     fn snapshot(&mut self, request: &Request) -> Result<Snapshot, String> {
         self.check(request)?;
         let info = self
             .session()?
             .info()
-            .map_err(|e| format!("Status query failed: {e}"))?;
+            .map_err(|e| self.t().err_status_query.replacen("{}", &e.to_string(), 1))?;
         self.check(request)?;
         let (firmware, note) = match self.session()?.firmware() {
             Ok(value) => (Some(value), None),
             Err(e) => (
                 None,
-                Some(format!("Settings read; firmware unavailable: {e}")),
+                Some(
+                    self.t()
+                        .status_firmware_note
+                        .replacen("{}", &e.to_string(), 1),
+                ),
             ),
         };
         self.check(request)?;
@@ -156,13 +171,14 @@ impl<B: Backend> Engine<B> {
         }
     }
     fn execute_inner(&mut self, request: &Request) -> Result<Output, String> {
+        let t = self.t();
         self.check(request)?;
         match &request.action {
             Action::Paired => {
                 let devices = self
                     .backend
                     .paired()
-                    .map_err(|e| format!("Cached paired-device list failed: {e}"))?;
+                    .map_err(|e| t.err_paired_list.replacen("{}", &e.to_string(), 1))?;
                 self.check(request)?;
                 Ok(Output::Paired(devices))
             }
@@ -171,16 +187,16 @@ impl<B: Backend> Engine<B> {
                 model_confirmed,
             } => {
                 if !model_confirmed {
-                    return Err("Confirm Studio Pro HP206 protocol before connecting.".into());
+                    return Err(t.err_need_model.into());
                 }
                 if self.session.is_some() {
-                    return Err("Disconnect before connecting another target.".into());
+                    return Err(t.err_connected_already.into());
                 }
-                validate_address(address)?;
+                validate_address_in(self.config.lang, address)?;
                 let session = self
                     .backend
                     .connect(&self.config, address)
-                    .map_err(|e| format!("Connection failed: {e}"))?;
+                    .map_err(|e| t.err_connect.replacen("{}", &e.to_string(), 1))?;
                 self.check(request)?;
                 self.session = Some(session);
                 match self.snapshot(request) {
@@ -203,33 +219,43 @@ impl<B: Backend> Engine<B> {
             }
             Action::Set(setting) => {
                 if self.uncertain {
-                    return Err(
-                        "Writes blocked after an uncertain operation. Explicitly refresh first."
-                            .into(),
-                    );
+                    return Err(t.err_uncertain_blocked.into());
                 }
                 self.check(request)?;
                 let before = self
                     .session()?
                     .info()
-                    .map_err(|e| format!("Preflight status failed; no setting sent: {e}"))?;
+                    .map_err(|e| t.err_preflight.replacen("{}", &e.to_string(), 1))?;
                 self.check(request)?;
                 if before.value(&setting.key).is_none() {
-                    return Err(format!(
-                        "Preflight cannot read {}; no setting sent.",
-                        setting.key
-                    ));
+                    return Err(t.err_preflight_unreadable.replacen("{}", &setting.key, 1));
                 }
                 // Includes the unavoidable check-to-I/O race: once we pass this
                 // barrier cancellation may not stop the already-starting write.
                 self.check(request)?;
                 self.uncertain = true;
-                self.session()?.acknowledge(setting).map_err(|e| format!("Setting may have been sent; acknowledgement failed: {e}. Explicitly refresh before another write."))?;
+                let noack = !setting.expects_ack();
+                self.session()?
+                    .acknowledge(setting)
+                    .map_err(|e| t.err_ack.replacen("{}", &e.to_string(), 1))?;
                 self.check(request)?;
-                let info = self.session()?.info().map_err(|e| format!("Write acknowledged but readback failed: {e}. Explicitly refresh before another write."))?;
+                let info = self.session()?.info().map_err(|e| {
+                    if noack {
+                        t.err_readback_noack
+                    } else {
+                        t.err_readback
+                    }
+                    .replacen("{}", &e.to_string(), 1)
+                })?;
                 self.check(request)?;
                 if !setting.matches(&info) {
-                    return Err(format!("Write acknowledged but {} did not match {}. Explicitly refresh before another write.", setting.key, setting.value));
+                    return Err(if noack {
+                        t.err_mismatch_noack
+                    } else {
+                        t.err_mismatch
+                    }
+                    .replacen("{}", &setting.key, 1)
+                    .replacen("{}", &setting.value, 1));
                 }
                 self.uncertain = false;
                 Ok(Output::Verified {
@@ -241,6 +267,13 @@ impl<B: Backend> Engine<B> {
     }
 }
 pub(super) fn validate_address(address: &str) -> Result<(), String> {
+    check_address(address, Lang::En)
+}
+pub(super) fn validate_address_in(lang: Lang, address: &str) -> Result<(), String> {
+    check_address(address, lang)
+}
+fn check_address(address: &str, lang: Lang) -> Result<(), String> {
+    let t = crate::i18n::txt(lang);
     let parts: Vec<_> = address.split(':').collect();
     if parts.len() == 6
         && parts
@@ -249,7 +282,7 @@ pub(super) fn validate_address(address: &str) -> Result<(), String> {
     {
         Ok(())
     } else {
-        Err("Enter six colon-separated hexadecimal octets, e.g. AA:BB:CC:DD:EE:FF.".into())
+        Err(t.status_bad_address.into())
     }
 }
 

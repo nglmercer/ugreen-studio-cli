@@ -6,12 +6,11 @@ use std::{
 };
 use ugreen_cli::{
     client::Client,
+    i18n::{Lang, L},
     protocol,
     settings::{self, Setting},
     transport,
 };
-
-const HELP:&str = "ugreen 0.1.0 — unofficial UGREEN Studio Pro Bluetooth CLI\n\nUSAGE\n  ugreen [OPTIONS] COMMAND\n\nOFFLINE COMMANDS\n  help                          Show this help\n  tui                           Open the optional interactive terminal UI\n  models                        Show protocol compatibility and limits\n  commands                      List supported settings\n  decode HEX                    Validate/decode captured response bytes offline\n  profile example               Print an example settings profile\n\nBLUETOOTH COMMANDS (pair in OS settings first)\n  discover                      List cached paired devices; no radio scan\n  status                        Read battery, firmware and settings\n  set KEY VALUE                 Change one setting, then verify readback\n  profile export                Read settings and print a reusable profile\n  profile apply FILE            Validate profile, apply and verify each setting\n\nOPTIONS (before COMMAND)\n  --address XX:XX:XX:XX:XX:XX    Explicit target Bluetooth address\n  --model studio-pro            Required for hardware requests; never auto-detected\n  --channel 1                   RFCOMM channel, 1–30 (default 1)\n  --timeout 3                   Per-operation timeout in seconds, 1–60\n  --dry-run                     Print setting packets without Bluetooth access\n  --help, -h                    Show help\n  --version, -V                 Show version\n\nEXAMPLES\n  ugreen discover\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status\n  ugreen --dry-run set anc ultra\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro set eq bass\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro profile export > my-profile.conf\n  ugreen --dry-run profile apply my-profile.conf\n\nHardware compatibility is unverified here. Studio Pro HP206 protocol only;\nHiTune Max5c uses conflicting command IDs. No firmware, reset, raw-write or\nfind-headphones actions are provided. Profiles may apply partially on failure.\n";
 
 #[derive(Debug)]
 struct Options {
@@ -20,7 +19,25 @@ struct Options {
     channel: u8,
     timeout: Duration,
     dry_run: bool,
+    lang: Option<Lang>,
     command: Vec<String>,
+}
+fn lang_of(o: &Options) -> Lang {
+    o.lang.unwrap_or_else(Lang::detect)
+}
+fn txt_of(o: &Options) -> &'static L {
+    ugreen_cli::i18n::txt(lang_of(o))
+}
+fn fill(template: &str, args: &[&dyn std::fmt::Display]) -> String {
+    let mut out = template.to_owned();
+    for arg in args {
+        if let Some(pos) = out.find("{}") {
+            out.replace_range(pos..pos + 2, &arg.to_string());
+        } else {
+            break;
+        }
+    }
+    out
 }
 fn parse(args: Vec<String>) -> Result<Options, String> {
     let mut o = Options {
@@ -29,33 +46,72 @@ fn parse(args: Vec<String>) -> Result<Options, String> {
         channel: 1,
         timeout: Duration::from_secs(3),
         dry_run: false,
+        lang: None,
         command: Vec::new(),
     };
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--address" => o.address = Some(args.next().ok_or("--address requires a value")?),
-            "--model" => o.model = Some(args.next().ok_or("--model requires a value")?),
+            "--address" => {
+                o.address = Some(args.next().ok_or(
+                    ugreen_cli::i18n::txt(lang_of(&o)).cli_need_value.replacen(
+                        "{}",
+                        "--address",
+                        1,
+                    ),
+                )?)
+            }
+            "--model" => {
+                o.model = Some(
+                    args.next().ok_or(
+                        ugreen_cli::i18n::txt(lang_of(&o))
+                            .cli_need_value
+                            .replacen("{}", "--model", 1),
+                    )?,
+                )
+            }
             "--channel" => {
-                o.channel = args
-                    .next()
-                    .ok_or("--channel requires a value")?
-                    .parse()
-                    .map_err(|_| "invalid channel")?;
+                let raw = args.next().ok_or(
+                    ugreen_cli::i18n::txt(lang_of(&o)).cli_need_value.replacen(
+                        "{}",
+                        "--channel",
+                        1,
+                    ),
+                )?;
+                o.channel = raw.parse().map_err(|_| {
+                    ugreen_cli::i18n::txt(lang_of(&o))
+                        .cli_bad_channel
+                        .to_string()
+                })?;
                 if !(1..=30).contains(&o.channel) {
-                    return Err("channel must be 1–30".into());
+                    return Err(ugreen_cli::i18n::txt(lang_of(&o)).cli_bad_channel.into());
                 }
             }
             "--timeout" => {
-                let n: u64 = args
-                    .next()
-                    .ok_or("--timeout requires a value")?
-                    .parse()
-                    .map_err(|_| "invalid timeout")?;
+                let raw = args.next().ok_or(
+                    ugreen_cli::i18n::txt(lang_of(&o)).cli_need_value.replacen(
+                        "{}",
+                        "--timeout",
+                        1,
+                    ),
+                )?;
+                let n: u64 = raw.parse().map_err(|_| {
+                    ugreen_cli::i18n::txt(lang_of(&o))
+                        .cli_bad_timeout
+                        .to_string()
+                })?;
                 if !(1..=60).contains(&n) {
-                    return Err("timeout must be 1–60 seconds".into());
+                    return Err(ugreen_cli::i18n::txt(lang_of(&o)).cli_bad_timeout.into());
                 }
                 o.timeout = Duration::from_secs(n);
+            }
+            "--lang" => {
+                let raw = args.next().ok_or(
+                    ugreen_cli::i18n::txt(lang_of(&o))
+                        .cli_need_value
+                        .replacen("{}", "--lang", 1),
+                )?;
+                o.lang = Some(Lang::from_code(&raw)?);
             }
             "--dry-run" => o.dry_run = true,
             "--help" | "-h" => {
@@ -66,7 +122,11 @@ fn parse(args: Vec<String>) -> Result<Options, String> {
                 o.command = vec!["version".into()];
                 return Ok(o);
             }
-            _ if arg.starts_with('-') => return Err(format!("unknown option '{arg}'")),
+            _ if arg.starts_with('-') => {
+                return Err(ugreen_cli::i18n::txt(lang_of(&o))
+                    .cli_bad_option
+                    .replacen("{}", &arg, 1))
+            }
             _ => {
                 o.command.push(arg);
                 o.command.extend(args);
@@ -82,25 +142,20 @@ fn parse(args: Vec<String>) -> Result<Options, String> {
             .push(if interactive { "tui" } else { "help" }.into());
     }
     if o.model.as_deref().is_some_and(|m| m != "studio-pro") {
-        return Err("only --model studio-pro is implemented; Max5c IDs are incompatible".into());
+        return Err(txt_of(&o).cli_bad_model.into());
     }
     Ok(o)
 }
 fn connect(o: &Options) -> Result<Client<transport::Connection>, String> {
+    let t = txt_of(o);
     if o.model.as_deref() != Some("studio-pro") {
-        return Err(
-            "pass --model studio-pro to explicitly select this model-specific protocol".into(),
-        );
+        return Err(t.cli_need_model.into());
     }
-    let address = o
-        .address
-        .as_deref()
-        .ok_or("--address is required; use discover to list paired devices")?;
-    eprintln!(
-        "Using experimental Studio Pro HP206 protocol at {address}, RFCOMM channel {}",
-        o.channel
-    );
-    transport::Connection::connect(address,o.channel,o.timeout).map(|io|Client::new(io,o.timeout)).map_err(|e|format!("Bluetooth connection failed: {e}. Check pairing, power, adapter support, and whether another app owns the control channel"))
+    let address = o.address.as_deref().ok_or(t.cli_need_address)?;
+    eprintln!("{}", fill(t.cli_banner, &[&address, &o.channel]));
+    transport::Connection::connect(address, o.channel, o.timeout)
+        .map(|io| Client::new(io, o.timeout))
+        .map_err(|e| fill(t.cli_connect_fail, &[&e.to_string()]))
 }
 fn exact(args: &[String], count: usize, usage: &str) -> Result<(), String> {
     if args.len() == count {
@@ -120,48 +175,58 @@ fn read_profile(path: &str) -> Result<String, String> {
     }
     Ok(text)
 }
-fn apply(o: &Options, settings: &[Setting]) -> Result<(), String> {
+fn apply(o: &Options, settings_list: &[Setting]) -> Result<(), String> {
+    let t = txt_of(o);
     if o.dry_run {
-        for s in settings {
+        for s in settings_list {
             println!("{}={}  {}", s.key, s.value, protocol::hex(&s.packet()));
         }
-        println!("Dry run: no Bluetooth connection or device writes");
+        println!("{}", t.cli_dry_run_writes);
         return Ok(());
     }
     let mut c = connect(o)?;
     // Initial query must be understood before the first setting write.
     c.info()
-        .map_err(|e| format!("preflight status failed; no settings sent: {e}"))?;
-    for (i, s) in settings.iter().enumerate() {
-        c.set(s).map_err(|e|format!("{} of {} settings verified before failure at {}={}: {e}. Earlier settings are not rolled back",i,settings.len(),s.key,s.value))?;
-        println!("Verified {}={}", s.key, s.value);
+        .map_err(|e| fill(t.cli_preflight_fail, &[&e.to_string()]))?;
+    for (i, s) in settings_list.iter().enumerate() {
+        c.set(s).map_err(|e| {
+            fill(
+                t.cli_apply_fail,
+                &[&i, &settings_list.len(), &s.key, &s.value, &e.to_string()],
+            )
+        })?;
+        println!("{}", fill(t.cli_verified, &[&s.key, &s.value]));
     }
     Ok(())
 }
 fn run(o: Options) -> Result<(), String> {
+    let t = txt_of(&o);
     let args = &o.command;
     match args[0].as_str() {
         "tui" => {
             exact(args, 1, "ugreen [OPTIONS] tui")?;
             if o.dry_run {
-                return Err("tui cannot be combined with --dry-run; use --dry-run set KEY VALUE for offline packets".into());
+                return Err(t.cli_tui_dry.into());
             }
             #[cfg(feature = "tui")]
             {
+                let lang = lang_of(&o);
                 ugreen_cli::tui::run(ugreen_cli::tui::Config {
                     address: o.address,
                     model_confirmed: o.model.as_deref() == Some("studio-pro"),
                     channel: o.channel,
                     timeout: o.timeout,
+                    lang,
+                    skip_autoload: false,
                 })
                 .map_err(|e| e.to_string())?;
             }
             #[cfg(not(feature = "tui"))]
-            return Err("TUI feature is disabled in this CLI-only build; rebuild without --no-default-features".into());
+            return Err(t.cli_no_tui_feature.into());
         }
         "help" => {
             exact(args, 1, "ugreen help")?;
-            print!("{HELP}");
+            print!("{}", t.cli_help);
         }
         "version" => {
             exact(args, 1, "ugreen --version")?;
@@ -169,11 +234,11 @@ fn run(o: Options) -> Result<(), String> {
         }
         "models" => {
             exact(args, 1, "ugreen models")?;
-            println!("studio-pro: protocol based on UGREEN Studio Pro HP206 reference code and capture\nHardware test status: NOT VERIFIED on this build\nHiTune Max5c: NOT SUPPORTED (conflicting command IDs)\nOther UGREEN models/retail variants: NOT VERIFIED");
+            println!("{}", t.cli_models);
         }
         "commands" => {
             exact(args, 1, "ugreen commands")?;
-            println!("{}", settings::HELP);
+            println!("{}", t.cli_commands);
         }
         "decode" => {
             exact(args, 2, "ugreen decode 'DD EE FF ...'")?;
@@ -193,18 +258,26 @@ fn run(o: Options) -> Result<(), String> {
                 || decoder.rejected_checksums != 0
                 || decoder.discarded_bytes != 0
             {
-                return Err(format!("capture is not a clean complete response stream: {} frames, {} rejected CRCs, {} discarded bytes, {} pending bytes",frames.len(),decoder.rejected_checksums,decoder.discarded_bytes,decoder.pending_bytes()));
+                return Err(fill(
+                    t.cli_bad_decode,
+                    &[
+                        &frames.len(),
+                        &decoder.rejected_checksums,
+                        &decoder.discarded_bytes,
+                        &decoder.pending_bytes(),
+                    ],
+                ));
             }
         }
         "discover" => {
             exact(args, 1, "ugreen discover")?;
             if o.dry_run {
-                return Err("discover cannot be combined with --dry-run".into());
+                return Err(t.cli_tui_dry.into());
             }
-            let devices = transport::list_paired()
-                .map_err(|e| format!("paired-device listing failed: {e}"))?;
+            let devices =
+                transport::list_paired().map_err(|e| fill(t.cli_paired_fail, &[&e.to_string()]))?;
             if devices.is_empty() {
-                println!("No paired devices returned. Pair the headphones in OS Bluetooth settings first.");
+                println!("{}", t.cli_no_paired);
             }
             for d in devices {
                 println!("{}  {}", d.address, terminal_text(&d.name));
@@ -219,25 +292,28 @@ fn run(o: Options) -> Result<(), String> {
             }
             let mut c = connect(&o)?;
             let info = c.info().map_err(|e| format!("status failed: {e}"))?;
-            println!("model=studio-pro (user-selected; not device identity verification)");
+            println!("{}", t.cli_model_note);
             println!(
                 "battery={}",
                 info.battery()
                     .map(|v| format!("{v}%"))
-                    .unwrap_or("unknown".into())
+                    .unwrap_or(t.cli_unknown_value.into())
             );
             for key in settings::KEYS {
-                println!("{key}={}", info.value(key).unwrap_or("unknown".into()));
+                println!(
+                    "{key}={}",
+                    info.value(key).unwrap_or(t.cli_unknown_value.into())
+                );
             }
             let fw = c
                 .firmware()
-                .map_err(|e| format!("settings read, but firmware query failed: {e}"))?;
+                .map_err(|e| fill(t.cli_firmware_fail, &[&e.to_string()]))?;
             println!("firmware={fw}");
             println!("raw_device_info={}", protocol::hex(&info.raw));
         }
         "set" => {
             exact(args, 3, "ugreen [OPTIONS] set KEY VALUE")?;
-            apply(&o, &[Setting::parse(&args[1], &args[2])?])?;
+            apply(&o, &[Setting::parse_in(lang_of(&o), &args[1], &args[2])?])?;
         }
         "profile" => {
             match args.get(1).map(String::as_str) {
@@ -255,13 +331,19 @@ fn run(o: Options) -> Result<(), String> {
                 }
                 Some("apply") => {
                     exact(args, 3, "ugreen [OPTIONS] profile apply FILE")?;
-                    let settings = settings::parse_profile(&read_profile(&args[2])?)?;
-                    apply(&o, &settings)?;
+                    let settings_list =
+                        settings::parse_profile_in(lang_of(&o), &read_profile(&args[2])?)?;
+                    apply(&o, &settings_list)?;
                 }
-                _ => return Err("usage: ugreen profile example|export|apply FILE".into()),
+                _ => {
+                    return Err(fill(
+                        t.cli_bad_usage,
+                        &[&"ugreen profile example|export|apply FILE"],
+                    ))
+                }
             }
         }
-        _ => return Err(format!("unknown command '{}'; run ugreen --help", args[0])),
+        _ => return Err(fill(t.cli_unknown_command, &[&args[0]])),
     }
     Ok(())
 }
@@ -300,6 +382,8 @@ mod tests {
             "--model max5c status",
             "--wat status",
             "--address",
+            "--lang fr status",
+            "--lang status",
         ] {
             assert!(parse(args(input)).is_err(), "{input}");
         }
@@ -319,5 +403,15 @@ mod tests {
     #[test]
     fn dry_run_needs_no_device() {
         assert!(run(parse(args("--dry-run set anc ultra")).unwrap()).is_ok());
+    }
+    #[test]
+    fn lang_flag_and_locale_detection() {
+        let o = parse(args("--lang es status")).unwrap();
+        assert_eq!(lang_of(&o), Lang::Es);
+        assert!(txt_of(&o).cli_help.contains("USO"));
+        let o = parse(args("--lang en status")).unwrap();
+        assert_eq!(lang_of(&o), Lang::En);
+        assert!(txt_of(&o).cli_help.contains("USAGE"));
+        assert_eq!(Lang::from_code("en").unwrap(), Lang::En);
     }
 }

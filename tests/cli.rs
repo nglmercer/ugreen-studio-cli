@@ -2,6 +2,14 @@ use std::process::Command;
 fn run(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_ugreen"))
         .args(args)
+        .env("UGREEN_LANG", "en")
+        .output()
+        .unwrap()
+}
+fn run_lang(lang: &str, args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_ugreen"))
+        .args(args)
+        .env("UGREEN_LANG", lang)
         .output()
         .unwrap()
 }
@@ -10,6 +18,19 @@ fn help_is_offline() {
     let o = run(&["--help"]);
     assert!(o.status.success());
     assert!(String::from_utf8_lossy(&o.stdout).contains("Studio Pro"));
+}
+#[test]
+fn help_in_spanish() {
+    let o = run_lang("es", &["--help"]);
+    assert!(o.status.success());
+    assert!(String::from_utf8_lossy(&o.stdout).contains("USO"));
+    assert!(!String::from_utf8_lossy(&o.stdout).contains("USAGE"));
+}
+#[test]
+fn lang_flag_beats_environment() {
+    let o = run_lang("es", &["--lang", "en", "--help"]);
+    assert!(o.status.success());
+    assert!(String::from_utf8_lossy(&o.stdout).contains("USAGE"));
 }
 #[test]
 fn dry_run_packet() {
@@ -22,6 +43,12 @@ fn unknown_setting_fails_before_connect() {
     let o = run(&["set", "firmware", "update"]);
     assert!(!o.status.success());
     assert!(String::from_utf8_lossy(&o.stderr).contains("unknown setting"));
+}
+#[test]
+fn unknown_setting_error_in_spanish() {
+    let o = run_lang("es", &["set", "firmware", "update"]);
+    assert!(!o.status.success());
+    assert!(String::from_utf8_lossy(&o.stderr).contains("desconocido"));
 }
 #[test]
 fn model_required_before_hardware() {

@@ -33,7 +33,11 @@ The model flag selects a protocol. It is not a hardware model check. The applica
 | CLI-only build, no arguments | Show help |
 | CLI-only build, `ugreen tui` | Report that the TUI feature is unavailable |
 
-The TUI cannot be used with redirected stdin/stdout. Use explicit CLI commands for scripts and pipelines. Starting it does not scan, list devices, connect, or write settings automatically. The interface needs at least 56 columns by 20 rows; at smaller sizes it asks you to resize and disables device actions.
+The TUI cannot be used with redirected stdin/stdout. Use explicit CLI commands for scripts and pipelines. Starting it auto-loads the paired-device cache (no scan, no connection, no writes); pass an address to skip that, or let the cache dialog pick it. The interface needs at least 56 columns by 20 rows; at smaller sizes it asks you to resize and disables device actions.
+
+## Language
+
+Both the CLI and the TUI speak English and Spanish. The CLI follows `--lang en|es` first, then the `UGREEN_LANG` environment variable, then the OS locale (`LANG`/`LC_*`/`LANGUAGE`); protocol values, profile syntax and `key=value` output labels always stay in English. The TUI starts in the CLI's language and `L` toggles live.
 
 You can supply a target and protocol before launching:
 
@@ -45,28 +49,37 @@ This supplies the initial choices; connect remains a separate action. For offlin
 
 ## Terminal controls
 
-| Key | Action |
+The `?` key opens the shortcuts screen with every binding, including mouse.
+The footer bar mirrors the same keys; clicking a footer label presses it.
+
+| Key / mouse | Action |
 | --- | --- |
 | `a` | Edit target Bluetooth address while disconnected |
-| `p` | Explicitly load the OS's paired-device cache and choose an address |
+| `p` | Load the OS's paired-device cache and choose an address (auto-loads at startup) |
 | `m`, then `y` | Review and confirm the Studio Pro/HP206 protocol choice |
 | `c` | Connect to the selected target and read status |
 | `r` | Refresh status explicitly |
 | `d` | Disconnect |
-| Up / Down | Select a setting; navigate the paired-device list |
+| Up / Down, wheel | Select a setting; navigate the paired-device list |
+| Click | Select a setting or device; second click advances the proposal |
 | Left / Right | Cycle a setting's proposed value |
 | Enter | Review a proposed setting change or accept a dialog choice |
 | `y` | Confirm the reviewed write |
-| Esc | Cancel a dialog, discard the selected proposal, or request cancellation of busy work |
+| Right-click / Esc | Cancel a dialog, discard the selected proposal, or request cancellation of busy work |
 | `l` | Open/close the session log; Up/Down and Home/End navigate |
-| `?` | Open/close help; Up/Down scroll and Home returns to the top |
-| `q` or Ctrl+C | Quit; if busy, request cancellation and ask for `q`/Enter again to exit |
+| `L` | Switch language English/Español |
+| `?` | Open/close the shortcuts screen; Up/Down scroll and Home returns to the top |
+| `q` or Ctrl+C | Quit; while a write or refresh is in flight, ask for `q`/Enter again to exit (a lone paired-cache load quits at once) |
+
+Mouse clicks and the wheel need a terminal that reports mouse events; when
+capture is unavailable the keyboard keeps full control. Quitting while busy
+disables capture cleanup through Ratatui's normal restore path.
 
 Address entry accepts hexadecimal digits and colons, Backspace deletes, Ctrl+U clears, Enter validates, and Esc discards the edit; follow the dialog hints. In confirmation dialogs, `n` also cancels. The session log retains the latest 100 status events in memory and is not saved to disk. Esc also closes the log or help.
 
 A listed device is just a cached paired device and may be offline or a different model. Selecting it alone does not open a Bluetooth connection.
 
-The interface distinguishes last-read state from a proposed value. Editing a proposal is local. Fields missing or unknown in device readback cannot be written from the TUI, and proposing the current value does not send a redundant write. A write requires a review and confirmation, followed by device-info preflight, a valid acknowledgement, and matching readback. If a write fails or its result is uncertain, further writes are blocked until an explicit successful refresh. Do not infer failure to apply from a timeout alone.
+The interface distinguishes last-read state from a proposed value. Editing a proposal is local. Fields missing or unknown in device readback cannot be written from the TUI, and proposing the current value does not send a redundant write. A write requires a review and confirmation, followed by device-info preflight, acknowledgement (except spatial audio: retail firmware applies the write but answers with an `85 86 87` notification instead of a `DD EE FF` ack, so only the readback verifies it), and matching readback. If a write fails or its result is uncertain, further writes are blocked until an explicit successful refresh. Do not infer failure to apply from a timeout alone.
 
 Pressing `d` while busy requests cancellation and disconnection after the current stage. Esc requests cancellation but keeps the interface open; quitting while busy asks for a second `q` or Enter and does not wait for the operation. Cancellation cannot undo bytes already sent. A setting may have changed if you disconnect or exit during a write. Query status before another attempt. Device operations use bounded timeouts, but a whole workflow can require several operations. Follow the on-screen busy/cancellation state rather than repeatedly submitting a write.
 
@@ -94,6 +107,7 @@ Place global options **before** the command:
 - `--model studio-pro`: required for hardware commands; no other protocol is implemented
 - `--channel 1`: RFCOMM channel 1–30, default 1; no automatic service/channel discovery
 - `--timeout 3`: 1–60 seconds, default 3, for individual operations
+- `--lang en`: interface language `en` or `es`; without it, `UGREEN_LANG`, then the OS locale
 - `--dry-run`: preview packets for `set` or `profile apply`; no connection or writes
 
 `--dry-run` is not a simulated status query. It is rejected with `tui`, `discover`, `status`, and `profile export`. Use `decode` for captured response bytes and `profile example` for an offline template.

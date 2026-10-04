@@ -1,5 +1,4 @@
-use super::state::{App, LABELS};
-use crate::settings;
+use super::state::App;
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -28,7 +27,19 @@ fn panel(title: &str) -> Block<'_> {
         .title(title)
         .border_style(Style::default().fg(MUTED))
 }
+fn fill(template: &str, args: &[&dyn std::fmt::Display]) -> String {
+    let mut out = template.to_owned();
+    for arg in args {
+        if let Some(pos) = out.find("{}") {
+            out.replace_range(pos..pos + 2, &arg.to_string());
+        } else {
+            break;
+        }
+    }
+    out
+}
 pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
+    let t = app.t();
     let area = frame.area();
     frame.render_widget(
         Block::new().style(
@@ -40,11 +51,14 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
     );
     if area.width < MIN_WIDTH || area.height < MIN_HEIGHT {
         let text = format!(
-            "Resize to at least {MIN_WIDTH}x{MIN_HEIGHT}\nEsc: cancel  q: quit\n{}\n{}",
+            "{}\n{}  q: {}\n{}\n{}",
+            fill(t.resize_to, &[&MIN_WIDTH, &MIN_HEIGHT]),
+            t.resize_quit,
+            "quit",
             if app.quit_confirmation {
-                "In-flight write may complete. q/Enter: quit; Esc: stay"
+                t.resize_inflight
             } else {
-                "Actions disabled at this size."
+                t.resize_disabled
             },
             clean(&app.status)
         );
@@ -59,26 +73,26 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
     ])
     .split(area);
     let connection = if app.connected {
-        "CONNECTED"
+        t.connected
     } else {
-        "DISCONNECTED"
+        t.disconnected
     };
-    let protocol = if app.model_confirmed {
-        "Studio Pro HP206 (user-selected)"
+    let protocol: String = if app.model_confirmed {
+        t.protocol_on.into()
     } else {
-        "not selected; m to confirm Studio Pro HP206"
+        t.protocol_off.into()
     };
     let battery = app
         .info
         .as_ref()
         .and_then(|info| info.battery())
-        .map_or("unavailable".into(), |v| format!("{v}%"));
+        .map_or(t.unavailable.into(), |v| fill(t.battery_pct, &[&v]));
     let snapshot = if app.stale {
-        "STALE / not current".into()
+        t.snapshot_stale.into()
     } else if let Some(at) = app.observed_at {
-        format!("read {}s ago", at.elapsed().as_secs())
+        fill(t.snapshot_ago, &[&at.elapsed().as_secs()])
     } else {
-        "not read".into()
+        t.snapshot_never.into()
     };
     let header = vec![
         Line::from(vec![
@@ -93,32 +107,34 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(format!(
-                " Target: {}",
+                " {}{}",
+                t.target,
                 if app.address.is_empty() {
-                    "not selected".into()
+                    t.target_none.into()
                 } else {
                     clean(&app.address)
                 }
             )),
         ]),
-        Line::raw(format!(" Protocol: {protocol}")),
+        Line::raw(format!(" {}{}", t.protocol, protocol)),
+        Line::raw(format!(" {}{}  {}", t.battery, battery, t.codec_line)),
         Line::raw(format!(
-            " Battery: {battery}  Codec: unavailable (not exposed)"
+            " {}{}  {}{}",
+            t.firmware,
+            clean(app.firmware.as_deref().unwrap_or(t.unavailable)),
+            t.snapshot,
+            snapshot
         )),
         Line::raw(format!(
-            " Firmware: {}  Snapshot: {snapshot}",
-            clean(app.firmware.as_deref().unwrap_or("unavailable"))
-        )),
-        Line::raw(format!(
-            " RFCOMM {} | per-operation timeout {}s | hardware unverified",
-            app.channel, app.timeout_seconds
+            " {}",
+            fill(t.rfcomm_line, &[&app.channel, &app.timeout_seconds])
         )),
     ];
     frame.render_widget(
-        Paragraph::new(header).block(panel(" UGREEN / Studio Pro control ")),
+        Paragraph::new(header).block(panel(t.app_title)),
         sections[0],
     );
-    let rows = settings::KEYS
+    let rows = crate::settings::KEYS
         .iter()
         .enumerate()
         .map(|(index, key)| {
@@ -126,24 +142,24 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
                 .info
                 .as_ref()
                 .and_then(|info| info.value(key))
-                .unwrap_or_else(|| "unavailable".into());
+                .unwrap_or_else(|| t.unavailable.into());
             let proposal = app.proposals[index]
                 .as_ref()
-                .map(|value| format!("  -> {value} (proposed)"))
+                .map(|value| format!("  {}", fill(t.proposed, &[value])))
                 .unwrap_or_default();
             ListItem::new(Line::from(vec![
-                Span::raw(format!("{:<19} {:<10}", LABELS[index], actual)),
+                Span::raw(format!("{:<19} {:<10}", t.labels[index], actual)),
                 Span::styled(proposal, Style::default().fg(Color::Yellow)),
             ]))
         })
         .collect::<Vec<_>>();
     let mut list_state = ListState::default().with_selected(Some(app.selected));
     let title = if app.writes_blocked {
-        " Settings / WRITES BLOCKED: r to refresh "
+        t.settings_blocked
     } else if app.stale {
-        " Settings / last snapshot is stale "
+        t.settings_stale
     } else {
-        " Settings / device readback, no automatic writes "
+        t.settings_title
     };
     frame.render_stateful_widget(
         List::new(rows)
@@ -154,9 +170,9 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         &mut list_state,
     );
     let status_title = if app.busy.is_some() {
-        " Working / Esc cancels later stages "
+        t.status_working
     } else {
-        " Status "
+        t.status_title
     };
     frame.render_widget(
         Paragraph::new(clean(&app.status))
@@ -164,7 +180,22 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             .wrap(Wrap { trim: true }),
         sections[2],
     );
-    frame.render_widget(Paragraph::new("a address  p paired cache  m model  c connect  r refresh  d disconnect\nArrows select/propose  Enter review  Esc cancel  l log  ? help  q quit").style(Style::default().fg(ACCENT)).wrap(Wrap { trim: true }), sections[3]);
+    let footer: Vec<Line> = t
+        .footer
+        .iter()
+        .map(|row| {
+            Line::from(
+                row.iter()
+                    .filter(|(k, _)| !k.is_empty())
+                    .map(|(k, v)| Span::styled(format!("{k} {v}  "), Style::default().fg(ACCENT)))
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    frame.render_widget(
+        Paragraph::new(footer).wrap(Wrap { trim: true }),
+        sections[3],
+    );
     if app.log_open {
         let rect = centered(
             area,
@@ -184,7 +215,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         });
         frame.render_stateful_widget(
             List::new(items)
-                .block(panel(" Session log / Up Down Home End / l Esc close "))
+                .block(panel(t.log_title))
                 .highlight_symbol("> ")
                 .highlight_style(Style::default().fg(ACCENT)),
             rect,
@@ -193,61 +224,30 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
     } else if app.help {
         overlay_scrolled(
             frame,
-            " Help / Up Down scroll / ? Esc close ",
-            vec![
-                "a          Edit address while disconnected; Enter saves locally".into(),
-                "p          Read OS paired-device cache; never scans or pairs".into(),
-                "m          Review and select Studio Pro HP206 protocol".into(),
-                "c / r / d  Explicit connect / refresh / disconnect".into(),
-                "Up/Down    Select setting (list scrolls)".into(),
-                "Left/Right Propose value only; no write".into(),
-                "Enter, y   Review setting, then confirm one write".into(),
-                "Esc        Dismiss / discard proposal / cancel later I/O stages".into(),
-                "q / Ctrl-C Quit (confirm if work is in flight)".into(),
-                "l          Session log (latest 100 events); Up/Down, Home/End".into(),
-                "? / Esc    Close this help".into(),
-                "Writes require preflight, acknowledgement and matching readback.".into(),
-                "An in-flight write may complete after cancellation or quit.".into(),
-                "Uncertain writes stay blocked until an explicit refresh.".into(),
-                "Model selection does not verify hardware identity; Max5c unsupported.".into(),
-            ],
+            t.shortcuts_title,
+            t.shortcuts.iter().map(|s| (*s).into()).collect(),
             app.help_scroll,
         );
     } else if let Some(edit) = &app.address_edit {
-        overlay(
-            frame,
-            " Edit target address ",
-            vec![
-                clean(edit),
-                "Type hexadecimal digits and colons. Backspace deletes; Ctrl-U clears.".into(),
-                "Enter saves locally; Esc cancels. No connection is started.".into(),
-            ],
-        );
+        let mut lines = vec![clean(edit)];
+        lines.extend(t.edit_lines.iter().map(|s| (*s).into()));
+        overlay(frame, t.edit_title, lines);
     } else if app.model_confirmation {
         overlay(
             frame,
-            " Confirm model-specific protocol ",
-            vec![
-                "Use this only with UGREEN Studio Pro HP206.".into(),
-                "Hardware compatibility has not been verified on this build.".into(),
-                "HiTune Max5c uses conflicting command IDs and is unsupported.".into(),
-                "This selects a protocol; it does not prove device identity.".into(),
-                "y: select Studio Pro HP206    n / Esc: cancel".into(),
-            ],
+            t.model_title,
+            t.model_lines.iter().map(|s| (*s).into()).collect(),
         );
     } else if let Some(setting) = &app.confirmation {
         overlay(
             frame,
-            " Confirm one setting write ",
+            t.confirm_title,
             vec![
-                format!(
-                    "Target: {} (user-selected Studio Pro HP206)",
-                    clean(&app.address)
-                ),
-                format!("Change {} to {}?", setting.key, setting.value),
-                "A preflight query, acknowledgement and readback are required.".into(),
-                "No automatic retry or rollback. A partial write may take effect.".into(),
-                "y: apply once    n / Esc: cancel".into(),
+                fill(t.confirm_target, &[&clean(&app.address)]),
+                format!("{} -> {}?", setting.key, setting.value),
+                t.confirm_lines[0].into(),
+                t.confirm_lines[1].into(),
+                t.confirm_lines[2].into(),
             ],
         );
     } else if let Some(devices) = &app.paired {
@@ -258,7 +258,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         );
         frame.render_widget(Clear, rect);
         let items = if devices.is_empty() {
-            vec![ListItem::new("No cached paired devices. Esc closes.")]
+            vec![ListItem::new(t.paired_empty)]
         } else {
             devices
                 .iter()
@@ -278,7 +278,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         });
         frame.render_stateful_widget(
             List::new(items)
-                .block(panel(" Paired cache / Up Down Enter select / Esc close "))
+                .block(panel(t.paired_title))
                 .highlight_symbol("> ")
                 .highlight_style(Style::default().fg(ACCENT)),
             rect,
@@ -289,13 +289,8 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
     if app.quit_confirmation {
         overlay(
             frame,
-            " Quit while work is in flight? ",
-            vec![
-                "Cancellation requested; later stages will be skipped.".into(),
-                "An in-flight setting write may still complete.".into(),
-                "Quitting never waits for the worker.".into(),
-                "q / Enter: quit now    Esc: stay and wait for the result".into(),
-            ],
+            t.quit_title,
+            t.quit_lines.iter().map(|s| (*s).into()).collect(),
         );
     }
 }

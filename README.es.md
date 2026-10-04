@@ -4,7 +4,7 @@
 
 CLI e interfaz de terminal en Rust para configurar localmente auriculares **UGREEN Studio Pro** en Linux y Windows. Proyecto no oficial, sin afiliación ni respaldo de UGREEN.
 
-> **Compatibilidad experimental.** La implementación sigue el protocolo de referencia de los Studio Pro **HP206** y una respuesta capturada por el proyecto original. HP206 es un protocolo candidato para los Studio Pro comerciales, no una identificación verificada de tus auriculares. Esta compilación no se ha probado con auriculares físicos. **HiTune Max5c no es compatible:** algunos identificadores de comando tienen significados distintos.
+> **Compatibilidad de hardware.** La implementación sigue el protocolo de referencia de los Studio Pro **HP206** y una respuesta capturada, verificada con firmware comercial **0.2.5** en Linux (lecturas, las nueve escrituras incl. un ciclo reversible; ver [verificación](docs/verification.md)). La elección del modelo la declaras tú, no es detección de identidad. **HiTune Max5c no es compatible:** algunos identificadores de comando tienen significados distintos.
 
 ## Inicio rápido
 

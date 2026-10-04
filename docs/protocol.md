@@ -106,6 +106,17 @@ RFCOMM provides a stream, not message boundaries. The decoder accepts splits at 
 
 A corrupted length can hold a partial candidate until enough data arrives or the client times out. There is no length-repair heuristic and no fabricated acknowledgement. The live client can ignore unrelated instructions while waiting. The offline `decode` command instead returns failure if any bytes were discarded, rejected, or left pending.
 
+### Spatial-audio write replies
+
+Retail firmware (observed on 0.2.5) applies spatial-audio writes (`0x12`)
+but never returns a `DD EE FF` acknowledgement frame: the reply is an
+`85 86 87 02 0A <echo>` notification followed by `85 86 87 02 05 00`.
+Readback confirms the write took effect, so this implementation sends the
+`0x12` frame fire-and-forget and verifies via the device-info readback
+alone. All other settings use the normal request/acknowledgement/readback
+flow. This matches the reference macOS app, which also sends settings
+without waiting for per-write acknowledgements before refreshing.
+
 Framing validity is weaker than model compatibility. Matching CRCs do not guarantee the selected function means the same thing on another model. Readback is required, and ambiguous writes are not automatically retried.
 
 ## Platform references

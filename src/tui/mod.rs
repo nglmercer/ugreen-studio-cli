@@ -3,7 +3,9 @@ mod state;
 mod view;
 mod worker;
 
+use crate::i18n::Lang;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::execute;
 use state::{App, Intent};
 use std::{
     io::{self, IsTerminal},
@@ -12,12 +14,15 @@ use std::{
 use worker::Worker;
 
 /// Startup values do not trigger discovery, connections, or setting writes.
+/// Startup auto-loads the paired cache unless `skip_autoload` is set (tests).
 #[derive(Clone, Debug)]
 pub struct Config {
     pub address: Option<String>,
     pub model_confirmed: bool,
     pub channel: u8,
     pub timeout: Duration,
+    pub lang: Lang,
+    pub skip_autoload: bool,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -26,6 +31,8 @@ impl Default for Config {
             model_confirmed: false,
             channel: 1,
             timeout: Duration::from_secs(3),
+            lang: Lang::En,
+            skip_autoload: true,
         }
     }
 }
@@ -44,46 +51,25 @@ pub fn run(config: Config) -> io::Result<()> {
     }
     let mut app = App::new(&config);
     let mut worker = Worker::native(config)?;
+    // Auto-load the paired cache unless an address is already known or tests
+    // asked to skip. Failure only sets status text; startup never writes.
+    if !app.config_skip_autoload() && app.address.is_empty() {
+        match worker.submit(worker::Action::Paired) {
+            Ok(id) => app.accepted_loading(id),
+            Err(error) => app.status = error,
+        }
+    }
     let result = ratatui::run(|terminal| -> io::Result<()> {
         let _stop_worker_on_exit = worker.shutdown_guard();
-        loop {
-            match worker.poll() {
-                Ok(Some(reply)) => {
-                    if let Some(action) = app.receive(reply) {
-                        dispatch(&mut app, &mut worker, Intent::Request(action));
-                    }
-                }
-                Ok(None) => {}
-                Err(error) => {
-                    app.worker_failed(error);
-                    return Err(io::Error::other(app.status.clone()));
-                }
-            }
-            app.record_status();
-            terminal.draw(|frame| view::render(frame, &app))?;
-            if event::poll(Duration::from_millis(50))? {
-                match event::read()? {
-                    Event::Key(key) if key.kind == KeyEventKind::Press => {
-                        let area = terminal.size()?;
-                        if (area.width < view::MIN_WIDTH || area.height < view::MIN_HEIGHT)
-                            && !matches!(key.code, KeyCode::Char('q') | KeyCode::Esc)
-                            && !(app.quit_confirmation && key.code == KeyCode::Enter)
-                            && !(key.code == KeyCode::Char('c')
-                                && key.modifiers.contains(KeyModifiers::CONTROL))
-                        {
-                            continue;
-                        }
-                        let intent = app.key(key);
-                        if dispatch(&mut app, &mut worker, intent) {
-                            break;
-                        }
-                    }
-                    Event::Resize(_, _) => {} // draw uses the new size next pass
-                    _ => {}
-                }
-            }
+        // Mouse clicks/wheel need explicit capture; ratatui restores it after
+        // the closure. Non-interactive terminals or headless backends fail the
+        // enable call; the TUI keeps working with keyboard only.
+        let mouse_on = execute!(io::stdout(), event::EnableMouseCapture).is_ok();
+        let outcome = event_loop(terminal, &mut app, &mut worker);
+        if mouse_on {
+            let _ = execute!(io::stdout(), event::DisableMouseCapture);
         }
-        Ok(())
+        outcome
     });
     // Dropping never waits for a native operation; cancellation prevents later
     // stages, but bytes already handed to the OS cannot be recalled.
@@ -96,6 +82,57 @@ pub fn run(config: Config) -> io::Result<()> {
         eprintln!("An in-flight setting write may have completed. Explicitly refresh device status before making further changes.");
     }
     result
+}
+fn event_loop(
+    terminal: &mut ratatui::DefaultTerminal,
+    app: &mut App,
+    worker: &mut Worker,
+) -> io::Result<()> {
+    loop {
+        match worker.poll() {
+            Ok(Some(reply)) => {
+                if let Some(action) = app.receive(reply) {
+                    dispatch(app, worker, Intent::Request(action));
+                }
+            }
+            Ok(None) => {}
+            Err(error) => {
+                app.worker_failed(error);
+                return Err(io::Error::other(app.status.clone()));
+            }
+        }
+        app.record_status();
+        terminal.draw(|frame| view::render(frame, app))?;
+        if event::poll(Duration::from_millis(50))? {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    let area = terminal.size()?;
+                    if (area.width < view::MIN_WIDTH || area.height < view::MIN_HEIGHT)
+                        && !matches!(key.code, KeyCode::Char('q') | KeyCode::Esc)
+                        && !(app.quit_confirmation && key.code == KeyCode::Enter)
+                        && !(key.code == KeyCode::Char('c')
+                            && key.modifiers.contains(KeyModifiers::CONTROL))
+                    {
+                        continue;
+                    }
+                    let intent = app.key(key);
+                    if dispatch(app, worker, intent) {
+                        break;
+                    }
+                }
+                Event::Mouse(mouse) => {
+                    let area = terminal.size()?;
+                    let intent = app.mouse(mouse, area.width, area.height);
+                    if dispatch(app, worker, intent) {
+                        break;
+                    }
+                }
+                Event::Resize(_, _) => {} // draw uses the new size next pass
+                _ => {}
+            }
+        }
+    }
+    Ok(())
 }
 fn dispatch(app: &mut App, worker: &mut Worker, intent: Intent) -> bool {
     match intent {

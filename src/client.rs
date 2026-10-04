@@ -1,4 +1,5 @@
 use crate::{
+    i18n::Lang,
     protocol::{self, Decoder, Response},
     settings::{DeviceInfo, Setting},
 };
@@ -19,6 +20,15 @@ impl<T: Read + Write> Client<T> {
         }
     }
     pub fn request(&mut self, instruction: u8, payload: &[u8]) -> io::Result<Response> {
+        self.request_in(Lang::En, instruction, payload)
+    }
+    pub fn request_in(
+        &mut self,
+        lang: Lang,
+        instruction: u8,
+        payload: &[u8],
+    ) -> io::Result<Response> {
+        let t = crate::i18n::txt(lang);
         self.io
             .write_all(&protocol::request(instruction, payload)?)?;
         self.io.flush()?;
@@ -26,24 +36,18 @@ impl<T: Read + Write> Client<T> {
         let mut bytes = [0; 512];
         loop {
             if Instant::now() >= deadline {
-                return Err(io::Error::new(
-                    io::ErrorKind::TimedOut,
-                    "no matching valid response before deadline",
-                ));
+                return Err(io::Error::new(io::ErrorKind::TimedOut, t.req_timeout));
             }
             match self.io.read(&mut bytes) {
-                Ok(0) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::UnexpectedEof,
-                        "Bluetooth connection closed",
-                    ))
-                }
+                Ok(0) => return Err(io::Error::new(io::ErrorKind::UnexpectedEof, t.req_closed)),
                 Ok(n) => {
                     for frame in self.decoder.feed(&bytes[..n]) {
                         if frame.instruction == instruction {
                             if !frame.succeeded {
-                                return Err(io::Error::other(format!(
-                                    "headphones rejected instruction 0x{instruction:02X}"
+                                return Err(io::Error::other(t.req_rejected.replacen(
+                                    "{:02X}",
+                                    &format!("{instruction:02X}"),
+                                    1,
                                 )));
                             }
                             return Ok(frame);
@@ -70,8 +74,17 @@ impl<T: Read + Write> Client<T> {
     }
     /// Only report success after a CRC-valid device-info readback matches.
     /// A failed acknowledgement is never silently retried, because writes may have taken effect.
+    /// Spatial audio is the exception: retail firmware applies the write but
+    /// answers with an `85 86 87` notification instead of a `DD EE FF`
+    /// acknowledgement, so verification there relies on the readback alone.
     pub fn set(&mut self, setting: &Setting) -> io::Result<DeviceInfo> {
-        self.request(setting.instruction,&setting.payload).map_err(|e| io::Error::new(e.kind(),format!("setting may have been sent but acknowledgement failed: {e}; query status before retrying")))?;
+        if setting.expects_ack() {
+            self.request(setting.instruction,&setting.payload).map_err(|e| io::Error::new(e.kind(),format!("setting may have been sent but acknowledgement failed: {e}; query status before retrying")))?;
+        } else {
+            self.io
+                .write_all(&protocol::request(setting.instruction, &setting.payload)?)?;
+            self.io.flush()?;
+        }
         let info = self.info().map_err(|e| {
             io::Error::new(
                 e.kind(),
@@ -85,6 +98,11 @@ impl<T: Read + Write> Client<T> {
             )));
         }
         Ok(info)
+    }
+    pub fn send(&mut self, setting: &Setting) -> io::Result<()> {
+        self.io
+            .write_all(&protocol::request(setting.instruction, &setting.payload)?)?;
+        self.io.flush()
     }
     pub fn into_inner(self) -> T {
         self.io
@@ -205,5 +223,23 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("does not match"));
+    }
+    #[test]
+    fn spatial_write_verifies_via_readback_without_ack() {
+        let mut payload = vec![0; 26];
+        payload[20] = 1;
+        let mut c = Client::new(
+            Mock {
+                read: vec![response(4, 1, &payload)].into(),
+                ..Default::default()
+            },
+            Duration::from_secs(1),
+        );
+        let setting = Setting::parse("spatial", "on").unwrap();
+        assert!(!setting.expects_ack());
+        assert!(c.set(&setting).is_ok());
+        let mut expected = protocol::request(18, &[1]).unwrap();
+        expected.extend_from_slice(&protocol::request(protocol::INFO, &[0]).unwrap());
+        assert_eq!(c.into_inner().written, expected);
     }
 }

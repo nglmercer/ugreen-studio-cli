@@ -87,9 +87,29 @@ SHA-256 of the packaged files:
 
 The actual executables were inspected with `readelf` and `ldd`; both require glibc **2.39 or newer** and `libgcc_s.so.1`. Rebuild on your distribution if it provides an older glibc. No Windows executable is included. Toolchains, dependency caches and intermediate build directories are excluded from the delivery ZIP.
 
+## Live retail verification (2026-10-04)
+
+Hardware: UGREEN Studio Pro, firmware **0.2.5**, RFCOMM channel 1, Linux
+x86-64 (CachyOS), BlueZ adapter. Retail state at connect: battery 90%,
+`anc=off eq=classic game=off spatial=off dual=off wind=on prompts=voice
+volume-up-action=next volume-down-action=previous`.
+
+- `status` and `profile export` parse cleanly: battery, all nine settings,
+  firmware and 30-byte raw device info
+- Same-value writes verified for `anc`, `eq`, `game`, `dual`, `wind`,
+  `prompts`, `volume-up-action`, `volume-down-action`
+- `game=on`/`game=off` reversible cycle verified, device restored
+- **Spatial-audio finding:** `spatial=on` and `spatial=off` both take effect
+  (device-info offset 20 flips and reads back), but the firmware never sends
+  a `DD EE FF` ack for `0x12` — it replies `85 86 87 02 0A <echo>` plus
+  `85 86 87 02 05 00`. Fixed: spatial writes skip the ack wait and verify
+  via readback alone; device left at its original `spatial=off`
+- Occasional transient `EBUSY` (os error 16) on rapid back-to-back
+  connections; retry succeeds. One stale `target/debug/ugreen` process held
+  the channel during testing and was killed
+
 ## Not established
 
-- No physical headphone or Bluetooth-adapter test: connection, battery, firmware, settings, acknowledgements and readback on actual retail Studio Pro firmware remain unverified
 - No native Windows runtime test has been established for this version
 - A Windows release executable is not claimed merely because source or cross-target checks pass
 - No remote CI result is implied by the presence of [the workflow](../.github/workflows/ci.yml)

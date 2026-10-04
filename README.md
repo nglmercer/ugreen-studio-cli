@@ -4,7 +4,7 @@
 
 An unofficial Rust CLI and terminal interface for configuring **UGREEN Studio Pro** headphones locally on Linux and Windows. Not affiliated with or endorsed by UGREEN.
 
-> **Experimental hardware support.** The implementation follows the Studio Pro **HP206** reference protocol and an upstream captured response. HP206 is a protocol candidate for the retail Studio Pro, not an identity verified on your headphones. This build has not been tested with physical headphones. **HiTune Max5c is unsupported:** some command IDs have different meanings.
+> **Hardware support.** The implementation follows the Studio Pro **HP206** reference protocol and an upstream captured response, verified live against retail firmware **0.2.5** on Linux (reads, all nine writes incl. a reversible cycle; see [verification](docs/verification.md)). Model selection is still user-declared, not device-identity detection. **HiTune Max5c is unsupported:** some command IDs have different meanings.
 
 ## Quick start
 
