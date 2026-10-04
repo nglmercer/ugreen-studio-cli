@@ -128,18 +128,23 @@ impl App {
         self.status = self.t().status_loading.into();
         self.busy = Some((id, Action::Paired));
     }
-    pub fn toggle_lang(&mut self) {
-        self.lang = match self.lang {
-            Lang::En => Lang::Es,
-            Lang::Es => Lang::En,
-        };
-        self.status = self.t().status_lang.into();
+    /// Cycle through every installed language and remember
+    /// the choice in the target cache.
+    pub fn cycle_lang(&mut self) {
+        let next = (Lang::ALL
+            .iter()
+            .position(|&lang| lang == self.lang)
+            .unwrap_or(0)
+            + 1)
+            % Lang::ALL.len();
+        self.lang = Lang::ALL[next];
+        self.status = fill(self.t().status_lang, &[&self.lang.name()]);
         crate::cache::save(&crate::cache::Cache {
             address: (!self.address.is_empty()).then(|| self.address.clone()),
             model_confirmed: self.model_confirmed,
             channel: Some(self.channel),
             lang: Some(self.lang),
-            autoconnect: self.autoconnect,
+            autoconnect: self.config_autoconnect(),
         });
     }
     pub fn record_status(&mut self) {
@@ -509,7 +514,7 @@ impl App {
             return Intent::None;
         }
         if key.code == KeyCode::Char('L') {
-            self.toggle_lang();
+            self.cycle_lang();
             return Intent::None;
         }
         if key.code == KeyCode::Char('?') {

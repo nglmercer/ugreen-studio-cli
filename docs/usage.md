@@ -86,11 +86,27 @@ Address entry accepts hexadecimal digits and colons, Backspace deletes, Ctrl+U c
 
 A listed device is just a cached paired device and may be offline or a different model. Selecting it alone does not open a Bluetooth connection.
 
-The interface distinguishes last-read state from a proposed value. Editing a proposal is local. Fields missing or unknown in device readback cannot be written from the TUI, and proposing the current value does not send a redundant write. A write requires a review and confirmation, followed by device-info preflight, acknowledgement (except spatial audio: retail firmware applies the write but answers with an `85 86 87` notification instead of a `DD EE FF` ack, so only the readback verifies it), and matching readback. If a write fails or its result is uncertain, further writes are blocked until an explicit successful refresh. Do not infer failure to apply from a timeout alone.
+The interface distinguishes last-read state from a proposed value. Editing a proposal is local. Fields missing or unknown in device readback cannot be written from the TUI, and proposing the current value does not send a redundant write. Applying with Enter requires device-info preflight, acknowledgement (except spatial audio: retail firmware applies the write but answers with an `85 86 87` notification instead of a `DD EE FF` ack, so only the readback verifies it), and matching readback. If a write fails or its result is uncertain, further writes are blocked until an explicit successful refresh. Do not infer failure to apply from a timeout alone.
 
 Pressing `d` while busy requests cancellation and disconnection after the current stage. Esc requests cancellation but keeps the interface open; quitting while busy asks for a second `q` or Enter and does not wait for the operation. Cancellation cannot undo bytes already sent. A setting may have changed if you disconnect or exit during a write. Query status before another attempt. Device operations use bounded timeouts, but a whole workflow can require several operations. Follow the on-screen busy/cancellation state rather than repeatedly submitting a write.
 
 Battery is read from the vendor device-info response. No platform battery API is used as a fallback. Codec information is unavailable, and there is no codec-selection command. Unknown fields are not replaced with guessed defaults.
+
+## Internationalization
+
+Interface text lives in `src/i18n/`, one file per language: `en.rs`
+is the source-of-truth catalog, and every other language module
+(`es`, `pt`, `de`, `fr`, `it`, `nl`, `ru`, `zh`, `ja`, `ko`) starts
+from the English catalog and overrides only the strings it
+translates. A string left in English is a deliberate fallback, not a
+missing entry. `{}` placeholders keep the same argument order in
+every translation, and a test asserts the placeholder count matches
+English for all argument-carrying fields, so a translation cannot
+break formatting. `L` in the TUI cycles all installed languages and
+remembers the choice in the target cache. Protocol values, profile
+syntax, `key=value` output labels and wire bytes are never
+translated. To add a language, copy `en.rs` to a new module,
+translate the strings you can, and register the variant in `Lang`.
 
 ## CLI commands
 
@@ -114,7 +130,7 @@ Place global options **before** the command:
 - `--model studio-pro`: required for hardware commands; no other protocol is implemented
 - `--channel 1`: RFCOMM channel 1–30, default 1; no automatic service/channel discovery
 - `--timeout 3`: 1–60 seconds, default 3, for individual operations
-- `--lang en`: interface language `en` or `es`; without it, `UGREEN_LANG`, then the OS locale
+- `--lang en`: interface language `en`, `es`, `pt`, `de`, `fr`, `it`, `nl`, `ru`, `zh`, `ja` or `ko`; without it, `UGREEN_LANG`, then the OS locale
 - `--dry-run`: preview packets for `set` or `profile apply`; no connection or writes
 
 `--dry-run` is not a simulated status query. It is rejected with `tui`, `discover`, `status`, and `profile export`. Use `decode` for captured response bytes and `profile example` for an offline template.

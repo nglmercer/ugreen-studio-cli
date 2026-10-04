@@ -403,7 +403,7 @@ mod tests {
             "--model max5c status",
             "--wat status",
             "--address",
-            "--lang fr status",
+            "--lang xx status",
             "--lang status",
         ] {
             assert!(parse(args(input)).is_err(), "{input}");

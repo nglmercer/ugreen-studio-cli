@@ -447,13 +447,17 @@ fn every_modal_renders_and_quit_warning_has_priority() {
 fn language_toggle_rewrites_status_and_render() {
     let mut app = App::new(&Config::default());
     assert!(app.status.contains("No Bluetooth access"));
+    // L cycles every installed language.
     app.key(key(KeyCode::Char('L')));
-    assert!(app.status.contains("español"));
+    assert!(app.status.contains("Español"));
     assert!(render(&app, 100, 30).contains("DESCONECTADO"));
     assert!(render(&app, 100, 30).contains("Destino:"));
     app.key(key(KeyCode::Char('L')));
-    assert!(app.status.contains("English"));
-    assert!(render(&app, 100, 30).contains("DISCONNECTED"));
+    assert!(app.status.contains("Português"));
+    assert!(render(&app, 100, 30).contains("DESCONECTADO"));
+    app.key(key(KeyCode::Char('L')));
+    assert!(app.status.contains("Deutsch"));
+    assert!(render(&app, 100, 30).contains("GETRENNT"));
 }
 #[test]
 fn spanish_render_shows_translated_panels() {

@@ -133,7 +133,7 @@ mod tests {
         let path = temp_path("invalid");
         fs::write(
             &path,
-            "address=not-an-address\nmodel=max5c\nchannel=99\nlang=fr\nautoconnect=yes\n",
+            "address=not-an-address\nmodel=max5c\nchannel=99\nlang=xx\nautoconnect=yes\n",
         )
         .unwrap();
         assert_eq!(load_from(Some(&path)), Cache::default());
