@@ -92,6 +92,23 @@ fn no_arguments_with_piped_output_prints_help() {
 }
 
 #[test]
+fn help_lists_the_capture_command() {
+    for lang in ["en", "es", "ja"] {
+        let o = run_lang(lang, &["--help"]);
+        let text = String::from_utf8_lossy(&o.stdout).to_string();
+        assert!(text.contains("capture"), "{lang}: capture missing");
+        assert!(text.contains("discover"), "{lang}: discover missing");
+    }
+}
+
+#[test]
+fn capture_requires_model_before_connecting() {
+    let o = run(&["capture"]);
+    assert!(!o.status.success());
+    assert!(String::from_utf8_lossy(&o.stderr).contains("--model studio-pro"));
+}
+
+#[test]
 fn explicit_tui_without_a_terminal_fails_cleanly() {
     let o = run(&["tui"]);
     assert!(!o.status.success());

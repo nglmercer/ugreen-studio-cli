@@ -150,7 +150,9 @@ fn parse(args: Vec<String>) -> Result<Options, String> {
     }
     Ok(o)
 }
-fn connect(o: &Options) -> Result<Client<bluetooth::Connection>, String> {
+/// Every live command connects through here, already wrapped in a
+/// recording tee: most callers ignore the log, `capture` exports it.
+fn connect(o: &Options) -> Result<Client<protocol::Monitored<bluetooth::Connection>>, String> {
     let t = txt_of(o);
     if o.model.as_deref() != Some("studio-pro") {
         return Err(t.cli_need_model.into());
@@ -168,7 +170,12 @@ fn connect(o: &Options) -> Result<Client<bluetooth::Connection>, String> {
         .and_then(|address| {
             bluetooth::Connection::connect(&address, o.channel.unwrap_or(1), timeout)
         })
-        .map(|io| Client::new(io, timeout))
+        .map(|io| {
+            Client::new(
+                protocol::Monitored::new(io, protocol::shared_monitor()),
+                timeout,
+            )
+        })
         .map_err(|e| fill(t.cli_connect_fail, &[&e.to_string()]))
 }
 fn exact(args: &[String], count: usize, usage: &str) -> Result<(), String> {
@@ -381,6 +388,37 @@ fn run(o: Options) -> Result<(), String> {
             exact(args, 3, "ugreen [OPTIONS] set KEY VALUE")?;
             apply(&o, &[Setting::parse_in(lang_of(&o), &args[1], &args[2])?])?;
         }
+        "capture" => {
+            exact(args, 1, "ugreen [OPTIONS] capture")?;
+            if o.dry_run {
+                return Err(
+                    "capture cannot be combined with --dry-run; it records a live session".into(),
+                );
+            }
+            let mut c = connect(&o)?;
+            // Record the whole session even when a query fails: a
+            // failed capture is exactly when the bytes matter most.
+            // stdout stays pure fixture hex; context goes to stderr.
+            let info = c.info();
+            let firmware = c.firmware();
+            let (_transport, log) = c.into_inner().into_inner_and_log();
+            let export = log
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .export();
+            print!("{export}");
+            let info = info.map_err(|e| fill(t.cli_preflight_fail, &[&e.to_string()]))?;
+            eprintln!(
+                "battery={}",
+                info.battery()
+                    .map(|v| format!("{v}%"))
+                    .unwrap_or(t.cli_unknown_value.into())
+            );
+            match firmware {
+                Ok(firmware) => eprintln!("firmware={firmware}"),
+                Err(e) => eprintln!("{}", fill(t.cli_firmware_fail, &[&e.to_string()])),
+            }
+        }
         "profile" => {
             match args.get(1).map(String::as_str) {
                 Some("example") => {
@@ -459,6 +497,15 @@ mod tests {
         let o = parse(args("status")).unwrap();
         assert!(connect(&o).is_err());
         let o = parse(args("--model studio-pro status")).unwrap();
+        assert!(connect(&o).is_err());
+    }
+    #[test]
+    fn capture_refuses_dry_run_and_missing_target() {
+        let o = parse(args("--dry-run capture")).unwrap();
+        assert!(run(o).is_err());
+        let o = parse(args("capture")).unwrap();
+        assert!(run(o).is_err());
+        let o = parse(args("--model studio-pro capture")).unwrap();
         assert!(connect(&o).is_err());
     }
     #[test]

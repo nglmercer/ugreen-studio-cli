@@ -139,8 +139,7 @@ impl<I> Monitored<I> {
 }
 
 fn lock(log: &SharedMonitor) -> std::sync::MutexGuard<'_, Monitor> {
-    log.lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+    log.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 impl<I: Read> Read for Monitored<I> {
