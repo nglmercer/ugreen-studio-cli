@@ -114,13 +114,17 @@ The host-side refactor (Bluetooth enumeration, device registry, protocol
 split, multipoint scaffolding, capture tooling) was verified locally on
 Linux x86-64:
 
-- Default-feature suite: **196 tests passed** (167 library, 7 binary unit,
+- Default-feature suite: **199 tests passed** (170 library, 7 binary unit,
   6 fixture-capture integration, 16 CLI integration)
 - CLI-only suite: **114 tests passed** (85 library, 7 binary unit,
   6 fixture-capture integration, 16 CLI integration)
 - Autoconnect is on by default: a fresh registry persists `autoconnect=1`,
   an explicit `--no-autoconnect` choice round-trips as `autoconnect=0`,
   and an unparseable value keeps the default instead of guessing off
+- Header linkage: an open RFCOMM session holds `Bluetooth:` at
+  `CONNECTED` (the session proves the link), while a failed connect
+  never claims it and a stale pairing list cannot downgrade a live
+  session; closing the session still leaves `Bluetooth:` untouched
 - `cargo fmt --all -- --check` passed
 - Strict all-target Clippy (`-D warnings`) passed with default,
   all-features and CLI-only feature sets

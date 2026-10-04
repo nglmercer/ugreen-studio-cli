@@ -662,6 +662,72 @@ fn control_disconnect_does_not_change_host_connection() {
     assert!(text.contains("Control:   DISCONNECTED"), "{text}");
 }
 #[test]
+fn open_control_session_holds_bluetooth_connected() {
+    // RFCOMM cannot be open without the link, so connecting settles
+    // an unknown header instead of leaving Control:on next to
+    // Bluetooth:unknown.
+    let mut app = App::new(&config());
+    assert_eq!(app.host_connection, HostConnectionState::Unknown);
+    app.accepted(
+        1,
+        Action::Connect {
+            address: app.address.clone(),
+            model_confirmed: true,
+        },
+    );
+    app.receive(Reply {
+        id: 1,
+        result: Ok(Output::Snapshot(Snapshot {
+            info: info(),
+            firmware: None,
+            note: None,
+        })),
+        connected: true,
+        writes_blocked: false,
+    });
+    assert!(app.control_connected);
+    assert_eq!(app.host_connection, HostConnectionState::Connected);
+}
+#[test]
+fn failed_connect_does_not_claim_bluetooth_connected() {
+    // The session never opened, so the header keeps the enumerated
+    // value: no open RFCOMM means no proof of the link.
+    let mut app = App::new(&config());
+    app.accepted(
+        1,
+        Action::Connect {
+            address: app.address.clone(),
+            model_confirmed: true,
+        },
+    );
+    app.receive(Reply {
+        id: 1,
+        result: Err("connection refused".into()),
+        connected: false,
+        writes_blocked: false,
+    });
+    assert!(!app.control_connected);
+    assert_eq!(app.host_connection, HostConnectionState::Unknown);
+}
+#[test]
+fn stale_pairing_list_cannot_downgrade_an_open_session() {
+    // A pairing reply is applied first; the open session still wins,
+    // so the two header lines can never contradict a live socket.
+    let mut app = ready();
+    app.accepted(2, Action::Paired);
+    app.receive(Reply {
+        id: 2,
+        result: Ok(Output::Paired(vec![device(
+            "AA:BB:CC:DD:EE:FF",
+            "Studio Pro",
+        )])),
+        connected: true,
+        writes_blocked: false,
+    });
+    assert!(app.control_connected);
+    assert_eq!(app.host_connection, HostConnectionState::Connected);
+}
+#[test]
 fn picker_p_reload_fresh_list_instead_of_stale_modal() {
     let mut app = App::new(&config());
     app.paired = Some(vec![device("11:22:33:44:55:66", "Old")]);

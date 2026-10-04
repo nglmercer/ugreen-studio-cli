@@ -58,11 +58,12 @@ pub(super) struct App {
     pub model_confirmed: bool,
     pub channel: u8,
     pub timeout_seconds: u64,
-    /// The application's RFCOMM control session only. The OS Bluetooth
-    /// link is `host_connection` and never changes with this flag.
+    /// The application's RFCOMM control session. While it is open the
+    /// Bluetooth line must read Connected; closing it never rewrites
+    /// `host_connection`.
     pub control_connected: bool,
-    /// OS Bluetooth link state of the current target, taken from paired
-    /// enumerations only; never inferred from RFCOMM success.
+    /// OS Bluetooth link state of the current target: from paired
+    /// enumerations, and held at Connected while a session is open.
     pub host_connection: HostConnectionState,
     pub info: Option<StudioProState>,
     pub firmware: Option<String>,
@@ -264,9 +265,11 @@ impl App {
                 // target first, then connected, disconnected, unknown.
                 let selected = BluetoothAddress::parse(&self.address).ok();
                 crate::bluetooth::sort_devices(&mut devices, selected.as_ref());
-                // The Bluetooth link state comes from the OS list only;
-                // a target the list no longer knows is Unknown, never a
-                // guessed Disconnected.
+                // The Bluetooth link state comes from the OS list;
+                // a target the list no longer knows is Unknown, never
+                // a guessed Disconnected. An open control session
+                // forces Connected after the match below, so a stale
+                // list cannot downgrade a live session.
                 self.host_connection = devices
                     .iter()
                     .find(|device| device.address.as_str().eq_ignore_ascii_case(&self.address))
@@ -313,6 +316,13 @@ impl App {
                 }
                 self.status = error;
             }
+        }
+        // RFCOMM cannot be open without the Bluetooth link, so an open
+        // session settles the header's Bluetooth line (the OS list can
+        // be stale while the session is live). A reply with no session
+        // leaves the enumerated value untouched.
+        if self.control_connected {
+            self.host_connection = HostConnectionState::Connected;
         }
         if self.disconnect_after {
             self.disconnect_after = false;

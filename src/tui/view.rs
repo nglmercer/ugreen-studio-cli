@@ -74,8 +74,9 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         Constraint::Length(3),
     ])
     .split(area);
-    // The OS Bluetooth link and the RFCOMM control session are two
-    // independent states and are shown as two independent lines.
+    // The OS Bluetooth link and the RFCOMM control session are shown
+    // as two separate lines: an open session implies the link, but the
+    // link can be up without a session (never the other way around).
     let bluetooth = match app.host_connection {
         HostConnectionState::Connected => t.connected,
         HostConnectionState::Disconnected => t.disconnected,
