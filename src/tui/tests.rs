@@ -141,6 +141,62 @@ fn paired_cache_only_on_explicit_request_and_selection_does_not_connect() {
     assert!(!app.connected);
 }
 #[test]
+fn first_device_pick_opens_protocol_modal_then_connects() {
+    let mut app = App::new(&Config {
+        address: None,
+        model_confirmed: false,
+        ..Config::default()
+    });
+    app.paired = Some(vec![Device {
+        address: "AA:BB:CC:DD:EE:FF".into(),
+        name: "Studio Pro".into(),
+    }]);
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    assert_eq!(app.address, "AA:BB:CC:DD:EE:FF");
+    assert!(app.paired.is_none());
+    assert!(app.model_confirmation);
+    assert!(!app.model_confirmed);
+    // y or Enter in the modal connects at once.
+    assert!(matches!(
+        app.key(key(KeyCode::Char('y'))),
+        Intent::Request(Action::Connect {
+            model_confirmed: true,
+            ..
+        })
+    ));
+    assert!(app.model_confirmed);
+}
+#[test]
+fn device_pick_with_confirmed_protocol_connects_at_once() {
+    let mut app = App::new(&config());
+    app.paired = Some(vec![Device {
+        address: "AA:BB:CC:DD:EE:FF".into(),
+        name: "Studio Pro".into(),
+    }]);
+    assert!(matches!(
+        app.key(key(KeyCode::Enter)),
+        Intent::Request(Action::Connect {
+            model_confirmed: true,
+            ..
+        })
+    ));
+    assert!(app.paired.is_none());
+}
+#[test]
+fn model_modal_enter_confirms_and_connects() {
+    let mut app = App::new(&config());
+    app.model_confirmation = true;
+    assert!(matches!(
+        app.key(key(KeyCode::Enter)),
+        Intent::Request(Action::Connect {
+            model_confirmed: true,
+            ..
+        })
+    ));
+    assert!(app.model_confirmed);
+    assert!(!app.model_confirmation);
+}
+#[test]
 fn empty_paired_list_navigation_is_safe() {
     let mut app = App::new(&config());
     app.paired = Some(vec![]);
@@ -923,7 +979,7 @@ fn supplied_address_is_terminal_safe_and_dark_background_is_explicit() {
 fn help_scrolls_on_minimum_screen() {
     let mut app = ready();
     app.key(key(KeyCode::Char('?')));
-    for _ in 0..16 {
+    for _ in 0..18 {
         app.key(key(KeyCode::Down));
     }
     assert!(app.help_scroll > 0);
