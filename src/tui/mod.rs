@@ -3,6 +3,7 @@ mod state;
 mod view;
 mod worker;
 
+use crate::cache;
 use crate::i18n::Lang;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::execute;
@@ -13,8 +14,10 @@ use std::{
 };
 use worker::Worker;
 
-/// Startup values do not trigger discovery, connections, or setting writes.
-/// Startup auto-loads the paired cache unless `skip_autoload` is set (tests).
+/// Startup values do not trigger discovery, connections, or setting
+/// writes unless `autoconnect` asks to connect to a cached target.
+/// Startup auto-loads the paired cache unless `skip_autoload` is set
+/// (tests).
 #[derive(Clone, Debug)]
 pub struct Config {
     pub address: Option<String>,
@@ -23,6 +26,7 @@ pub struct Config {
     pub timeout: Duration,
     pub lang: Lang,
     pub skip_autoload: bool,
+    pub autoconnect: bool,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -33,6 +37,7 @@ impl Default for Config {
             timeout: Duration::from_secs(3),
             lang: Lang::En,
             skip_autoload: true,
+            autoconnect: false,
         }
     }
 }
@@ -51,12 +56,24 @@ pub fn run(config: Config) -> io::Result<()> {
     }
     let mut app = App::new(&config);
     let mut worker = Worker::native(config)?;
-    // Auto-load the paired cache unless an address is already known or tests
-    // asked to skip. Failure only sets status text; startup never writes.
-    if !app.config_skip_autoload() && app.address.is_empty() {
-        match worker.submit(worker::Action::Paired) {
-            Ok(id) => app.accepted_loading(id),
-            Err(error) => app.status = error,
+    // Startup stays offline unless auto-connect is enabled with a
+    // cached, confirmed target; then it connects directly. Failure
+    // only sets status text; startup never writes settings.
+    if !app.config_skip_autoload() {
+        if app.config_autoconnect() && !app.address.is_empty() && app.model_confirmed {
+            let action = worker::Action::Connect {
+                address: app.address.clone(),
+                model_confirmed: true,
+            };
+            match worker.submit(action.clone()) {
+                Ok(id) => app.accepted(id, action),
+                Err(error) => app.status = error,
+            }
+        } else if app.address.is_empty() {
+            match worker.submit(worker::Action::Paired) {
+                Ok(id) => app.accepted_loading(id),
+                Err(error) => app.status = error,
+            }
         }
     }
     let result = ratatui::run(|terminal| -> io::Result<()> {
@@ -91,8 +108,20 @@ fn event_loop(
     loop {
         match worker.poll() {
             Ok(Some(reply)) => {
+                let was_connected = app.connected;
                 if let Some(action) = app.receive(reply) {
                     dispatch(app, worker, Intent::Request(action));
+                }
+                // Remember the target that answered, so the next start
+                // can offer it and auto-connect when enabled.
+                if !was_connected && app.connected {
+                    cache::save(&cache::Cache {
+                        address: Some(app.address.clone()),
+                        model_confirmed: true,
+                        channel: Some(app.channel),
+                        lang: Some(app.lang),
+                        autoconnect: app.config_autoconnect(),
+                    });
                 }
             }
             Ok(None) => {}

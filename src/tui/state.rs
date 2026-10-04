@@ -76,6 +76,7 @@ pub(super) struct App {
     disconnect_after: bool,
     worker_alive: bool,
     skip_autoload: bool,
+    autoconnect: bool,
 }
 impl App {
     pub fn new(config: &Config) -> Self {
@@ -111,6 +112,7 @@ impl App {
             disconnect_after: false,
             worker_alive: true,
             skip_autoload: config.skip_autoload,
+            autoconnect: config.autoconnect,
         }
     }
     pub fn t(&self) -> &'static L {
@@ -118,6 +120,9 @@ impl App {
     }
     pub fn config_skip_autoload(&self) -> bool {
         self.skip_autoload
+    }
+    pub fn config_autoconnect(&self) -> bool {
+        self.autoconnect
     }
     pub fn accepted_loading(&mut self, id: u64) {
         self.status = self.t().status_loading.into();
@@ -129,6 +134,13 @@ impl App {
             Lang::Es => Lang::En,
         };
         self.status = self.t().status_lang.into();
+        crate::cache::save(&crate::cache::Cache {
+            address: (!self.address.is_empty()).then(|| self.address.clone()),
+            model_confirmed: self.model_confirmed,
+            channel: Some(self.channel),
+            lang: Some(self.lang),
+            autoconnect: self.autoconnect,
+        });
     }
     pub fn record_status(&mut self) {
         if self.status == self.last_logged_status {
@@ -429,10 +441,18 @@ impl App {
             return Intent::None;
         }
         if self.model_confirmation {
-            if key.code == KeyCode::Char('y') {
+            if matches!(key.code, KeyCode::Char('y') | KeyCode::Enter) {
                 self.model_confirmed = true;
                 self.model_confirmation = false;
                 self.status = self.t().status_model_on.into();
+                // Confirming the protocol with a valid target
+                // connects at once; no second `c` is needed.
+                if worker::validate_address(&self.address).is_ok() {
+                    return Intent::Request(Action::Connect {
+                        address: self.address.clone(),
+                        model_confirmed: true,
+                    });
+                }
             }
             if matches!(key.code, KeyCode::Esc | KeyCode::Char('n')) {
                 self.model_confirmation = false;
@@ -450,12 +470,25 @@ impl App {
                     if let Some(device) = devices.get(self.paired_index) {
                         if worker::validate_address(&device.address).is_ok() {
                             self.address = device.address.clone();
+                            self.paired = None;
+                            // A confirmed protocol connects at
+                            // once; the first time, Enter opens
+                            // the protocol modal instead.
+                            if self.model_confirmed {
+                                return Intent::Request(Action::Connect {
+                                    address: self.address.clone(),
+                                    model_confirmed: true,
+                                });
+                            }
+                            self.model_confirmation = true;
                             self.status = self.t().status_device_picked.into();
                         } else {
+                            self.paired = None;
                             self.status = self.t().status_device_bad.into();
                         }
+                    } else {
+                        self.paired = None;
                     }
-                    self.paired = None;
                 }
                 _ => {}
             }

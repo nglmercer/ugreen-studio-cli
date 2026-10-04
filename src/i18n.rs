@@ -239,8 +239,10 @@ const EN: L = L {
         "Connection",
         "  a ......... Edit target address (while disconnected)",
         "  p ......... Load paired-device cache (auto-loads at startup)",
-        "  m then y .. Confirm Studio Pro HP206 protocol",
+        "  Enter ..... Pick a device: confirms the protocol, or connects",
+        "  m then y .. Confirm Studio Pro HP206 protocol (connects if the address is valid)",
         "  c / r / d . Connect / refresh status / disconnect",
+        "  Cache ..... Last target, channel and language are remembered",
         "Settings",
         "  Up/Down ... Select setting",
         "  Left/Right  Propose a value (local only, no write)",
@@ -273,7 +275,7 @@ const EN: L = L {
         "variants and firmware are unverified.",
         "HiTune Max5c uses conflicting command IDs and is unsupported.",
         "This selects a protocol; it does not prove device identity.",
-        "y: select Studio Pro HP206    n / Esc: cancel",
+        "y / Enter: select Studio Pro HP206    n / Esc: cancel",
     ],
     paired_title: " Paired cache / Up Down Enter select / Esc close ",
     paired_empty: "No cached paired devices. Esc closes.",
@@ -335,9 +337,9 @@ const EN: L = L {
     status_bad_address:
         "Enter six colon-separated hexadecimal octets, e.g. AA:BB:CC:DD:EE:FF.",
     status_model_on:
-        "Studio Pro HP206 protocol selected by you, not device-identity verified. Press c to connect.",
+        "Studio Pro HP206 protocol selected by you, not device-identity verified.",
     status_device_picked:
-        "Address selected locally. Confirm the intended device, then press c to connect.",
+        "Address selected. Confirm the Studio Pro protocol to connect (y or Enter).",
     status_device_bad: "Cached device has an invalid address; edit it manually.",
     status_cancel_then_disconnect:
         "Cancellation requested; disconnect will follow the current stage. An in-flight write may complete.",
@@ -369,7 +371,7 @@ const EN: L = L {
     err_mismatch_noack: "Write sent but {} did not match {}. Explicitly refresh before another write.",
     err_cancel_uncertain: "Cancelled later stages. An in-flight write may have completed; explicitly refresh before another write.",
     err_cancel: "Cancelled; no further stages will start.",
-    cli_help: "ugreen 0.1.0 — unofficial UGREEN Studio Pro Bluetooth CLI\n\nUSAGE\n  ugreen [OPTIONS] COMMAND\n\nOFFLINE COMMANDS\n  help                          Show this help\n  tui                           Open the optional interactive terminal UI\n  models                        Show protocol compatibility and limits\n  commands                      List supported settings\n  decode HEX                    Validate/decode captured response bytes offline\n  profile example               Print an example settings profile\n\nBLUETOOTH COMMANDS (pair in OS settings first)\n  discover                      List cached paired devices; no radio scan\n  status                        Read battery, firmware and settings\n  set KEY VALUE                 Change one setting, then verify readback\n  profile export                Read settings and print a reusable profile\n  profile apply FILE            Validate profile, apply and verify each setting\n\nOPTIONS (before COMMAND)\n  --address XX:XX:XX:XX:XX:XX    Explicit target Bluetooth address\n  --model studio-pro            Required for hardware requests; never auto-detected\n  --channel 1                   RFCOMM channel, 1–30 (default 1)\n  --timeout 3                   Per-operation timeout in seconds, 1–60\n  --lang en                     Interface language: en or es (default en)\n  --dry-run                     Print setting packets without Bluetooth access\n  --help, -h                    Show help\n  --version, -V                 Show version\n\nEXAMPLES\n  ugreen discover\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status\n  ugreen --dry-run set anc ultra\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro set eq bass\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro profile export > my-profile.conf\n  ugreen --dry-run profile apply my-profile.conf\n\nStudio Pro HP206 protocol verified on retail firmware 0.2.5 (one unit);\nHiTune Max5c uses conflicting command IDs. No firmware, reset, raw-write or\nfind-headphones actions are provided. Profiles may apply partially on failure.\n",
+    cli_help: "ugreen 0.1.0 — unofficial UGREEN Studio Pro Bluetooth CLI\n\nUSAGE\n  ugreen [OPTIONS] COMMAND\n\nOFFLINE COMMANDS\n  help                          Show this help\n  tui                           Open the optional interactive terminal UI\n  models                        Show protocol compatibility and limits\n  commands                      List supported settings\n  decode HEX                    Validate/decode captured response bytes offline\n  profile example               Print an example settings profile\n\nBLUETOOTH COMMANDS (pair in OS settings first)\n  discover                      List cached paired devices; no radio scan\n  status                        Read battery, firmware and settings\n  set KEY VALUE                 Change one setting, then verify readback\n  profile export                Read settings and print a reusable profile\n  profile apply FILE            Validate profile, apply and verify each setting\n\nOPTIONS (before COMMAND)\n  --address XX:XX:XX:XX:XX:XX    Explicit target Bluetooth address\n  --model studio-pro            Required for hardware requests; never auto-detected\n  --channel 1                   RFCOMM channel, 1–30 (default 1)\n  --timeout 3                   Per-operation timeout in seconds, 1–60\n  --lang en                     Interface language: en or es (default en)\n  --autoconnect                 TUI connects to the cached target at startup\n  --no-autoconnect              Disable startup auto-connect\n  --dry-run                     Print setting packets without Bluetooth access\n  --help, -h                    Show help\n  --version, -V                 Show version\n\nEXAMPLES\n  ugreen discover\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status\n  ugreen --dry-run set anc ultra\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro set eq bass\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro profile export > my-profile.conf\n  ugreen --dry-run profile apply my-profile.conf\n\nStudio Pro HP206 protocol verified on retail firmware 0.2.5 (one unit);\nHiTune Max5c uses conflicting command IDs. No firmware, reset, raw-write or\nfind-headphones actions are provided. Profiles may apply partially on failure.\n",
     cli_models: "studio-pro: protocol based on UGREEN Studio Pro HP206 reference code and capture\nHardware test status: VERIFIED on retail firmware 0.2.5 (Linux, channel 1; see docs/verification.md)\nHiTune Max5c: NOT SUPPORTED (conflicting command IDs)\nOther UGREEN models/firmware: NOT VERIFIED",
     cli_commands: "anc: off|ultra|general|gentle|adaptive|ambient\neq: classic|jazz|electronic|pop|classical|rock|bass|treble\ngame, spatial, dual, wind: on|off\nprompts: voice|beeps\nvolume-up-action, volume-down-action: none|next|previous",
     cli_banner: "Using Studio Pro HP206 protocol at {}, RFCOMM channel {}",
@@ -468,8 +470,10 @@ const ES: L = L {
         "Conexión",
         "  a ......... Editar dirección de destino (desconectado)",
         "  p ......... Cargar dispositivos emparejados (auto al iniciar)",
-        "  m luego y . Confirmar protocolo Studio Pro HP206",
+        "  Enter ..... Elegir dispositivo: confirma el protocolo o conecta",
+        "  m luego y . Confirmar protocolo Studio Pro HP206 (conecta si la dirección es válida)",
         "  c / r / d . Conectar / actualizar estado / desconectar",
+        "  Cache ..... Se recuerdan destino, canal e idioma",
         "Ajustes",
         "  Arriba/Abajo Seleccionar ajuste",
         "  Izq/Der .... Proponer valor (solo local, no escribe)",
@@ -502,7 +506,7 @@ const ES: L = L {
         "variantes y firmware no están verificados.",
         "HiTune Max5c usa otros identificadores y no es compatible.",
         "Esto elige un protocolo; no prueba la identidad del dispositivo.",
-        "y: elegir Studio Pro HP206    n / Esc: cancelar",
+        "y / Enter: elegir Studio Pro HP206    n / Esc: cancelar",
     ],
     paired_title: " Emparejados / Arriba Abajo Enter elegir / Esc cerrar ",
     paired_empty: "Sin dispositivos emparejados. Esc cierra.",
@@ -566,9 +570,9 @@ const ES: L = L {
     status_bad_address:
         "Escribe seis octetos hexadecimales con dos puntos, p. ej. AA:BB:CC:DD:EE:FF.",
     status_model_on:
-        "Protocolo Studio Pro HP206 elegido por ti, sin verificar identidad. Pulsa c para conectar.",
+        "Protocolo Studio Pro HP206 elegido por ti, sin verificar identidad.",
     status_device_picked:
-        "Dirección elegida. Confirma el dispositivo y pulsa c para conectar.",
+        "Dirección elegida. Confirma el protocolo Studio Pro para conectar (y o Enter).",
     status_device_bad: "El dispositivo tiene una dirección inválida; edítala a mano.",
     status_cancel_then_disconnect:
         "Cancelación pedida; se desconectará tras la etapa actual. Una escritura puede haberse aplicado.",
@@ -600,7 +604,7 @@ const ES: L = L {
     err_mismatch_noack: "Enviado, pero {} no coincide con {}. Actualiza antes de escribir.",
     err_cancel_uncertain: "Etapas siguientes canceladas. Una escritura puede haberse aplicado; actualiza antes de escribir.",
     err_cancel: "Cancelado; no empezarán más etapas.",
-    cli_help: "ugreen 0.1.0 — CLI Bluetooth no oficial para UGREEN Studio Pro\n\nUSO\n  ugreen [OPCIONES] COMANDO\n\nCOMANDOS SIN CONEXIÓN\n  help                          Mostrar esta ayuda\n  tui                           Abrir la interfaz de terminal opcional\n  models                        Mostrar compatibilidad y límites\n  commands                      Listar ajustes disponibles\n  decode HEX                    Validar/decodificar bytes capturados sin conexión\n  profile example               Mostrar un perfil de ejemplo\n\nCOMANDOS BLUETOOTH (empareja antes en el sistema)\n  discover                      Listar emparejados; sin búsqueda por radio\n  status                        Leer batería, firmware y ajustes\n  set CLAVE VALOR               Cambiar un ajuste y verificar lectura\n  profile export                Leer ajustes e imprimir un perfil reutilizable\n  profile apply ARCHIVO         Validar perfil y verificar cada ajuste\n\nOPCIONES (antes del COMANDO)\n  --address XX:XX:XX:XX:XX:XX    Dirección Bluetooth de destino explícita\n  --model studio-pro            Obligatorio para hardware; nunca se detecta solo\n  --channel 1                   Canal RFCOMM, 1–30 (1 por defecto)\n  --timeout 3                   Tiempo por operación en segundos, 1–60\n  --lang es                     Idioma de la interfaz: en o es (en por defecto)\n  --dry-run                     Mostrar paquetes sin acceder a Bluetooth\n  --help, -h                    Mostrar ayuda\n  --version, -V                 Mostrar versión\n\nEJEMPLOS\n  ugreen discover\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status\n  ugreen --dry-run set anc ultra\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro set eq bass\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro profile export > mi-perfil.conf\n  ugreen --dry-run profile apply mi-perfil.conf\n\nProtocolo Studio Pro HP206 verificado en firmware 0.2.5 (una unidad);\nHiTune Max5c usa otros identificadores de comando. Sin firmware, restablecimiento,\nescritura libre ni localización. Los perfiles pueden aplicarse en parte.\n",
+    cli_help: "ugreen 0.1.0 — CLI Bluetooth no oficial para UGREEN Studio Pro\n\nUSO\n  ugreen [OPCIONES] COMANDO\n\nCOMANDOS SIN CONEXIÓN\n  help                          Mostrar esta ayuda\n  tui                           Abrir la interfaz de terminal opcional\n  models                        Mostrar compatibilidad y límites\n  commands                      Listar ajustes disponibles\n  decode HEX                    Validar/decodificar bytes capturados sin conexión\n  profile example               Mostrar un perfil de ejemplo\n\nCOMANDOS BLUETOOTH (empareja antes en el sistema)\n  discover                      Listar emparejados; sin búsqueda por radio\n  status                        Leer batería, firmware y ajustes\n  set CLAVE VALOR               Cambiar un ajuste y verificar lectura\n  profile export                Leer ajustes e imprimir un perfil reutilizable\n  profile apply ARCHIVO         Validar perfil y verificar cada ajuste\n\nOPCIONES (antes del COMANDO)\n  --address XX:XX:XX:XX:XX:XX    Dirección Bluetooth de destino explícita\n  --model studio-pro            Obligatorio para hardware; nunca se detecta solo\n  --channel 1                   Canal RFCOMM, 1–30 (1 por defecto)\n  --timeout 3                   Tiempo por operación en segundos, 1–60\n  --lang es                     Idioma de la interfaz: en o es (en por defecto)\n  --autoconnect                 La TUI conecta al destino guardado al iniciar\n  --no-autoconnect              Desactiva la conexión automática al iniciar\n  --dry-run                     Mostrar paquetes sin acceder a Bluetooth\n  --help, -h                    Mostrar ayuda\n  --version, -V                 Mostrar versión\n\nEJEMPLOS\n  ugreen discover\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status\n  ugreen --dry-run set anc ultra\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro set eq bass\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro profile export > mi-perfil.conf\n  ugreen --dry-run profile apply mi-perfil.conf\n\nProtocolo Studio Pro HP206 verificado en firmware 0.2.5 (una unidad);\nHiTune Max5c usa otros identificadores de comando. Sin firmware, restablecimiento,\nescritura libre ni localización. Los perfiles pueden aplicarse en parte.\n",
     cli_models: "studio-pro: protocolo basado en el código de referencia UGREEN Studio Pro HP206 y su captura\nEstado de prueba de hardware: VERIFICADO en firmware 0.2.5 (Linux, canal 1; ver docs/verification.md)\nHiTune Max5c: NO COMPATIBLE (otros identificadores de comando)\nOtros modelos/firmware UGREEN: SIN VERIFICAR",
     cli_commands: "anc: off|ultra|general|gentle|adaptive|ambient\neq: classic|jazz|electronic|pop|classical|rock|bass|treble\ngame, spatial, dual, wind: on|off\nprompts: voice|beeps\nvolume-up-action, volume-down-action: none|next|previous",
     cli_banner: "Usando protocolo Studio Pro HP206 en {}, canal RFCOMM {}",

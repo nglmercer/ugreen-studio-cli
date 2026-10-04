@@ -85,16 +85,15 @@ fn connect_requires_address_and_model() {
     app.address = "AA:BB:CC:DD:EE:FF".into();
     assert!(matches!(app.key(key(KeyCode::Char('c'))), Intent::None));
     assert!(app.model_confirmation);
-    assert!(matches!(app.key(key(KeyCode::Char('y'))), Intent::None));
-    assert!(app.model_confirmed);
-    assert!(!app.connected);
+    // Confirming the protocol with a valid target connects at once.
     assert!(matches!(
-        app.key(key(KeyCode::Char('c'))),
+        app.key(key(KeyCode::Char('y'))),
         Intent::Request(Action::Connect {
             model_confirmed: true,
             ..
         })
     ));
+    assert!(app.model_confirmed);
 }
 #[test]
 fn model_cancel_does_not_select_or_connect() {
@@ -924,7 +923,7 @@ fn supplied_address_is_terminal_safe_and_dark_background_is_explicit() {
 fn help_scrolls_on_minimum_screen() {
     let mut app = ready();
     app.key(key(KeyCode::Char('?')));
-    for _ in 0..14 {
+    for _ in 0..16 {
         app.key(key(KeyCode::Down));
     }
     assert!(app.help_scroll > 0);

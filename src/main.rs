@@ -16,10 +16,11 @@ use ugreen_cli::{
 struct Options {
     address: Option<String>,
     model: Option<String>,
-    channel: u8,
+    channel: Option<u8>,
     timeout: Duration,
     dry_run: bool,
     lang: Option<Lang>,
+    autoconnect: Option<bool>,
     command: Vec<String>,
 }
 fn lang_of(o: &Options) -> Lang {
@@ -43,10 +44,11 @@ fn parse(args: Vec<String>) -> Result<Options, String> {
     let mut o = Options {
         address: None,
         model: None,
-        channel: 1,
+        channel: None,
         timeout: Duration::from_secs(3),
         dry_run: false,
         lang: None,
+        autoconnect: None,
         command: Vec::new(),
     };
     let mut args = args.into_iter();
@@ -78,12 +80,12 @@ fn parse(args: Vec<String>) -> Result<Options, String> {
                         1,
                     ),
                 )?;
-                o.channel = raw.parse().map_err(|_| {
+                o.channel = Some(raw.parse().map_err(|_| {
                     ugreen_cli::i18n::txt(lang_of(&o))
                         .cli_bad_channel
                         .to_string()
-                })?;
-                if !(1..=30).contains(&o.channel) {
+                })?);
+                if !(1..=30).contains(&o.channel.unwrap()) {
                     return Err(ugreen_cli::i18n::txt(lang_of(&o)).cli_bad_channel.into());
                 }
             }
@@ -113,6 +115,8 @@ fn parse(args: Vec<String>) -> Result<Options, String> {
                 )?;
                 o.lang = Some(Lang::from_code(&raw)?);
             }
+            "--autoconnect" => o.autoconnect = Some(true),
+            "--no-autoconnect" => o.autoconnect = Some(false),
             "--dry-run" => o.dry_run = true,
             "--help" | "-h" => {
                 o.command = vec!["help".into()];
@@ -152,8 +156,14 @@ fn connect(o: &Options) -> Result<Client<transport::Connection>, String> {
         return Err(t.cli_need_model.into());
     }
     let address = o.address.as_deref().ok_or(t.cli_need_address)?;
-    eprintln!("{}", fill(t.cli_banner, &[&address, &o.channel]));
-    transport::Connection::connect(address, o.channel, o.timeout)
+    eprintln!(
+        "{}",
+        fill(
+            t.cli_banner,
+            &[&address, &o.channel.unwrap_or(1).to_string()]
+        )
+    );
+    transport::Connection::connect(address, o.channel.unwrap_or(1), o.timeout)
         .map(|io| Client::new(io, o.timeout))
         .map_err(|e| fill(t.cli_connect_fail, &[&e.to_string()]))
 }
@@ -210,14 +220,25 @@ fn run(o: Options) -> Result<(), String> {
             }
             #[cfg(feature = "tui")]
             {
-                let lang = lang_of(&o);
+                // The cached target, protocol choice, channel and
+                // language fill defaults; explicit flags always win.
+                let cache = ugreen_cli::cache::load();
+                let autoconnect = o.autoconnect.unwrap_or(cache.autoconnect);
+                if let Some(autoconnect) = o.autoconnect {
+                    ugreen_cli::cache::save(&ugreen_cli::cache::Cache {
+                        autoconnect,
+                        ..cache.clone()
+                    });
+                }
                 ugreen_cli::tui::run(ugreen_cli::tui::Config {
-                    address: o.address,
-                    model_confirmed: o.model.as_deref() == Some("studio-pro"),
-                    channel: o.channel,
+                    address: o.address.or(cache.address),
+                    model_confirmed: o.model.as_deref() == Some("studio-pro")
+                        || cache.model_confirmed,
+                    channel: o.channel.or(cache.channel).unwrap_or(1),
                     timeout: o.timeout,
-                    lang,
+                    lang: o.lang.or(cache.lang).unwrap_or_else(Lang::detect),
                     skip_autoload: false,
+                    autoconnect,
                 })
                 .map_err(|e| e.to_string())?;
             }
@@ -394,6 +415,18 @@ mod tests {
         assert!(connect(&o).is_err());
         let o = parse(args("--model studio-pro status")).unwrap();
         assert!(connect(&o).is_err());
+    }
+    #[test]
+    fn autoconnect_flags_parse() {
+        assert_eq!(
+            parse(args("--autoconnect tui")).unwrap().autoconnect,
+            Some(true)
+        );
+        assert_eq!(
+            parse(args("--no-autoconnect tui")).unwrap().autoconnect,
+            Some(false)
+        );
+        assert_eq!(parse(args("tui")).unwrap().autoconnect, None);
     }
     #[test]
     fn device_names_cannot_control_terminal() {

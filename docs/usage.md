@@ -70,6 +70,14 @@ The footer bar mirrors the same keys; clicking a footer label presses it.
 | `?` | Open/close the shortcuts screen; Up/Down scroll and Home returns to the top |
 | `q` or Ctrl+C | Quit; while a write or refresh is in flight, ask for `q`/Enter again to exit (a lone paired-cache load quits at once) |
 
+The TUI remembers your last target, channel and language in
+`~/.config/ugreen-cli/state` (override with `UGREEN_STATE_FILE`). On the next
+start the address is pre-filled and the protocol choice is already confirmed, so
+connecting is a single `c`. Pass `--autoconnect` once to also connect at startup
+on every later run; `--no-autoconnect` turns it off. The cache only stores your
+own explicit choices — it never detects the device model, and every connection
+still runs its preflight query.
+
 Mouse clicks and the wheel need a terminal that reports mouse events; when
 capture is unavailable the keyboard keeps full control. Quitting while busy
 disables capture cleanup through Ratatui's normal restore path.
