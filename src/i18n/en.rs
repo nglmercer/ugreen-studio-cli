@@ -239,7 +239,7 @@ pub fn catalog() -> L {
         cli_need_value: "{} requires a value",
         cli_unknown_command: "unknown command '{}'; run ugreen --help",
         cli_bad_usage: "usage: {}",
-        cli_bad_decode: "capture is not a clean complete response stream: {} frames, {} rejected CRCs, {} discarded bytes, {} pending bytes",
+        cli_bad_decode: "capture is not a clean complete response stream: {} frames, {} rejected CRCs, {} discarded bytes, {} unknown frames, {} pending bytes",
         cli_no_tty: "The TUI requires interactive stdin and stdout terminals; run ugreen --help for CLI commands.",
         cli_no_tui_feature:
             "TUI feature is disabled in this CLI-only build; rebuild without --no-default-features",

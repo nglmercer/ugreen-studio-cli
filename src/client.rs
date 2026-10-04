@@ -1,7 +1,7 @@
 use crate::{
     i18n::Lang,
-    protocol::{self, Decoder, Response},
-    settings::{DeviceInfo, Setting},
+    protocol::{self, Decoder, IncomingFrame, ResponseFrame},
+    settings::{Setting, StudioProState},
 };
 use std::io::{self, Read, Write};
 use std::time::{Duration, Instant};
@@ -19,7 +19,7 @@ impl<T: Read + Write> Client<T> {
             timeout,
         }
     }
-    pub fn request(&mut self, instruction: u8, payload: &[u8]) -> io::Result<Response> {
+    pub fn request(&mut self, instruction: u8, payload: &[u8]) -> io::Result<ResponseFrame> {
         self.request_in(Lang::En, instruction, payload)
     }
     pub fn request_in(
@@ -27,7 +27,7 @@ impl<T: Read + Write> Client<T> {
         lang: Lang,
         instruction: u8,
         payload: &[u8],
-    ) -> io::Result<Response> {
+    ) -> io::Result<ResponseFrame> {
         let t = crate::i18n::txt(lang);
         self.io
             .write_all(&protocol::request(instruction, payload)?)?;
@@ -41,16 +41,25 @@ impl<T: Read + Write> Client<T> {
             match self.io.read(&mut bytes) {
                 Ok(0) => return Err(io::Error::new(io::ErrorKind::UnexpectedEof, t.req_closed)),
                 Ok(n) => {
+                    // Notifications (spatial echoes) and unknown frames
+                    // are observed by the decoder but never satisfy a
+                    // request; only a verified response to this exact
+                    // instruction counts.
                     for frame in self.decoder.feed(&bytes[..n]) {
-                        if frame.instruction == instruction {
-                            if !frame.succeeded {
-                                return Err(io::Error::other(t.req_rejected.replacen(
-                                    "{:02X}",
-                                    &format!("{instruction:02X}"),
-                                    1,
-                                )));
+                        match frame {
+                            IncomingFrame::Response(frame) if frame.instruction == instruction => {
+                                if !frame.succeeded {
+                                    return Err(io::Error::other(t.req_rejected.replacen(
+                                        "{:02X}",
+                                        &format!("{instruction:02X}"),
+                                        1,
+                                    )));
+                                }
+                                return Ok(frame);
                             }
-                            return Ok(frame);
+                            IncomingFrame::Response(_)
+                            | IncomingFrame::Notification(_)
+                            | IncomingFrame::Unknown(_) => {}
                         }
                     }
                 }
@@ -59,8 +68,8 @@ impl<T: Read + Write> Client<T> {
             }
         }
     }
-    pub fn info(&mut self) -> io::Result<DeviceInfo> {
-        DeviceInfo::new(self.request(protocol::INFO, &[0])?.payload)
+    pub fn info(&mut self) -> io::Result<StudioProState> {
+        StudioProState::new(self.request(protocol::INFO, &[0])?.payload)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
     pub fn firmware(&mut self) -> io::Result<String> {
@@ -77,7 +86,7 @@ impl<T: Read + Write> Client<T> {
     /// Spatial audio is the exception: retail firmware applies the write but
     /// answers with an `85 86 87` notification instead of a `DD EE FF`
     /// acknowledgement, so verification there relies on the readback alone.
-    pub fn set(&mut self, setting: &Setting) -> io::Result<DeviceInfo> {
+    pub fn set(&mut self, setting: &Setting) -> io::Result<StudioProState> {
         if setting.expects_ack() {
             self.request(setting.instruction,&setting.payload).map_err(|e| io::Error::new(e.kind(),format!("setting may have been sent but acknowledgement failed: {e}; query status before retrying")))?;
         } else {
@@ -241,5 +250,27 @@ mod tests {
         let mut expected = protocol::request(18, &[1]).unwrap();
         expected.extend_from_slice(&protocol::request(protocol::INFO, &[0]).unwrap());
         assert_eq!(c.into_inner().written, expected);
+    }
+
+    #[test]
+    fn notification_before_the_answer_never_blocks_the_request() {
+        // Retail firmware answers spatial writes with `85 86 87 02 0A
+        // <echo>`; that frame may reach the client while it waits for
+        // the device-info response and must simply be observed.
+        let mut payload = vec![0; 26];
+        payload[20] = 1;
+        let mut c = Client::new(
+            Mock {
+                read: vec![[
+                    vec![0x85, 0x86, 0x87, 0x02, 0x0A, 0x01],
+                    response(4, 1, &payload),
+                ]
+                .concat()]
+                .into(),
+                ..Default::default()
+            },
+            Duration::from_secs(1),
+        );
+        assert!(c.set(&Setting::parse("spatial", "on").unwrap()).is_ok());
     }
 }

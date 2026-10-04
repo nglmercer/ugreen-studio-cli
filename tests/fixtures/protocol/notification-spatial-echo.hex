@@ -1,0 +1,5 @@
+# Six-byte notification observed on retail firmware 0.2.5: magic
+# 85 86 87, kind 02, payload 0A 01. The 0A payload follows a spatial
+# write (instruction 0x12); mapping it to a semantic event needs an
+# official-app attribution, so it stays unknown.
+85 86 87 02 0A 01

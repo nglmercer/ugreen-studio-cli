@@ -179,7 +179,7 @@ pub fn catalog() -> L {
     l.cli_need_value = "{} vereist een waarde";
     l.cli_unknown_command = "onbekende opdracht '{}'; voer ugreen --help uit";
     l.cli_bad_usage = "gebruik: {}";
-    l.cli_bad_decode = "de opname is geen schone, volledige responsstroom: {} frames, {} verworpen CRC's, {} weggegooide bytes, {} openstaande bytes";
+    l.cli_bad_decode = "de opname is geen schone, volledige responsstroom: {} frames, {} verworpen CRC's, {} weggegooide bytes, {} onbekende frames, {} openstaande bytes";
     l.cli_no_tty = "De TUI vereist interactieve stdin- en stdout-terminals; voer ugreen --help uit voor CLI-opdrachten.";
     l.cli_no_tui_feature =
         "De TUI is uitgeschakeld in deze alleen-CLI-build; herbouw zonder --no-default-features";

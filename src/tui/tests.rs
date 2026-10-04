@@ -6,8 +6,9 @@ use super::{
     Config,
 };
 use crate::{
-    bluetooth::{BluetoothAddress, HostHeadset},
-    settings::{self, DeviceInfo, Setting},
+    bluetooth::{BluetoothAddress, HostConnectionState, HostHeadset},
+    models::Model,
+    settings::{self, Setting, StudioProState},
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{backend::TestBackend, Terminal};
@@ -20,11 +21,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-fn info() -> DeviceInfo {
+fn info() -> StudioProState {
     let mut raw = vec![0; 30];
     raw[0] = 76;
     raw[3] = 0xa0;
-    DeviceInfo::new(raw).unwrap()
+    StudioProState::new(raw).unwrap()
 }
 /// A paired listing entry; addresses must parse or the test itself is wrong.
 fn device(address: &str, name: &str) -> HostHeadset {
@@ -181,7 +182,11 @@ fn first_device_pick_opens_protocol_modal_then_connects() {
 #[test]
 fn device_pick_with_confirmed_protocol_connects_at_once() {
     let mut app = App::new(&config());
-    app.paired = Some(vec![device("AA:BB:CC:DD:EE:FF", "Studio Pro")]);
+    // Registry-annotated devices carry their confirmed model; the pick
+    // re-derives it instead of trusting a session-wide flag.
+    app.paired = Some(vec![
+        device("AA:BB:CC:DD:EE:FF", "Studio Pro").with_model(Model::StudioPro)
+    ]);
     assert!(matches!(
         app.key(key(KeyCode::Enter)),
         Intent::Request(Action::Connect {
@@ -190,6 +195,38 @@ fn device_pick_with_confirmed_protocol_connects_at_once() {
         })
     ));
     assert!(app.paired.is_none());
+}
+#[test]
+fn model_confirmation_is_derived_per_selected_address() {
+    // A confirmed session flag stays valid for the address it belongs to.
+    let mut app = App::new(&config());
+    app.paired = Some(vec![device("AA:BB:CC:DD:EE:FF", "Studio Pro")]);
+    assert!(matches!(
+        app.key(key(KeyCode::Enter)),
+        Intent::Request(Action::Connect {
+            model_confirmed: true,
+            ..
+        })
+    ));
+    // ...but must not carry over to a different, unconfirmed device.
+    let mut app = App::new(&config());
+    app.paired = Some(vec![device("11:22:33:44:55:66", "Other Buds")]);
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    assert_eq!(app.address, "11:22:33:44:55:66");
+    assert!(app.model_confirmation);
+    assert!(!app.model_confirmed);
+    // An annotated device needs no modal even from a fresh session.
+    let mut fresh = App::new(&Config::default());
+    fresh.paired = Some(vec![
+        device("11:22:33:44:55:66", "Studio Pro").with_model(Model::StudioPro)
+    ]);
+    assert!(matches!(
+        fresh.key(key(KeyCode::Enter)),
+        Intent::Request(Action::Connect {
+            model_confirmed: true,
+            ..
+        })
+    ));
 }
 #[test]
 fn model_modal_enter_confirms_and_connects() {
@@ -328,7 +365,7 @@ fn same_value_and_unavailable_value_do_not_write() {
     app.key(key(KeyCode::Right));
     app.key(key(KeyCode::Left));
     app.key(key(KeyCode::Enter));
-    app.info = Some(DeviceInfo::new(vec![255; 8]).unwrap());
+    app.info = Some(StudioProState::new(vec![255; 8]).unwrap());
     app.selected = 8;
     app.key(key(KeyCode::Right));
     assert!(app.proposals[8].is_none());
@@ -478,6 +515,25 @@ fn default_render_truthfully_shows_missing_data() {
     assert!(text.contains("Battery: unavailable"));
     assert!(text.contains("Codec: unavailable"));
     assert!(text.contains("fw 0.2.5 checked"));
+}
+#[test]
+fn paired_rows_show_link_state_and_confirmed_model() {
+    let mut app = App::new(&config());
+    app.paired = Some(vec![
+        device("AA:BB:CC:DD:EE:FF", "Studio Pro")
+            .with_connection(HostConnectionState::Connected)
+            .with_model(Model::StudioPro),
+        device("11:22:33:44:55:66", "Unknown State"),
+    ]);
+    let text = render(&app, 100, 30);
+    assert!(text.contains("(CONNECTED)"), "{text}");
+    assert!(text.contains("model=studio-pro"), "{text}");
+    // Never-queried state and unconfirmed models stay unclaimed.
+    assert!(
+        !text.contains("11:22:33:44:55:66  Unknown State  ("),
+        "{text}"
+    );
+    assert!(!text.contains("model=studio-pro  \n11:22"), "{text}");
 }
 #[test]
 fn connected_render_only_shows_deviceinfo_battery() {
@@ -736,7 +792,7 @@ impl Backend for FakeBackend {
     }
 }
 impl Session for FakeSession {
-    fn info(&mut self) -> io::Result<DeviceInfo> {
+    fn info(&mut self) -> io::Result<StudioProState> {
         let mut s = self.0.lock().unwrap();
         s.calls.push("info".into());
         s.info_count += 1;
@@ -746,7 +802,7 @@ impl Session for FakeSession {
         if s.fail_info == Some(s.info_count) {
             return Err(io::Error::other("mock status failure"));
         }
-        DeviceInfo::new(s.raw.clone()).map_err(io::Error::other)
+        StudioProState::new(s.raw.clone()).map_err(io::Error::other)
     }
     fn firmware(&mut self) -> io::Result<String> {
         let mut s = self.0.lock().unwrap();

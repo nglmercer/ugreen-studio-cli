@@ -1,0 +1,7 @@
+# Device-info response (instruction 0x04) for UGREEN Studio Pro HP206,
+# retail firmware 0.2.5 mapping: header DD EE FF, instruction 04,
+# success 01, length 1E (30-byte payload), CCITT-FALSE CRC D0 E3.
+# Layout: battery=20%, anc=off, eq=classic, dual=on, game=off,
+# prompts=beeps, spatial=off, volume-up=next, volume-down=previous,
+# wind=off.
+DD EE FF 04 01 1E 14 FF FF A0 00 01 00 00 08 0B 00 07 00 00 00 00 02 00 00 09 00 00 04 05 00 00 00 0C 0D 0E D0 E3

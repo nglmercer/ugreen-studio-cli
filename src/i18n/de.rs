@@ -175,7 +175,7 @@ pub fn catalog() -> L {
     l.cli_need_value = "{} benötigt einen Wert";
     l.cli_unknown_command = "unbekannter Befehl '{}'; führe ugreen --help aus";
     l.cli_bad_usage = "verwendung: {}";
-    l.cli_bad_decode = "die Aufzeichnung ist kein sauberer, vollständiger Antwortstrom: {} Rahmen, {} abgelehnte CRCs, {} verworfene Bytes, {} offene Bytes";
+    l.cli_bad_decode = "die Aufzeichnung ist kein sauberer, vollständiger Antwortstrom: {} Rahmen, {} abgelehnte CRCs, {} verworfene Bytes, {} unbekannte Rahmen, {} offene Bytes";
     l.cli_no_tty = "Die TUI erfordert interaktive stdin- und stdout-Terminals; führe ugreen --help für CLI-Befehle aus.";
     l.cli_no_tui_feature =
         "Die TUI ist in dieser Nur-CLI-Kompilation deaktiviert; kompiliere ohne --no-default-features neu";

@@ -1,0 +1,4 @@
+# Device-info query as this project encodes it (instruction 0x04,
+# payload 00, MODBUS CRC 31 91). Sent on TX; kept as a fixture so the
+# encoder and the recorded bytes can never drift apart.
+AA BB CC 04 01 00 31 91

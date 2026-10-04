@@ -62,7 +62,19 @@ fn extra_args_rejected() {
 }
 #[test]
 fn decode_real_capture() {
-    let o=run(&["decode","DD EE FF 04 01 1E 14 FF FF A0 00 01 00 00 08 0B 00 07 00 00 00 00 02 00 00 09 00 00 04 05 00 00 00 0C 0D 0E D0 E3"]);
+    // The captured response lives as a fixture so the CLI contract and
+    // the decoder tests share one set of bytes.
+    let fixture = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/protocol/info-response.hex"),
+    )
+    .unwrap();
+    let hex = fixture
+        .lines()
+        .find(|line| !line.trim_start().starts_with('#'))
+        .unwrap()
+        .trim();
+    let o = run(&["decode", hex]);
     assert!(o.status.success());
     assert!(String::from_utf8_lossy(&o.stdout).contains("crc=valid"));
 }

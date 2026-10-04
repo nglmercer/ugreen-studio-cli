@@ -95,7 +95,7 @@ impl Setting {
     pub fn expects_ack(&self) -> bool {
         self.instruction != 18
     }
-    pub fn matches(&self, info: &DeviceInfo) -> bool {
+    pub fn matches(&self, info: &StudioProState) -> bool {
         let idx = match self.key.as_str() {
             "anc" => 3,
             "eq" => 4,
@@ -119,10 +119,10 @@ impl Setting {
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DeviceInfo {
+pub struct StudioProState {
     pub raw: Vec<u8>,
 }
-impl DeviceInfo {
+impl StudioProState {
     pub fn new(raw: Vec<u8>) -> Result<Self, String> {
         if raw.len() < 8 {
             return Err(format!(
@@ -281,8 +281,8 @@ mod tests {
     }
     #[test]
     fn info_unknowns_are_not_defaults() {
-        assert!(DeviceInfo::new(vec![0; 7]).is_err());
-        let info = DeviceInfo::new(vec![255; 8]).unwrap();
+        assert!(StudioProState::new(vec![0; 7]).is_err());
+        let info = StudioProState::new(vec![255; 8]).unwrap();
         assert_eq!(info.battery(), None);
         assert_eq!(info.value("eq"), None);
         assert_eq!(info.value("spatial"), None);
@@ -299,7 +299,7 @@ mod tests {
         raw[0] = 20;
         raw[3] = 0xa1;
         raw[16] = 2;
-        let info = DeviceInfo::new(raw).unwrap();
+        let info = StudioProState::new(raw).unwrap();
         for setting in parse_profile(&info.profile()).unwrap() {
             assert!(setting.matches(&info));
         }

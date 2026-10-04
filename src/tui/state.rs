@@ -7,7 +7,7 @@ use crate::{
     device::registry::DeviceRegistry,
     i18n::{Lang, L},
     models::Model,
-    settings::{self, DeviceInfo, Setting},
+    settings::{self, Setting, StudioProState},
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent};
 use std::{collections::VecDeque, time::Instant};
@@ -59,7 +59,7 @@ pub(super) struct App {
     pub channel: u8,
     pub timeout_seconds: u64,
     pub connected: bool,
-    pub info: Option<DeviceInfo>,
+    pub info: Option<StudioProState>,
     pub firmware: Option<String>,
     pub observed_at: Option<Instant>,
     pub stale: bool,
@@ -702,7 +702,16 @@ impl App {
                     if let Some(device) = devices.get(self.paired_index) {
                         // The listed address is typed and canonical by
                         // construction; nothing here can corrupt the target.
+                        let unchanged = self.address.eq_ignore_ascii_case(device.address.as_str());
+                        let keep_confirmation = unchanged && self.model_confirmed;
                         self.address = device.address.as_str().to_owned();
+                        // Model confirmation is per address, never a
+                        // session-wide flag: a pick re-derives it from
+                        // the registry-confirmed model of that device,
+                        // keeping the session choice only when the
+                        // target itself did not change.
+                        self.model_confirmed =
+                            keep_confirmation || device.model == Some(Model::StudioPro);
                         self.paired = None;
                         // A confirmed protocol connects at
                         // once; the first time, Enter opens

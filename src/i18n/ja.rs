@@ -173,7 +173,7 @@ pub fn catalog() -> L {
     l.cli_need_value = "{} には値が必要です";
     l.cli_unknown_command = "未知のコマンド '{}'；ugreen --help を実行してください";
     l.cli_bad_usage = "使用法：{}";
-    l.cli_bad_decode = "キャプチャはクリーンで完全な応答ストリームではありません：{} フレーム，{} 拒否 CRC，{} 破棄バイト，{} 保留バイト";
+    l.cli_bad_decode = "キャプチャはクリーンで完全な応答ストリームではありません：{} フレーム，{} 拒否 CRC，{} 破棄バイト，{} 不明なフレーム，{} 保留バイト";
     l.cli_no_tty = "TUI は双方向の対話ターミナルを必要とします；CLI コマンドは ugreen --help を実行してください。";
     l.cli_no_tui_feature =
         "この CLI のみのビルドでは TUI が無効です；--no-default-features なしで再ビルドしてください";

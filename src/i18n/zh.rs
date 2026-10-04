@@ -166,7 +166,7 @@ pub fn catalog() -> L {
     l.cli_unknown_command = "未知命令 '{}'；请运行 ugreen --help";
     l.cli_bad_usage = "用法：{}";
     l.cli_bad_decode =
-        "捕获不是干净完整的响应流：{} 帧、{} 个被拒 CRC、{} 个被丢弃字节、{} 个待定字节";
+        "捕获不是干净完整的响应流：{} 帧、{} 个被拒 CRC、{} 个被丢弃字节、{} 个未知帧、{} 个待定字节";
     l.cli_no_tty = "TUI 需要交互式的 stdin 与 stdout 终端；请运行 ugreen --help 查看 CLI 命令。";
     l.cli_no_tui_feature = "此仅 CLI 构建中 TUI 已禁用；请不带 --no-default-features 重新构建";
     l.cli_tui_dry = "tui 不能与 --dry-run 同时使用；请用 --dry-run set 键 值 查看离线数据包";

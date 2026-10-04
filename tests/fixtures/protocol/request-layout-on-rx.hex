@@ -1,0 +1,5 @@
+# Well-framed bytes in the TX layout (AA BB CC) appearing on RX: valid
+# MODBUS CRC (7D 1A over 11 02 AB CD) but no RX meaning is verified for
+# them. The decoder counts one unknown frame and never reinterprets
+# them as a response.
+AA BB CC 11 02 AB CD 1A 7D

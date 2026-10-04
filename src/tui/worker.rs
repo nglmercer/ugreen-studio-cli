@@ -5,7 +5,7 @@ use crate::{
     bluetooth::{self, BluetoothAddress, HostHeadset},
     client::Client,
     i18n::{Lang, L},
-    settings::{DeviceInfo, Setting},
+    settings::{Setting, StudioProState},
 };
 use std::{
     io,
@@ -19,12 +19,12 @@ use std::{
 };
 
 pub(super) trait Session: Send {
-    fn info(&mut self) -> io::Result<DeviceInfo>;
+    fn info(&mut self) -> io::Result<StudioProState>;
     fn firmware(&mut self) -> io::Result<String>;
     fn acknowledge(&mut self, setting: &Setting) -> io::Result<()>;
 }
 impl Session for Client<bluetooth::Connection> {
-    fn info(&mut self) -> io::Result<DeviceInfo> {
+    fn info(&mut self) -> io::Result<StudioProState> {
         Client::info(self)
     }
     fn firmware(&mut self) -> io::Result<String> {
@@ -78,7 +78,7 @@ impl Action {
 }
 #[derive(Debug)]
 pub(super) struct Snapshot {
-    pub info: DeviceInfo,
+    pub info: StudioProState,
     pub firmware: Option<String>,
     pub note: Option<String>,
 }
@@ -87,7 +87,10 @@ pub(super) enum Output {
     Paired(Vec<HostHeadset>),
     Snapshot(Snapshot),
     Disconnected,
-    Verified { info: DeviceInfo, setting: Setting },
+    Verified {
+        info: StudioProState,
+        setting: Setting,
+    },
     Configured,
 }
 pub(super) struct Request {
@@ -184,11 +187,14 @@ impl<B: Backend> Engine<B> {
         self.check(request)?;
         match &request.action {
             Action::Paired => {
-                let devices = self
+                let mut devices = self
                     .backend
                     .paired()
                     .map_err(|e| t.err_paired_list.replacen("{}", &e.to_string(), 1))?;
                 self.check(request)?;
+                // The OS list never knows the model; the registry does.
+                // A fresh load keeps a mid-session confirmation visible.
+                crate::device::DeviceRegistry::load().annotate(&mut devices);
                 Ok(Output::Paired(devices))
             }
             Action::Connect {

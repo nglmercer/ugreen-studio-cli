@@ -176,7 +176,7 @@ pub fn catalog() -> L {
     l.cli_need_value = "{}에 값이 필요합니다";
     l.cli_unknown_command = "알 수 없는 명령 '{}'; ugreen --help를 실행하세요";
     l.cli_bad_usage = "사용법: {}";
-    l.cli_bad_decode = "캡처가 깨끗하고 완전한 응답 스트림이 아닙니다: {} 프레임, {} 거부된 CRC, {} 버린 바이트, {} 남은 바이트";
+    l.cli_bad_decode = "캡처가 깨끗하고 완전한 응답 스트림이 아닙니다: {} 프레임, {} 거부된 CRC, {} 버린 바이트, {} 알 수 없는 프레임, {} 남은 바이트";
     l.cli_no_tty =
         "TUI는 대화형 stdin과 stdout 터미널이 필요합니다; CLI 명령은 ugreen --help를 실행하세요.";
     l.cli_no_tui_feature =

@@ -182,7 +182,7 @@ pub fn catalog() -> L {
     l.cli_need_value = "{} richiede un valore";
     l.cli_unknown_command = "comando sconosciuto '{}'; esegui ugreen --help";
     l.cli_bad_usage = "uso: {}";
-    l.cli_bad_decode = "la cattura non è un flusso di risposta pulito e completo: {} frame, {} CRC rifiutati, {} byte scartati, {} byte in sospeso";
+    l.cli_bad_decode = "la cattura non è un flusso di risposta pulito e completo: {} frame, {} CRC rifiutati, {} byte scartati, {} frame sconosciuti, {} byte in sospeso";
     l.cli_no_tty = "La TUI richiede terminali interattivi su stdin e stdout; esegui ugreen --help per i comandi CLI.";
     l.cli_no_tui_feature =
         "La TUI è disattivata in questa build solo-CLI; ricompila senza --no-default-features";

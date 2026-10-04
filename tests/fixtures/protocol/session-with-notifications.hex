@@ -1,0 +1,7 @@
+# A realistic session stream: device-info response, a notification
+# arriving between requests, and the response again. The notification
+# must decode without disturbing either response and without tripping
+# any decoder counter.
+DD EE FF 04 01 1E 14 FF FF A0 00 01 00 00 08 0B 00 07 00 00 00 00 02 00 00 09 00 00 04 05 00 00 00 0C 0D 0E D0 E3
+85 86 87 02 0A 01
+DD EE FF 04 01 1E 14 FF FF A0 00 01 00 00 08 0B 00 07 00 00 00 00 02 00 00 09 00 00 04 05 00 00 00 0C 0D 0E D0 E3

@@ -7,7 +7,11 @@
 //! this one code path, and unknown or malformed lines are skipped so a
 //! single bad line never loses the rest of the file.
 
-use crate::{bluetooth::BluetoothAddress, i18n::Lang, models::Model};
+use crate::{
+    bluetooth::{BluetoothAddress, HostHeadset},
+    i18n::Lang,
+    models::Model,
+};
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -93,6 +97,14 @@ impl DeviceRegistry {
         self.selected
             .as_ref()
             .and_then(|address| self.model_of(address))
+    }
+    /// Attach the remembered model to every listed headset. This is the
+    /// only path that fills [`HostHeadset::model`]; enumeration itself
+    /// never guesses a model from a device name.
+    pub fn annotate(&self, headsets: &mut [HostHeadset]) {
+        for headset in headsets.iter_mut() {
+            headset.model = self.model_of(&headset.address);
+        }
     }
 
     pub fn save(&self) {
@@ -539,5 +551,21 @@ mod tests {
             None
         );
         let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn annotate_fills_models_only_from_the_registry() {
+        let known = BluetoothAddress::parse("AA:BB:CC:DD:EE:FF").unwrap();
+        let unknown = BluetoothAddress::parse("11:22:33:44:55:66").unwrap();
+        let mut registry = DeviceRegistry::default();
+        registry.set_selected(&known);
+        registry.set_model(&known, Some(Model::StudioPro));
+        let mut headsets = vec![
+            HostHeadset::paired(known, "UGREEN Studio Pro"),
+            HostHeadset::paired(unknown, "Mystery Buds"),
+        ];
+        registry.annotate(&mut headsets);
+        assert_eq!(headsets[0].model, Some(Model::StudioPro));
+        assert_eq!(headsets[1].model, None);
     }
 }

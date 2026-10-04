@@ -287,25 +287,40 @@ fn run(o: Options) -> Result<(), String> {
             let bytes = protocol::parse_hex(&args[1])?;
             let mut decoder = protocol::Decoder::default();
             let frames = decoder.feed(&bytes);
-            for f in &frames {
-                println!(
-                    "instruction=0x{:02X} success={} crc=valid payload={}",
-                    f.instruction,
-                    f.succeeded,
-                    protocol::hex(&f.payload)
-                );
+            for frame in &frames {
+                match frame {
+                    protocol::IncomingFrame::Response(frame) => println!(
+                        "instruction=0x{:02X} success={} crc=valid payload={}",
+                        frame.instruction,
+                        frame.succeeded,
+                        protocol::hex(&frame.payload)
+                    ),
+                    protocol::IncomingFrame::Notification(frame) => println!(
+                        "notification kind=0x{:02X} payload={} event=unknown",
+                        frame.kind,
+                        protocol::hex(&frame.payload)
+                    ),
+                    protocol::IncomingFrame::Unknown(frame) => println!(
+                        "unknown instruction=0x{:02X} payload={} rx-meaning=unverified",
+                        frame.instruction,
+                        protocol::hex(&frame.payload)
+                    ),
+                }
             }
+            let stats = decoder.stats;
             if frames.is_empty()
                 || decoder.pending_bytes() != 0
-                || decoder.rejected_checksums != 0
-                || decoder.discarded_bytes != 0
+                || stats.response_crc_failures != 0
+                || stats.discarded_bytes != 0
+                || stats.unknown_frames != 0
             {
                 return Err(fill(
                     t.cli_bad_decode,
                     &[
                         &frames.len(),
-                        &decoder.rejected_checksums,
-                        &decoder.discarded_bytes,
+                        &stats.response_crc_failures,
+                        &stats.discarded_bytes,
+                        &stats.unknown_frames,
                         &decoder.pending_bytes(),
                     ],
                 ));
@@ -316,13 +331,22 @@ fn run(o: Options) -> Result<(), String> {
             if o.dry_run {
                 return Err(t.cli_tui_dry.into());
             }
-            let devices = bluetooth::list_devices()
+            let mut devices = bluetooth::list_devices()
                 .map_err(|e| fill(t.cli_paired_fail, &[&e.to_string()]))?;
             if devices.is_empty() {
                 println!("{}", t.cli_no_paired);
             }
+            ugreen_cli::device::DeviceRegistry::load().annotate(&mut devices);
             for d in devices {
-                println!("{}  {}", d.address, terminal_text(&d.name));
+                match d.model {
+                    Some(model) => println!(
+                        "{}  {}  model={}",
+                        d.address,
+                        terminal_text(&d.name),
+                        model.as_str()
+                    ),
+                    None => println!("{}  {}", d.address, terminal_text(&d.name)),
+                }
             }
         }
         "status" => {

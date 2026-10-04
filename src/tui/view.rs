@@ -358,10 +358,21 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             devices
                 .iter()
                 .map(|device| {
+                    let link = if device.connected.is_connected() {
+                        format!("  ({})", t.connected)
+                    } else {
+                        String::new()
+                    };
+                    let model = match device.model {
+                        Some(model) => format!("  model={}", model.as_str()),
+                        None => String::new(),
+                    };
                     ListItem::new(format!(
-                        "{}  {}",
+                        "{}  {}{}{}",
                         clean(device.address.as_str()),
-                        clean(&device.name)
+                        clean(&device.name),
+                        link,
+                        model
                     ))
                 })
                 .collect()

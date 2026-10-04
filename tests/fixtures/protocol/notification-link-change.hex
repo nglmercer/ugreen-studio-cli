@@ -1,0 +1,4 @@
+# Six-byte notification observed on retail firmware 0.2.5: magic
+# 85 86 87, kind 02, payload 05 00. Semantics unattributed; decoded
+# as a notification with an unknown event, never as a response.
+85 86 87 02 05 00

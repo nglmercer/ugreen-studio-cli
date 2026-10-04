@@ -4,6 +4,7 @@ pub mod client;
 pub mod device;
 pub mod i18n;
 pub mod models;
+pub mod multipoint;
 pub mod protocol;
 pub mod settings;
 

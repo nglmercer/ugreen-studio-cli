@@ -184,7 +184,7 @@ pub fn catalog() -> L {
     l.cli_need_value = "{} nécessite une valeur";
     l.cli_unknown_command = "commande inconnue '{}' ; exécutez ugreen --help";
     l.cli_bad_usage = "utilisation : {}";
-    l.cli_bad_decode = "la capture n'est pas un flux de réponse propre et complet : {} trames, {} CRC rejetés, {} octets rejetés, {} octets en attente";
+    l.cli_bad_decode = "la capture n'est pas un flux de réponse propre et complet : {} trames, {} CRC rejetés, {} octets rejetés, {} trames inconnues, {} octets en attente";
     l.cli_no_tty = "La TUI exige des terminaux interactifs en entrée et sortie ; exécutez ugreen --help pour les commandes CLI.";
     l.cli_no_tui_feature =
         "La TUI est désactivée dans cette compilation CLI seule ; recompilez sans --no-default-features";
