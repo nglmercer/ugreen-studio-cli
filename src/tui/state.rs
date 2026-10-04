@@ -3,9 +3,11 @@ use super::{
     Config,
 };
 use crate::{
+    bluetooth::{BluetoothAddress, HostHeadset},
+    device::registry::DeviceRegistry,
     i18n::{Lang, L},
+    models::Model,
     settings::{self, DeviceInfo, Setting},
-    transport::Device,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent};
 use std::{collections::VecDeque, time::Instant};
@@ -69,7 +71,7 @@ pub(super) struct App {
     pub busy: Option<(u64, Action)>,
     pub status: String,
     pub address_edit: Option<String>,
-    pub paired: Option<Vec<Device>>,
+    pub paired: Option<Vec<HostHeadset>>,
     pub paired_index: usize,
     pub model_confirmation: bool,
     pub quit_confirmation: bool,
@@ -169,14 +171,16 @@ impl App {
     /// Remember the current target, channel, timeout and
     /// language so the next start can offer them.
     fn save_cache(&self) {
-        crate::cache::save(&crate::cache::Cache {
-            address: (!self.address.is_empty()).then(|| self.address.clone()),
-            model_confirmed: self.model_confirmed,
-            channel: Some(self.channel),
-            timeout: Some(self.timeout_seconds),
-            lang: Some(self.lang),
-            autoconnect: self.config_autoconnect(),
-        });
+        let mut registry = DeviceRegistry::load();
+        if let Ok(address) = BluetoothAddress::parse(&self.address) {
+            registry.set_selected(&address);
+            registry.set_model(&address, self.model_confirmed.then_some(Model::StudioPro));
+        }
+        registry.channel = Some(self.channel);
+        registry.timeout = Some(self.timeout_seconds);
+        registry.lang = Some(self.lang);
+        registry.autoconnect = self.config_autoconnect();
+        registry.save();
     }
     /// Report and persist a channel or timeout change;
     /// the worker applies it to the next connection.
@@ -696,24 +700,21 @@ impl App {
                 }
                 KeyCode::Enter => {
                     if let Some(device) = devices.get(self.paired_index) {
-                        if worker::validate_address(&device.address).is_ok() {
-                            self.address = device.address.clone();
-                            self.paired = None;
-                            // A confirmed protocol connects at
-                            // once; the first time, Enter opens
-                            // the protocol modal instead.
-                            if self.model_confirmed {
-                                return Intent::Request(Action::Connect {
-                                    address: self.address.clone(),
-                                    model_confirmed: true,
-                                });
-                            }
-                            self.model_confirmation = true;
-                            self.status = self.t().status_device_picked.into();
-                        } else {
-                            self.paired = None;
-                            self.status = self.t().status_device_bad.into();
+                        // The listed address is typed and canonical by
+                        // construction; nothing here can corrupt the target.
+                        self.address = device.address.as_str().to_owned();
+                        self.paired = None;
+                        // A confirmed protocol connects at
+                        // once; the first time, Enter opens
+                        // the protocol modal instead.
+                        if self.model_confirmed {
+                            return Intent::Request(Action::Connect {
+                                address: self.address.clone(),
+                                model_confirmed: true,
+                            });
                         }
+                        self.model_confirmation = true;
+                        self.status = self.t().status_device_picked.into();
                     } else {
                         self.paired = None;
                     }

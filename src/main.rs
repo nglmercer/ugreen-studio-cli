@@ -5,11 +5,11 @@ use std::{
     time::Duration,
 };
 use ugreen_cli::{
+    bluetooth::{self, BluetoothAddress},
     client::Client,
     i18n::{Lang, L},
     protocol,
     settings::{self, Setting},
-    transport,
 };
 
 #[derive(Debug)]
@@ -150,7 +150,7 @@ fn parse(args: Vec<String>) -> Result<Options, String> {
     }
     Ok(o)
 }
-fn connect(o: &Options) -> Result<Client<transport::Connection>, String> {
+fn connect(o: &Options) -> Result<Client<bluetooth::Connection>, String> {
     let t = txt_of(o);
     if o.model.as_deref() != Some("studio-pro") {
         return Err(t.cli_need_model.into());
@@ -164,7 +164,10 @@ fn connect(o: &Options) -> Result<Client<transport::Connection>, String> {
         )
     );
     let timeout = o.timeout.unwrap_or(Duration::from_secs(3));
-    transport::Connection::connect(address, o.channel.unwrap_or(1), timeout)
+    BluetoothAddress::parse(address)
+        .and_then(|address| {
+            bluetooth::Connection::connect(&address, o.channel.unwrap_or(1), timeout)
+        })
         .map(|io| Client::new(io, timeout))
         .map_err(|e| fill(t.cli_connect_fail, &[&e.to_string()]))
 }
@@ -221,27 +224,40 @@ fn run(o: Options) -> Result<(), String> {
             }
             #[cfg(feature = "tui")]
             {
-                // The cached target, protocol choice, channel,
+                // The remembered target, protocol choice, channel,
                 // timeout and language fill defaults; explicit
                 // flags always win.
-                let cache = ugreen_cli::cache::load();
-                let autoconnect = o.autoconnect.unwrap_or(cache.autoconnect);
+                let registry = ugreen_cli::device::registry::DeviceRegistry::load();
+                let autoconnect = o.autoconnect.unwrap_or(registry.autoconnect);
                 if let Some(autoconnect) = o.autoconnect {
-                    ugreen_cli::cache::save(&ugreen_cli::cache::Cache {
-                        autoconnect,
-                        ..cache.clone()
-                    });
+                    let mut registry = registry.clone();
+                    registry.autoconnect = autoconnect;
+                    registry.save();
                 }
+                let address = o.address.or_else(|| {
+                    registry
+                        .selected
+                        .as_ref()
+                        .map(|address| address.to_string())
+                });
+                // The model is confirmed per address, never guessed.
+                let model_confirmed = o.model.as_deref() == Some("studio-pro")
+                    || address
+                        .as_deref()
+                        .and_then(|raw| BluetoothAddress::parse(raw).ok())
+                        .is_some_and(|address| {
+                            registry.model_of(&address)
+                                == Some(ugreen_cli::models::Model::StudioPro)
+                        });
                 ugreen_cli::tui::run(ugreen_cli::tui::Config {
-                    address: o.address.or(cache.address),
-                    model_confirmed: o.model.as_deref() == Some("studio-pro")
-                        || cache.model_confirmed,
-                    channel: o.channel.or(cache.channel).unwrap_or(1),
+                    address,
+                    model_confirmed,
+                    channel: o.channel.or(registry.channel).unwrap_or(1),
                     timeout: o
                         .timeout
-                        .or(cache.timeout.map(Duration::from_secs))
+                        .or(registry.timeout.map(Duration::from_secs))
                         .unwrap_or(Duration::from_secs(3)),
-                    lang: o.lang.or(cache.lang).unwrap_or_else(Lang::detect),
+                    lang: o.lang.or(registry.lang).unwrap_or_else(Lang::detect),
                     skip_autoload: false,
                     autoconnect,
                 })
@@ -300,8 +316,8 @@ fn run(o: Options) -> Result<(), String> {
             if o.dry_run {
                 return Err(t.cli_tui_dry.into());
             }
-            let devices =
-                transport::list_paired().map_err(|e| fill(t.cli_paired_fail, &[&e.to_string()]))?;
+            let devices = bluetooth::list_devices()
+                .map_err(|e| fill(t.cli_paired_fail, &[&e.to_string()]))?;
             if devices.is_empty() {
                 println!("{}", t.cli_no_paired);
             }

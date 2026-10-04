@@ -3,8 +3,9 @@ mod state;
 mod view;
 mod worker;
 
-use crate::cache;
+use crate::device::registry::DeviceRegistry;
 use crate::i18n::Lang;
+use crate::models::Model;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::execute;
 use state::{App, Intent};
@@ -113,16 +114,19 @@ fn event_loop(
                     dispatch(app, worker, Intent::Request(action));
                 }
                 // Remember the target that answered, so the next start
-                // can offer it and auto-connect when enabled.
+                // can offer it and auto-connect when enabled. The model
+                // is confirmed because this device just talked back.
                 if !was_connected && app.connected {
-                    cache::save(&cache::Cache {
-                        address: Some(app.address.clone()),
-                        model_confirmed: true,
-                        channel: Some(app.channel),
-                        timeout: Some(app.timeout_seconds),
-                        lang: Some(app.lang),
-                        autoconnect: app.config_autoconnect(),
-                    });
+                    let mut registry = DeviceRegistry::load();
+                    if let Ok(address) = crate::bluetooth::BluetoothAddress::parse(&app.address) {
+                        registry.set_selected(&address);
+                        registry.set_model(&address, Some(Model::StudioPro));
+                    }
+                    registry.channel = Some(app.channel);
+                    registry.timeout = Some(app.timeout_seconds);
+                    registry.lang = Some(app.lang);
+                    registry.autoconnect = app.config_autoconnect();
+                    registry.save();
                 }
             }
             Ok(None) => {}

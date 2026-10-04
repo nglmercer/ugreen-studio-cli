@@ -6,8 +6,8 @@ use super::{
     Config,
 };
 use crate::{
+    bluetooth::{BluetoothAddress, HostHeadset},
     settings::{self, DeviceInfo, Setting},
-    transport::Device,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{backend::TestBackend, Terminal};
@@ -25,6 +25,10 @@ fn info() -> DeviceInfo {
     raw[0] = 76;
     raw[3] = 0xa0;
     DeviceInfo::new(raw).unwrap()
+}
+/// A paired listing entry; addresses must parse or the test itself is wrong.
+fn device(address: &str, name: &str) -> HostHeadset {
+    HostHeadset::paired(BluetoothAddress::parse(address).unwrap(), name)
 }
 fn config() -> Config {
     Config {
@@ -140,10 +144,10 @@ fn paired_cache_only_on_explicit_request_and_selection_does_not_connect() {
     app.accepted(1, Action::Paired);
     app.receive(Reply {
         id: 1,
-        result: Ok(Output::Paired(vec![Device {
-            address: "AA:BB:CC:DD:EE:FF".into(),
-            name: "Studio Pro".into(),
-        }])),
+        result: Ok(Output::Paired(vec![device(
+            "AA:BB:CC:DD:EE:FF",
+            "Studio Pro",
+        )])),
         connected: false,
         writes_blocked: false,
     });
@@ -158,10 +162,7 @@ fn first_device_pick_opens_protocol_modal_then_connects() {
         model_confirmed: false,
         ..Config::default()
     });
-    app.paired = Some(vec![Device {
-        address: "AA:BB:CC:DD:EE:FF".into(),
-        name: "Studio Pro".into(),
-    }]);
+    app.paired = Some(vec![device("AA:BB:CC:DD:EE:FF", "Studio Pro")]);
     assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
     assert_eq!(app.address, "AA:BB:CC:DD:EE:FF");
     assert!(app.paired.is_none());
@@ -180,10 +181,7 @@ fn first_device_pick_opens_protocol_modal_then_connects() {
 #[test]
 fn device_pick_with_confirmed_protocol_connects_at_once() {
     let mut app = App::new(&config());
-    app.paired = Some(vec![Device {
-        address: "AA:BB:CC:DD:EE:FF".into(),
-        name: "Studio Pro".into(),
-    }]);
+    app.paired = Some(vec![device("AA:BB:CC:DD:EE:FF", "Studio Pro")]);
     assert!(matches!(
         app.key(key(KeyCode::Enter)),
         Intent::Request(Action::Connect {
@@ -218,12 +216,9 @@ fn empty_paired_list_navigation_is_safe() {
     assert!(app.paired.is_none());
 }
 #[test]
-fn unknown_cached_address_cannot_replace_target() {
+fn paired_selection_applies_the_canonical_address() {
     let mut app = App::new(&config());
-    app.paired = Some(vec![Device {
-        address: "bad".into(),
-        name: "bad".into(),
-    }]);
+    app.paired = Some(vec![device("aa:bb:cc:dd:ee:ff", "Studio Pro")]);
     app.key(key(KeyCode::Enter));
     assert_eq!(app.address, "AA:BB:CC:DD:EE:FF");
 }
@@ -727,7 +722,7 @@ struct MockState {
 struct FakeBackend(Arc<Mutex<MockState>>);
 struct FakeSession(Arc<Mutex<MockState>>);
 impl Backend for FakeBackend {
-    fn paired(&mut self) -> io::Result<Vec<Device>> {
+    fn paired(&mut self) -> io::Result<Vec<HostHeadset>> {
         self.0.lock().unwrap().calls.push("paired".into());
         Ok(vec![])
     }
@@ -1025,7 +1020,7 @@ struct GateBackend {
     release: mpsc::Receiver<()>,
 }
 impl Backend for GateBackend {
-    fn paired(&mut self) -> io::Result<Vec<Device>> {
+    fn paired(&mut self) -> io::Result<Vec<HostHeadset>> {
         self.started.send(()).unwrap();
         self.release.recv_timeout(Duration::from_secs(5)).unwrap();
         Ok(vec![])
@@ -1154,12 +1149,7 @@ fn every_popup_restores_explicit_dark_background_after_clear() {
                 app.log_open = true;
                 app.record_status();
             }
-            2 => {
-                app.paired = Some(vec![Device {
-                    address: "AA:BB:CC:DD:EE:FF".into(),
-                    name: "Headphones".into(),
-                }])
-            }
+            2 => app.paired = Some(vec![device("AA:BB:CC:DD:EE:FF", "Headphones")]),
             3 => app.quit_confirmation = true,
             _ => app.model_confirmation = true,
         }

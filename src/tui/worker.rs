@@ -2,10 +2,10 @@
 //! admitted at a time; neither rendering nor key handling performs I/O.
 use super::Config;
 use crate::{
+    bluetooth::{self, BluetoothAddress, HostHeadset},
     client::Client,
     i18n::{Lang, L},
     settings::{DeviceInfo, Setting},
-    transport::{self, Device},
 };
 use std::{
     io,
@@ -23,7 +23,7 @@ pub(super) trait Session: Send {
     fn firmware(&mut self) -> io::Result<String>;
     fn acknowledge(&mut self, setting: &Setting) -> io::Result<()>;
 }
-impl Session for Client<transport::Connection> {
+impl Session for Client<bluetooth::Connection> {
     fn info(&mut self) -> io::Result<DeviceInfo> {
         Client::info(self)
     }
@@ -40,16 +40,17 @@ impl Session for Client<transport::Connection> {
     }
 }
 pub(super) trait Backend: Send + 'static {
-    fn paired(&mut self) -> io::Result<Vec<Device>>;
+    fn paired(&mut self) -> io::Result<Vec<HostHeadset>>;
     fn connect(&mut self, config: &Config, address: &str) -> io::Result<Box<dyn Session>>;
 }
 struct Native;
 impl Backend for Native {
-    fn paired(&mut self) -> io::Result<Vec<Device>> {
-        transport::list_paired()
+    fn paired(&mut self) -> io::Result<Vec<HostHeadset>> {
+        bluetooth::list_devices()
     }
     fn connect(&mut self, config: &Config, address: &str) -> io::Result<Box<dyn Session>> {
-        transport::Connection::connect(address, config.channel, config.timeout)
+        let address = BluetoothAddress::parse(address)?;
+        bluetooth::Connection::connect(&address, config.channel, config.timeout)
             .map(|io| Box::new(Client::new(io, config.timeout)) as Box<dyn Session>)
     }
 }
@@ -83,7 +84,7 @@ pub(super) struct Snapshot {
 }
 #[derive(Debug)]
 pub(super) enum Output {
-    Paired(Vec<Device>),
+    Paired(Vec<HostHeadset>),
     Snapshot(Snapshot),
     Disconnected,
     Verified { info: DeviceInfo, setting: Setting },

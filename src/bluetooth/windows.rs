@@ -4,7 +4,7 @@
 //! <https://github.com/microsoft/win32metadata/blob/main/generation/WinSDK/RecompiledIdlHeaders/um/ws2bth.h>
 //! <https://github.com/microsoft/win32metadata/blob/main/generation/WinSDK/RecompiledIdlHeaders/um/bluetoothapis.h>
 
-use super::{format_address, remaining, Device};
+use super::{remaining, HostConnectionState, HostHeadset};
 use std::ffi::{c_char, c_int, c_void};
 use std::io;
 use std::mem::{size_of, zeroed};
@@ -375,7 +375,11 @@ impl Drop for DeviceFind {
     }
 }
 
-pub(super) fn list_paired() -> io::Result<Vec<Device>> {
+/// List authenticated cached devices without an inquiry. The
+/// `BluetoothDeviceInfo` fields already carry the pairing/link truth:
+/// `authenticated` becomes `paired` and `connected` becomes the OS link
+/// state, instead of being discarded as before.
+pub(super) fn list_devices() -> io::Result<Vec<HostHeadset>> {
     let params = BluetoothSearchParams {
         size: size_of::<BluetoothSearchParams>() as u32,
         authenticated: 1,
@@ -406,16 +410,23 @@ pub(super) fn list_paired() -> io::Result<Vec<Device>> {
         // Defence in depth: never label an unpaired cached device as paired.
         if info.authenticated != 0 {
             let bytes = info.address.value.to_be_bytes();
-            let address = [bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]];
+            let address = super::BluetoothAddress::from_octets([
+                bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+            ]);
             let end = info
                 .name
                 .iter()
                 .position(|ch| *ch == 0)
                 .unwrap_or(info.name.len());
-            devices.push(Device {
-                address: format_address(address),
-                name: String::from_utf16_lossy(&info.name[..end]),
-            });
+            let state = if info.connected != 0 {
+                HostConnectionState::Connected
+            } else {
+                HostConnectionState::Disconnected
+            };
+            devices.push(
+                HostHeadset::paired(address, String::from_utf16_lossy(&info.name[..end]))
+                    .with_connection(state),
+            );
         }
         info.size = size_of::<BluetoothDeviceInfo>() as u32;
         // SAFETY: live enumeration handle and properly sized writable output.

@@ -360,7 +360,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
                 .map(|device| {
                     ListItem::new(format!(
                         "{}  {}",
-                        clean(&device.address),
+                        clean(device.address.as_str()),
                         clean(&device.name)
                     ))
                 })

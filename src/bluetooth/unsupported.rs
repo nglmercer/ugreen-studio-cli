@@ -1,4 +1,4 @@
-use super::Device;
+use super::HostHeadset;
 use std::io;
 use std::time::Instant;
 
@@ -24,6 +24,6 @@ impl Connection {
     }
 }
 
-pub(super) fn list_paired() -> io::Result<Vec<Device>> {
+pub(super) fn list_devices() -> io::Result<Vec<HostHeadset>> {
     Err(unsupported())
 }

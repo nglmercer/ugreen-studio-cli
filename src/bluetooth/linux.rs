@@ -3,7 +3,7 @@
 //! <https://github.com/bluez/bluez/blob/master/lib/bluetooth/rfcomm.h>
 //! <https://github.com/bluez/bluez/blob/master/doc/bluetoothctl.rst>
 
-use super::{format_address, parse_address, remaining, Device};
+use super::{remaining, BluetoothAddress, HostConnectionState, HostHeadset};
 use std::ffi::{c_int, c_short, c_ulong, c_void};
 use std::io::{self, Read};
 use std::mem::size_of;
@@ -294,18 +294,73 @@ fn drain_pipe(reader: &mut impl Read, output: &mut Vec<u8>) -> io::Result<bool> 
     }
 }
 
-pub(super) fn list_paired() -> io::Result<Vec<Device>> {
+/// List the OS's cached paired and connected devices.
+///
+/// The BlueZ D-Bus API is preferred because it returns typed properties
+/// (Paired/Connected) in one round trip. If the system bus is
+/// unavailable, a bounded `bluetoothctl` fallback runs two read-only
+/// cache queries. Neither path ever runs `scan`, `pair`, `connect`,
+/// `agent`, or `power` commands, and no shell is involved.
+pub(super) fn list_devices() -> io::Result<Vec<HostHeadset>> {
     check_abi()?;
-    // This command only reads BlueZ's paired-device cache. In particular, it
-    // does not run `scan`, `pair`, `connect`, `agent`, or `power` commands.
-    let mut command = Command::new("bluetoothctl");
-    command
-        .args(["--timeout", "5", "devices", "Paired"])
-        .env("LC_ALL", "C");
-    collect_devices(command, Duration::from_secs(6))
+    match super::dbus::list_devices() {
+        Ok(devices) => Ok(devices),
+        Err(_) => bluetoothctl_devices(),
+    }
 }
 
-fn collect_devices(mut command: Command, timeout: Duration) -> io::Result<Vec<Device>> {
+fn bluetoothctl_devices() -> io::Result<Vec<HostHeadset>> {
+    let paired = bluetoothctl_query("Paired")?;
+    // Older bluetoothctl builds lack the `Connected` filter. Then the
+    // link state stays Unknown instead of failing the whole listing.
+    let connected = bluetoothctl_query("Connected").unwrap_or_default();
+    Ok(merge_paired_connected(paired, connected))
+}
+
+/// Pure merge of the two cached listings. The paired listing supplies
+/// names and pairing truth; the connected listing only adds link state.
+fn merge_paired_connected(
+    paired: Vec<(BluetoothAddress, String)>,
+    connected: Vec<(BluetoothAddress, String)>,
+) -> Vec<HostHeadset> {
+    let mut devices: Vec<HostHeadset> = Vec::new();
+    for (address, name) in paired {
+        let state = if connected.iter().any(|(a, _)| *a == address) {
+            HostConnectionState::Connected
+        } else {
+            HostConnectionState::Disconnected
+        };
+        devices.push(HostHeadset::paired(address, name).with_connection(state));
+    }
+    for (address, name) in connected {
+        if !devices.iter().any(|d| d.address == address) {
+            // Connected but not reported as paired: never claim pairing.
+            devices.push(HostHeadset {
+                address,
+                name,
+                paired: false,
+                connected: HostConnectionState::Connected,
+                control_available: None,
+                model: None,
+            });
+        }
+    }
+    devices
+}
+
+fn bluetoothctl_query(filter: &str) -> io::Result<Vec<(BluetoothAddress, String)>> {
+    // This command only reads BlueZ's device cache; the filter selects
+    // which cached entries are printed. In particular it never runs
+    // `scan`, `pair`, `connect`, `agent`, or `power` commands.
+    let mut command = Command::new("bluetoothctl");
+    command
+        .args(["--timeout", "5", "devices", filter])
+        .env("LC_ALL", "C");
+    let output = collect_output(command, Duration::from_secs(6))?;
+    parse_device_lines(&output)
+}
+
+fn collect_output(mut command: Command, timeout: Duration) -> io::Result<String> {
     let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -359,7 +414,7 @@ fn collect_devices(mut command: Command, timeout: Duration) -> io::Result<Vec<De
                         stderr.trim()
                     )));
                 }
-                return parse_devices(&stdout);
+                return Ok(stdout.into_owned());
             }
         }
         if Instant::now() >= deadline {
@@ -390,7 +445,10 @@ fn strip_ansi(line: &str) -> String {
     result
 }
 
-fn parse_devices(output: &str) -> io::Result<Vec<Device>> {
+/// Strict parser for `bluetoothctl devices <filter>` output. Locale is
+/// pinned to `C`, ANSI escapes are stripped, and any line that is not a
+/// device record is an error rather than silently ignored.
+fn parse_device_lines(output: &str) -> io::Result<Vec<(BluetoothAddress, String)>> {
     let mut devices = Vec::new();
     for line in output.lines() {
         let clean = strip_ansi(line);
@@ -405,18 +463,15 @@ fn parse_devices(output: &str) -> io::Result<Vec<Device>> {
                 format!("BlueZ is unavailable: {line}; check the Bluetooth adapter and bluetooth service")));
         }
         let rest = line.strip_prefix("Device ").ok_or_else(|| io::Error::other(format!(
-            "unexpected bluetoothctl output: {line}; this command requires BlueZ support for 'devices Paired'")))?;
+            "unexpected bluetoothctl output: {line}; this command requires BlueZ support for 'devices'")))?;
         let (address, name) = rest.split_once(' ').unwrap_or((rest, ""));
-        let address = parse_address(address).map_err(|_| {
+        let address = BluetoothAddress::parse(address).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("bluetoothctl returned an invalid device address: {address}"),
             )
         })?;
-        devices.push(Device {
-            address: format_address(address),
-            name: name.trim().to_owned(),
-        });
+        devices.push((address, name.trim().to_owned()));
     }
     Ok(devices)
 }
@@ -443,14 +498,37 @@ mod tests {
 
     #[test]
     fn cached_device_output_is_parsed_without_discovery() {
-        let devices = parse_devices("\u{1b}[0;94mDevice\u{1b}[0m aa:bb:cc:dd:ee:ff UGREEN Studio Pro\nDevice 01:23:45:67:89:AB Headphones with spaces\n").unwrap();
-        assert_eq!(devices[0].address, "AA:BB:CC:DD:EE:FF");
-        assert_eq!(devices[0].name, "UGREEN Studio Pro");
-        assert_eq!(devices[1].name, "Headphones with spaces");
-        assert!(parse_devices("").unwrap().is_empty());
-        assert!(parse_devices("Device invalid Name").is_err());
-        assert!(parse_devices("Invalid command in menu main: devices").is_err());
-        assert!(parse_devices("No default controller available").is_err());
+        let devices = parse_device_lines("\u{1b}[0;94mDevice\u{1b}[0m aa:bb:cc:dd:ee:ff UGREEN Studio Pro\nDevice 01:23:45:67:89:AB Headphones with spaces\n").unwrap();
+        assert_eq!(devices[0].0.as_str(), "AA:BB:CC:DD:EE:FF");
+        assert_eq!(devices[0].1, "UGREEN Studio Pro");
+        assert_eq!(devices[1].1, "Headphones with spaces");
+        assert!(parse_device_lines("").unwrap().is_empty());
+        assert!(parse_device_lines("Device invalid Name").is_err());
+        assert!(parse_device_lines("Invalid command in menu main: devices").is_err());
+        assert!(parse_device_lines("No default controller available").is_err());
+    }
+
+    #[test]
+    fn paired_and_connected_lists_merge_without_faking_pairing() {
+        let address = |a: &str| BluetoothAddress::parse(a).unwrap();
+        let paired = vec![
+            (address("AA:AA:AA:AA:AA:01"), "Studio Pro".to_string()),
+            (address("AA:AA:AA:AA:AA:02"), "Old name".to_string()),
+        ];
+        let connected = vec![
+            (address("AA:AA:AA:AA:AA:02"), "Renamed".to_string()),
+            (address("AA:AA:AA:AA:AA:03"), "Unpaired device".to_string()),
+        ];
+        let devices = merge_paired_connected(paired, connected);
+        assert_eq!(devices.len(), 3);
+        assert!(devices[0].paired);
+        assert_eq!(devices[0].connected, HostConnectionState::Disconnected);
+        assert!(devices[1].paired);
+        assert_eq!(devices[1].connected, HostConnectionState::Connected);
+        // The paired listing's name wins; identity is the address.
+        assert_eq!(devices[1].name, "Old name");
+        assert!(!devices[2].paired);
+        assert_eq!(devices[2].connected, HostConnectionState::Connected);
     }
 
     #[test]
@@ -502,12 +580,12 @@ mod tests {
         // Only local shell fixtures are run; never invoke bluetoothctl in tests.
         let mut success = Command::new("sh");
         success.args(["-c", "printf 'Device AA:BB:CC:DD:EE:FF Test headphones\\n'"]);
-        let devices = collect_devices(success, Duration::from_secs(2)).unwrap();
-        assert_eq!(devices[0].name, "Test headphones");
+        let output = collect_output(success, Duration::from_secs(2)).unwrap();
+        assert!(output.contains("Test headphones"));
 
         let mut failure = Command::new("sh");
         failure.args(["-c", "printf 'test failure' >&2; exit 3"]);
-        assert!(collect_devices(failure, Duration::from_secs(2))
+        assert!(collect_output(failure, Duration::from_secs(2))
             .unwrap_err()
             .to_string()
             .contains("test failure"));
@@ -516,7 +594,7 @@ mod tests {
         stalled.args(["-c", "exec sleep 60"]);
         let start = Instant::now();
         assert_eq!(
-            collect_devices(stalled, Duration::from_millis(30))
+            collect_output(stalled, Duration::from_millis(30))
                 .unwrap_err()
                 .kind(),
             io::ErrorKind::TimedOut
