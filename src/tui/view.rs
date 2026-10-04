@@ -238,18 +238,6 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             t.model_title,
             t.model_lines.iter().map(|s| (*s).into()).collect(),
         );
-    } else if let Some(setting) = &app.confirmation {
-        overlay(
-            frame,
-            t.confirm_title,
-            vec![
-                fill(t.confirm_target, &[&clean(&app.address)]),
-                format!("{} -> {}?", setting.key, setting.value),
-                t.confirm_lines[0].into(),
-                t.confirm_lines[1].into(),
-                t.confirm_lines[2].into(),
-            ],
-        );
     } else if let Some(devices) = &app.paired {
         let rect = centered(
             area,

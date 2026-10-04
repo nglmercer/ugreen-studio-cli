@@ -64,7 +64,6 @@ pub(super) struct App {
     pub address_edit: Option<String>,
     pub paired: Option<Vec<Device>>,
     pub paired_index: usize,
-    pub confirmation: Option<Setting>,
     pub model_confirmation: bool,
     pub quit_confirmation: bool,
     pub help: bool,
@@ -100,7 +99,6 @@ impl App {
             address_edit: None,
             paired: None,
             paired_index: 0,
-            confirmation: None,
             model_confirmation: false,
             quit_confirmation: false,
             help: false,
@@ -270,7 +268,6 @@ impl App {
         self.busy = None;
         self.connected = false;
         self.stale = true;
-        self.confirmation = None;
     }
     /// Mouse: click selects settings/devices/footer buttons; second click on
     /// the same setting advances its proposal; wheel scrolls; right-click is Esc.
@@ -333,23 +330,20 @@ impl App {
             }
             return Intent::None;
         }
-        if self.confirmation.is_some() || self.model_confirmation || self.address_edit.is_some() {
+        if self.model_confirmation || self.address_edit.is_some() {
             return Intent::None;
         }
         if self.help || self.log_open {
             return Intent::None;
         }
-        // Settings list: header takes 7 rows; row i selects, second click advances.
+        // Settings list: header takes 7 rows; row i selects, second click
+        // proposes the next value. Applying always needs an explicit Enter.
         if y >= 7 {
             let idx = (y - 7) as usize;
             if idx < settings::KEYS.len() {
                 if self.selected == idx && self.busy.is_none() {
                     self.selected = idx;
-                    let intent = self.key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
-                    if matches!(intent, Intent::None) && self.proposals[idx].is_some() {
-                        return self.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-                    }
-                    return intent;
+                    return self.key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
                 }
                 self.selected = idx;
             }
@@ -376,7 +370,6 @@ impl App {
                 return Intent::Quit;
             }
             self.quit_confirmation = true;
-            self.confirmation = None;
             self.status = t.status_quit_confirm.into();
             return Intent::Cancel;
         }
@@ -445,24 +438,6 @@ impl App {
                 self.model_confirmation = false;
             }
             return Intent::None;
-        }
-        if let Some(setting) = &self.confirmation {
-            return match key.code {
-                KeyCode::Char('y') => {
-                    let setting = setting.clone();
-                    self.confirmation = None;
-                    if self.can_write() {
-                        Intent::Request(Action::Set(setting))
-                    } else {
-                        Intent::None
-                    }
-                }
-                KeyCode::Esc | KeyCode::Char('n') => {
-                    self.confirmation = None;
-                    Intent::None
-                }
-                _ => Intent::None,
-            };
         }
         if let Some(devices) = &self.paired {
             match key.code {
@@ -574,9 +549,13 @@ impl App {
                         == Some(value)
                     {
                         self.status = self.t().status_already_matches.into();
-                    } else {
-                        self.confirmation =
-                            Setting::parse_in(self.lang, settings::KEYS[self.selected], value).ok();
+                    } else if let Ok(setting) =
+                        Setting::parse_in(self.lang, settings::KEYS[self.selected], value)
+                    {
+                        // Enter applies directly; the write itself is
+                        // preflight-checked, sent and readback-verified.
+                        self.proposals[self.selected] = None;
+                        return Intent::Request(Action::Set(setting));
                     }
                 } else {
                     self.status = self.t().status_pick_first.into();

@@ -171,7 +171,7 @@ fn connected_target_cannot_be_edited_or_replaced() {
     assert!(app.paired.is_none());
 }
 #[test]
-fn proposing_setting_never_writes_and_confirmation_is_separate() {
+fn proposing_then_enter_applies_directly() {
     let mut app = ready();
     assert!(matches!(app.key(key(KeyCode::Right)), Intent::None));
     assert_eq!(app.proposals[0].as_deref(), Some("ultra"));
@@ -179,20 +179,17 @@ fn proposing_setting_never_writes_and_confirmation_is_separate() {
         app.info.as_ref().unwrap().value("anc").as_deref(),
         Some("off")
     );
-    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
-    assert!(app.confirmation.is_some());
-    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
     assert!(
-        matches!(app.key(key(KeyCode::Char('y'))), Intent::Request(Action::Set(setting)) if setting.key == "anc" && setting.value == "ultra")
+        matches!(app.key(key(KeyCode::Enter)), Intent::Request(Action::Set(setting)) if setting.key == "anc" && setting.value == "ultra")
     );
+    assert!(app.proposals[0].is_none());
 }
 #[test]
-fn confirmation_escape_never_sends() {
+fn escape_discards_proposal_without_writing() {
     let mut app = ready();
     app.key(key(KeyCode::Right));
-    app.key(key(KeyCode::Enter));
     assert!(matches!(app.key(key(KeyCode::Esc)), Intent::None));
-    assert!(app.confirmation.is_none());
+    assert!(app.proposals[0].is_none());
 }
 #[test]
 fn same_value_and_unavailable_value_do_not_write() {
@@ -200,7 +197,6 @@ fn same_value_and_unavailable_value_do_not_write() {
     app.key(key(KeyCode::Right));
     app.key(key(KeyCode::Left));
     app.key(key(KeyCode::Enter));
-    assert!(app.confirmation.is_none());
     app.info = Some(DeviceInfo::new(vec![255; 8]).unwrap());
     app.selected = 8;
     app.key(key(KeyCode::Right));
@@ -389,8 +385,6 @@ fn every_modal_renders_and_quit_warning_has_priority() {
     app.model_confirmation = true;
     assert!(render(&app, 80, 24).contains("Max5c"));
     app.model_confirmation = false;
-    app.confirmation = Some(Setting::parse("game", "on").unwrap());
-    assert!(render(&app, 80, 24).contains("Confirm one setting"));
     app.quit_confirmation = true;
     assert!(render(&app, 80, 24).contains("Quit while work"));
 }
@@ -964,7 +958,7 @@ fn every_popup_restores_explicit_dark_background_after_clear() {
                     name: "Headphones".into(),
                 }])
             }
-            3 => app.confirmation = Some(Setting::parse("game", "on").unwrap()),
+            3 => app.quit_confirmation = true,
             _ => app.model_confirmation = true,
         }
         let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();

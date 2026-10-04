@@ -10,7 +10,7 @@ The project separates local presentation and validation from the Bluetooth trans
 | --- | --- |
 | `src/main.rs` | CLI parsing, command dispatch, bounded profile-file reads, output and exit status |
 | `src/tui/mod.rs` | Feature-gated terminal lifecycle, event loop and dispatch |
-| `src/tui/state.rs` | Local proposals, confirmation, target selection and stale/busy state |
+| `src/tui/state.rs` | Local proposals, target selection and stale/busy state |
 | `src/tui/view.rs` | Panels, dialogs, small-terminal fallback and safe rendered text |
 | `src/tui/worker.rs` | Single-owner device session, bounded work queue, cancellation barriers and write lockout |
 | `src/settings.rs` | Studio Pro keys, byte mappings, device-info interpretation, profile parsing/export |

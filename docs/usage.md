@@ -63,8 +63,7 @@ The footer bar mirrors the same keys; clicking a footer label presses it.
 | Up / Down, wheel | Select a setting; navigate the paired-device list |
 | Click | Select a setting or device; second click advances the proposal |
 | Left / Right | Cycle a setting's proposed value |
-| Enter | Review a proposed setting change or accept a dialog choice |
-| `y` | Confirm the reviewed write |
+| Enter | Apply the proposed setting change, or accept a dialog choice |
 | Right-click / Esc | Cancel a dialog, discard the selected proposal, or request cancellation of busy work |
 | `l` | Open/close the session log; Up/Down and Home/End navigate |
 | `L` | Switch language English/Español |
@@ -75,7 +74,7 @@ Mouse clicks and the wheel need a terminal that reports mouse events; when
 capture is unavailable the keyboard keeps full control. Quitting while busy
 disables capture cleanup through Ratatui's normal restore path.
 
-Address entry accepts hexadecimal digits and colons, Backspace deletes, Ctrl+U clears, Enter validates, and Esc discards the edit; follow the dialog hints. In confirmation dialogs, `n` also cancels. The session log retains the latest 100 status events in memory and is not saved to disk. Esc also closes the log or help.
+Address entry accepts hexadecimal digits and colons, Backspace deletes, Ctrl+U clears, Enter validates, and Esc discards the edit; follow the dialog hints. In the protocol dialog, `n` also cancels. The session log retains the latest 100 status events in memory and is not saved to disk. Esc also closes the log or help.
 
 A listed device is just a cached paired device and may be offline or a different model. Selecting it alone does not open a Bluetooth connection.
 
