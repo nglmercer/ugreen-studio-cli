@@ -7,6 +7,7 @@ pub fn catalog() -> L {
     l.app_title = " UGREEN / Studio Pro 控制 ";
     l.connected = "已连接";
     l.disconnected = "未连接";
+    l.unknown = "未知";
     l.target = "目标：";
     l.target_none = "未选择";
     l.protocol = "协议：";
@@ -15,7 +16,7 @@ pub fn catalog() -> L {
     l.battery = "电池：";
     l.battery_pct = "{}%";
     l.unavailable = "不可用";
-    l.codec_line = "编解码器：不可用（未提供）";
+    l.codec_line = "编解码器：未检测到";
     l.firmware = "固件：";
     l.snapshot = "读取：";
     l.snapshot_stale = "已过期 / 非当前";
@@ -98,7 +99,7 @@ pub fn catalog() -> L {
     l.status_loading = "正在加载已配对设备缓存（不扫描）...";
     l.status_connecting = "正在连接，随后读取状态与固件...";
     l.status_refreshing = "正在刷新状态与固件...";
-    l.status_disconnecting = "正在断开连接...";
+    l.status_disconnecting = "正在断开控制连接...";
     l.status_applying = "预查询后应用 {}={}，随后验证确认与读回...";
     l.status_paired_empty = "缓存中没有已配对设备。请先在系统蓝牙设置中配对。";
     l.status_paired_pick = "选择目标设备并按 Enter。选择本身不会连接。";
@@ -106,7 +107,7 @@ pub fn catalog() -> L {
     l.status_firmware_note = "设置已读取；固件不可用：{}";
     l.status_blocked_note = " 仍需显式刷新（r）才能解锁写入。";
     l.status_verified = "已通过确认与一致的设备读回验证 {}={}。";
-    l.status_disconnected = "已断开。不会自动重连。";
+    l.status_disconnected = "控制连接已断开。蓝牙未被修改。";
     l.status_quit_confirm =
         "已请求取消。进行中的写入可能完成。按 q 或 Enter 不等待直接退出；Esc 留下。";
     l.status_cancel_busy = "已请求取消；正在等待当前阶段。进行中的写入可能完成。后续阶段将被跳过。";

@@ -18,7 +18,7 @@ mod address;
 mod device;
 
 pub use address::BluetoothAddress;
-pub use device::{HostConnectionState, HostHeadset};
+pub use device::{sort_devices, HostConnectionState, HostHeadset};
 
 #[cfg(target_os = "linux")]
 #[path = "linux.rs"]

@@ -81,6 +81,28 @@ impl HostHeadset {
     }
 }
 
+/// Deterministic picker order: the current target first, then connected,
+/// disconnected and unknown devices; ties break by name, then address.
+pub fn sort_devices(devices: &mut [HostHeadset], selected: Option<&BluetoothAddress>) {
+    let rank = |device: &HostHeadset| -> u8 {
+        if selected.is_some_and(|address| *address == device.address) {
+            0
+        } else {
+            match device.connected {
+                HostConnectionState::Connected => 1,
+                HostConnectionState::Disconnected => 2,
+                HostConnectionState::Unknown => 3,
+            }
+        }
+    };
+    devices.sort_by(|a, b| {
+        rank(a)
+            .cmp(&rank(b))
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+            .then_with(|| a.address.cmp(&b.address))
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,5 +133,51 @@ mod tests {
         };
         assert!(!headset.is_reachable());
         assert_eq!(headset.connected.as_str(), "disconnected");
+    }
+
+    #[test]
+    fn sort_devices_orders_target_then_link_state_then_name() {
+        let unknown = HostHeadset::paired(
+            BluetoothAddress::parse("00:00:00:00:00:03").unwrap(),
+            "Unknown",
+        );
+        let disconnected = HostHeadset::paired(
+            BluetoothAddress::parse("00:00:00:00:00:02").unwrap(),
+            "Disconnected",
+        )
+        .with_connection(HostConnectionState::Disconnected);
+        let connected = HostHeadset::paired(
+            BluetoothAddress::parse("00:00:00:00:00:01").unwrap(),
+            "Connected",
+        )
+        .with_connection(HostConnectionState::Connected);
+        let selected = BluetoothAddress::parse("00:00:00:00:00:04").unwrap();
+        let target = HostHeadset::paired(selected.clone(), "Target")
+            .with_connection(HostConnectionState::Disconnected);
+
+        // Unsorted input: target and disconnected start last.
+        let mut devices = vec![
+            unknown.clone(),
+            disconnected.clone(),
+            connected.clone(),
+            target.clone(),
+        ];
+        sort_devices(&mut devices, Some(&selected));
+        assert_eq!(devices[0].name, "Target");
+        assert_eq!(devices[1].name, "Connected");
+        assert_eq!(devices[2].name, "Disconnected");
+        assert_eq!(devices[3].name, "Unknown");
+
+        // Without a target the same link-state order holds, and equal
+        // states fall back to name (then address) so order is stable.
+        let mut devices = vec![unknown, disconnected, connected, target];
+        sort_devices(&mut devices, None);
+        assert_eq!(
+            devices
+                .iter()
+                .map(|device| device.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Connected", "Disconnected", "Target", "Unknown"]
+        );
     }
 }

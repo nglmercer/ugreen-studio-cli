@@ -7,6 +7,7 @@ pub fn catalog() -> L {
     l.app_title = " UGREEN / управление Studio Pro ";
     l.connected = "ПОДКЛЮЧЕНО";
     l.disconnected = "НЕ ПОДКЛЮЧЕНО";
+    l.unknown = "НЕИЗВЕСТНО";
     l.target = "Цель: ";
     l.target_none = "не выбрана";
     l.protocol = "Протокол: ";
@@ -15,7 +16,7 @@ pub fn catalog() -> L {
     l.battery = "Батарея: ";
     l.battery_pct = "{}%";
     l.unavailable = "недоступно";
-    l.codec_line = "Кодек: недоступен (не предоставляется)";
+    l.codec_line = "Кодек: не обнаружен";
     l.firmware = "Прошивка: ";
     l.snapshot = "Чтение: ";
     l.snapshot_stale = "УСТАРЕЛО / не актуально";
@@ -99,7 +100,7 @@ pub fn catalog() -> L {
     l.status_loading = "Загрузка сопряжённых устройств из кеша (без сканирования)...";
     l.status_connecting = "Подключение, затем чтение состояния и прошивки...";
     l.status_refreshing = "Обновление состояния и прошивки...";
-    l.status_disconnecting = "Отключение...";
+    l.status_disconnecting = "Отключение управления...";
     l.status_applying = "Применение {}={} после preflight, проверка подтверждения и чтения...";
     l.status_paired_empty =
         "Нет сопряжённых устройств в кеше. Сначала сопрягите в настройках Bluetooth системы.";
@@ -108,7 +109,7 @@ pub fn catalog() -> L {
     l.status_firmware_note = "Настройки прочитаны; прошивка недоступна: {}";
     l.status_blocked_note = " Для разблокировки записей нужно явное обновление (r).";
     l.status_verified = "{}={} проверено через подтверждение и совпадающее чтение устройства.";
-    l.status_disconnected = "Не подключено. Автоматического переподключения нет.";
+    l.status_disconnected = "Управление отключено. Bluetooth не изменён.";
     l.status_quit_confirm = "Отмена запрошена. Выполняемая запись может завершиться. Нажмите q или Enter, чтобы выйти без ожидания; Esc — остаться.";
     l.status_cancel_busy = "Отмена запрошена; ожидание текущего этапа. Выполняемая запись может завершиться. Следующие этапы будут пропущены.";
     l.status_address_saved = "Адрес сохранён локально. Нажмите c, чтобы подключиться явно.";

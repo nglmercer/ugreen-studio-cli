@@ -7,6 +7,7 @@ pub fn catalog() -> L {
     l.app_title = " UGREEN / Studio Pro-bediening ";
     l.connected = "VERBONDEN";
     l.disconnected = "VERBROKEN";
+    l.unknown = "ONBEKEND";
     l.target = "Doel: ";
     l.target_none = "niet gekozen";
     l.protocol = "Protocol: ";
@@ -15,7 +16,7 @@ pub fn catalog() -> L {
     l.battery = "Batterij: ";
     l.battery_pct = "{}%";
     l.unavailable = "onbeschikbaar";
-    l.codec_line = "Codec: onbeschikbaar (niet vrijgegeven)";
+    l.codec_line = "Codec: niet gedetecteerd";
     l.firmware = "Firmware: ";
     l.snapshot = "Uitlezing: ";
     l.snapshot_stale = "VEROUDERD / niet actueel";
@@ -100,7 +101,7 @@ pub fn catalog() -> L {
     l.status_loading = "Gekoppelde apparaten uit cache laden (geen scan)...";
     l.status_connecting = "Verbinding maken en status en firmware lezen...";
     l.status_refreshing = "Status en firmware verversen...";
-    l.status_disconnecting = "Verbinding verbreken...";
+    l.status_disconnecting = "Controlverbinding verbreken...";
     l.status_applying = "{}={} toepassen na preflight, bevestiging en uitlezing controleren...";
     l.status_paired_empty =
         "Geen gekoppelde apparaten in de cache. Koppel eerst in de Bluetooth-instellingen van het systeem.";
@@ -110,7 +111,7 @@ pub fn catalog() -> L {
     l.status_blocked_note =
         " Een expliciete verversing (r) is nog vereist om schrijven te ontgrendelen.";
     l.status_verified = "{}={} geverifieerd via bevestiging en bijbehorende apparaatuitlezing.";
-    l.status_disconnected = "Niet verbonden. Geen automatische heroverbinding.";
+    l.status_disconnected = "Controlverbinding verbroken. Bluetooth is niet gewijzigd.";
     l.status_quit_confirm = "Annulering gevraagd. Een lopende schrijfbewerking kan worden voltooid. Druk q of Enter om zonder te wachten af te sluiten; Esc om te blijven.";
     l.status_cancel_busy = "Annulering gevraagd; wacht op de huidige stap. Een lopende schrijfbewerking kan worden voltooid. Latere stappen worden overgeslagen.";
     l.status_address_saved = "Adres lokaal opgeslagen. Druk c om expliciet te verbinden.";

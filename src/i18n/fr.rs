@@ -7,6 +7,7 @@ pub fn catalog() -> L {
     l.app_title = " UGREEN / contrôle Studio Pro ";
     l.connected = "CONNECTÉ";
     l.disconnected = "DÉCONNECTÉ";
+    l.unknown = "INCONNU";
     l.target = "Cible : ";
     l.target_none = "non sélectionnée";
     l.protocol = "Protocole : ";
@@ -15,7 +16,7 @@ pub fn catalog() -> L {
     l.battery = "Batterie : ";
     l.battery_pct = "{} %";
     l.unavailable = "indisponible";
-    l.codec_line = "Codec : indisponible (non exposé)";
+    l.codec_line = "Codec : non détecté";
     l.firmware = "Firmware : ";
     l.snapshot = "Relevé : ";
     l.snapshot_stale = "PÉRIMÉ / non à jour";
@@ -100,7 +101,7 @@ pub fn catalog() -> L {
     l.status_loading = "Chargement des appareils appairés en cache (aucun scan)...";
     l.status_connecting = "Connexion, puis lecture de l'état et du firmware...";
     l.status_refreshing = "Actualisation de l'état et du firmware...";
-    l.status_disconnecting = "Déconnexion...";
+    l.status_disconnecting = "Déconnexion du contrôle...";
     l.status_applying =
         "Application de {}={} après pré-vol, puis vérification de la confirmation et du relevé...";
     l.status_paired_empty =
@@ -113,7 +114,7 @@ pub fn catalog() -> L {
     l.status_blocked_note =
         " Une actualisation explicite (r) est encore requise pour débloquer les écritures.";
     l.status_verified = "{}={} vérifié par confirmation et relevé d'appareil correspondant.";
-    l.status_disconnected = "Déconnecté. Pas de reconnexion automatique.";
+    l.status_disconnected = "Contrôle déconnecté. Bluetooth n'a pas été modifié.";
     l.status_quit_confirm = "Annulation demandée. Une écriture en cours peut se terminer. Appuyez sur q ou Entrée pour quitter sans attendre ; Échap pour rester.";
     l.status_cancel_busy = "Annulation demandée ; attente de l'étape courante. Une écriture en cours peut se terminer. Les étapes suivantes seront ignorées.";
     l.status_address_saved =

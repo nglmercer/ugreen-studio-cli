@@ -1,5 +1,5 @@
 use super::state::{choices, App, CATEGORIES};
-use crate::{i18n::Lang, settings};
+use crate::{bluetooth::HostConnectionState, i18n::Lang, settings};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -74,7 +74,14 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         Constraint::Length(3),
     ])
     .split(area);
-    let connection = if app.connected {
+    // The OS Bluetooth link and the RFCOMM control session are two
+    // independent states and are shown as two independent lines.
+    let bluetooth = match app.host_connection {
+        HostConnectionState::Connected => t.connected,
+        HostConnectionState::Disconnected => t.disconnected,
+        HostConnectionState::Unknown => t.unknown,
+    };
+    let control = if app.control_connected {
         t.connected
     } else {
         t.disconnected
@@ -96,28 +103,33 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
     } else {
         t.snapshot_never.into()
     };
+    let state_style = |connected: bool| {
+        Style::default()
+            .fg(if connected {
+                Color::Green
+            } else {
+                Color::Yellow
+            })
+            .add_modifier(Modifier::BOLD)
+    };
     let header = vec![
-        Line::from(vec![
-            Span::styled(
-                format!(" {connection} "),
-                Style::default()
-                    .fg(if app.connected {
-                        Color::Green
-                    } else {
-                        Color::Yellow
-                    })
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(format!(
-                " {}{}",
-                t.target,
-                if app.address.is_empty() {
-                    t.target_none.into()
-                } else {
-                    clean(&app.address)
-                }
-            )),
-        ]),
+        Line::from(Span::styled(
+            format!(" {}{}", t.bluetooth, bluetooth),
+            state_style(app.host_connection.is_connected()),
+        )),
+        Line::from(Span::styled(
+            format!(" {}{}", t.control, control),
+            state_style(app.control_connected),
+        )),
+        Line::raw(format!(
+            " {}{}",
+            t.target,
+            if app.address.is_empty() {
+                t.target_none.into()
+            } else {
+                clean(&app.address)
+            }
+        )),
         Line::raw(format!(" {}{}", t.protocol, protocol)),
         Line::raw(format!(" {}{}  {}", t.battery, battery, t.codec_line)),
         Line::raw(format!(
@@ -126,10 +138,6 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             clean(app.firmware.as_deref().unwrap_or(t.unavailable)),
             t.snapshot,
             snapshot
-        )),
-        Line::raw(format!(
-            " {}",
-            fill(t.rfcomm_line, &[&app.channel, &app.timeout_seconds])
         )),
     ];
     frame.render_widget(
@@ -358,20 +366,22 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             devices
                 .iter()
                 .map(|device| {
-                    let link = if device.connected.is_connected() {
-                        format!("  ({})", t.connected)
-                    } else {
-                        String::new()
+                    // Every row states its link state explicitly; an
+                    // unknown state is shown, never hidden.
+                    let state = match device.connected {
+                        HostConnectionState::Connected => t.connected,
+                        HostConnectionState::Disconnected => t.disconnected,
+                        HostConnectionState::Unknown => t.unknown,
                     };
                     let model = match device.model {
                         Some(model) => format!("  model={}", model.as_str()),
                         None => String::new(),
                     };
                     ListItem::new(format!(
-                        "{}  {}{}{}",
+                        "{}  {}  [{}]{}",
                         clean(device.address.as_str()),
                         clean(&device.name),
-                        link,
+                        state,
                         model
                     ))
                 })

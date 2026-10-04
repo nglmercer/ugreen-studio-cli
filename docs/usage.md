@@ -56,11 +56,11 @@ The footer bar mirrors the same keys; clicking a footer label presses it.
 | Key / mouse | Action |
 | --- | --- |
 | `a` | Edit target Bluetooth address while disconnected |
-| `p` | Load the OS's paired-device cache and choose an address (auto-loads at startup) |
+| `p` | Reload the OS paired-device list (a fresh list on every press) and choose an address (auto-loads at startup) |
 | `m`, then `y` | Review and confirm the Studio Pro/HP206 protocol choice |
 | `c` | Connect to the selected target and read status |
 | `r` | Refresh status explicitly |
-| `d` | Disconnect |
+| `d` | Disconnect the control session; the Bluetooth link itself is not modified |
 | `s` | Open app settings: language, RFCOMM channel, timeout, target |
 | Up / Down, wheel | Select a setting (crossing category boundaries), navigate the paired-device list |
 | Tab / Shift+Tab | Switch the setting category (Audio, Connection, Environment, Feedback) |
@@ -96,7 +96,9 @@ Address entry accepts hexadecimal digits and colons, Backspace deletes, Ctrl+U c
 
 Settings are grouped into four categories — Audio (ANC, equalizer, game mode, spatial audio), Connection (dual connection), Environment (wind reduction) and Feedback (prompts, volume-button actions). `Tab` switches category, digits `1`–`9` jump within it, and Up/Down cross into the adjacent category at a boundary. With no proposal pending, `Enter` opens a value list for the selected setting: Up/Down move, `Enter` applies, `Esc` closes, and a click applies the clicked value at once. The value the device currently reports is marked `*`.
 
-A listed device is just a paired device of this OS and may be offline or a different model. Rows show the link state when the OS reports one (`(CONNECTED)`) and the registry-confirmed model (`model=studio-pro`) when you confirmed it for that address; enumeration never guesses a model. Selecting a device alone does not open a Bluetooth connection, and the protocol confirmation is re-derived for the selected address — confirming one device does not confirm another.
+A listed device is just a paired device of this OS and may be offline or a different model. Rows show the link state explicitly (`[CONNECTED]`, `[DISCONNECTED]` or `[UNKNOWN]`) and the registry-confirmed model (`model=studio-pro`) when you confirmed it for that address; enumeration never guesses a model. The list orders the current target first, then connected, disconnected and unknown devices, breaking ties by name and address. Selecting a device alone does not open a Bluetooth connection — it only updates the target and the header's Bluetooth state — and the protocol confirmation is re-derived for the selected address, so confirming one device does not confirm another.
+
+The header reports the two links separately: `Bluetooth:` is the OS link state of the current target (from paired-device enumerations only), while `Control:` is this application's RFCOMM session. The control line may read `DISCONNECTED` while Bluetooth reads `CONNECTED`; neither is wrong, and `d` only ever changes the control side.
 
 The interface distinguishes last-read state from a proposed value. Editing a proposal is local. Fields missing or unknown in device readback cannot be written from the TUI, and proposing the current value does not send a redundant write. Applying with Enter requires device-info preflight, acknowledgement (except spatial audio: retail firmware applies the write but answers with an `85 86 87` notification instead of a `DD EE FF` ack, so only the readback verifies it), and matching readback. If a write fails or its result is uncertain, further writes are blocked until an explicit successful refresh. Do not infer failure to apply from a timeout alone.
 

@@ -7,6 +7,7 @@ pub fn catalog() -> L {
     l.app_title = " UGREEN / control Studio Pro ";
     l.connected = "CONECTADO";
     l.disconnected = "DESCONECTADO";
+    l.unknown = "DESCONOCIDO";
     l.target = "Destino: ";
     l.target_none = "sin elegir";
     l.protocol = "Protocolo: ";
@@ -15,7 +16,7 @@ pub fn catalog() -> L {
     l.battery = "Batería: ";
     l.battery_pct = "{}\u{a0}%";
     l.unavailable = "no disponible";
-    l.codec_line = "Códec: no disponible (no expuesto)";
+    l.codec_line = "Códec: no detectado";
     l.firmware = "Firmware: ";
     l.snapshot = "Lectura: ";
     l.snapshot_stale = "OBSOLETA / no actual";
@@ -120,7 +121,7 @@ pub fn catalog() -> L {
         "Esto elige un protocolo; no prueba la identidad del dispositivo.",
         "y / Enter: elegir Studio Pro HP206    n / Esc: cancelar",
     ];
-    l.paired_title = " Emparejados / Arriba Abajo Enter elegir / Esc cerrar ";
+    l.paired_title = " Dispositivos Bluetooth / Arriba Abajo Enter elegir / Esc cerrar ";
     l.paired_empty = "Sin dispositivos emparejados. Esc cierra.";
     l.quit_title = " ¿Salir con trabajo en curso? ";
     l.quit_lines = &[
@@ -164,7 +165,7 @@ pub fn catalog() -> L {
     l.status_loading = "Cargando dispositivos emparejados (sin buscar)...";
     l.status_connecting = "Conectando y leyendo estado y firmware...";
     l.status_refreshing = "Actualizando estado y firmware...";
-    l.status_disconnecting = "Desconectando...";
+    l.status_disconnecting = "Desconectando control...";
     l.status_applying =
         "Aplicando {}={} tras consulta previa, verificando confirmación y lectura...";
     l.status_paired_empty =
@@ -174,7 +175,7 @@ pub fn catalog() -> L {
     l.status_firmware_note = "Ajustes leídos; firmware no disponible: {}";
     l.status_blocked_note = " Aún se exige actualizar (r) para desbloquear escrituras.";
     l.status_verified = "Verificado {}={} con confirmación y lectura coincidente.";
-    l.status_disconnected = "Desconectado. Sin reconexión automática.";
+    l.status_disconnected = "Control desconectado. Bluetooth no fue modificado.";
     l.status_quit_confirm = "Cancelación pedida. Una escritura puede haberse aplicado. Pulsa q o Enter para salir sin esperar; Esc para quedarse.";
     l.status_cancel_busy = "Cancelación pedida; esperando la etapa actual. Una escritura puede haberse aplicado. Se omitirán las etapas siguientes.";
     l.status_address_saved = "Dirección guardada. Pulsa c para conectar.";

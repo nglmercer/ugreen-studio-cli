@@ -109,14 +109,14 @@ fn event_loop(
     loop {
         match worker.poll() {
             Ok(Some(reply)) => {
-                let was_connected = app.connected;
+                let was_connected = app.control_connected;
                 if let Some(action) = app.receive(reply) {
                     dispatch(app, worker, Intent::Request(action));
                 }
                 // Remember the target that answered, so the next start
                 // can offer it and auto-connect when enabled. The model
                 // is confirmed because this device just talked back.
-                if !was_connected && app.connected {
+                if !was_connected && app.control_connected {
                     let mut registry = DeviceRegistry::load();
                     if let Ok(address) = crate::bluetooth::BluetoothAddress::parse(&app.address) {
                         registry.set_selected(&address);

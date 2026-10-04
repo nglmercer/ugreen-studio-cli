@@ -7,6 +7,7 @@ pub fn catalog() -> L {
     l.app_title = " UGREEN / Studio Pro コントロール ";
     l.connected = "接続済み";
     l.disconnected = "未接続";
+    l.unknown = "不明";
     l.target = "対象：";
     l.target_none = "未選択";
     l.protocol = "プロトコル：";
@@ -15,7 +16,7 @@ pub fn catalog() -> L {
     l.battery = "バッテリー：";
     l.battery_pct = "{}%";
     l.unavailable = "利用不可";
-    l.codec_line = "コーデック：利用不可（非公開）";
+    l.codec_line = "コーデック：未検出";
     l.firmware = "ファームウェア：";
     l.snapshot = "読み取り：";
     l.snapshot_stale = "古い / 最新ではない";
@@ -99,7 +100,7 @@ pub fn catalog() -> L {
     l.status_loading = "ペアリング済みデバイスをキャッシュから読み込み中（スキャンなし）...";
     l.status_connecting = "接続中、その後状態とファームウェアを読み取り中...";
     l.status_refreshing = "状態とファームウェアを更新中...";
-    l.status_disconnecting = "切断中...";
+    l.status_disconnecting = "制御を切断中...";
     l.status_applying = "プレフライト後に {}={} を適用し、確認と読取を検証中...";
     l.status_paired_empty =
         "キャッシュにペアリング済みデバイスがありません。まずシステムの Bluetooth 設定でペアリングしてください。";
@@ -108,7 +109,7 @@ pub fn catalog() -> L {
     l.status_firmware_note = "設定は読み取ったがファームウェアは利用不可：{}";
     l.status_blocked_note = " 書き込みのロック解除には明示的な更新（r）が必要です。";
     l.status_verified = "確認と一致するデバイス読取により {}={} を検証しました。";
-    l.status_disconnected = "切断済み。自動再接続はありません。";
+    l.status_disconnected = "制御を切断しました。Bluetooth は変更されていません。";
     l.status_quit_confirm = "キャンセルを要求しました。進行中の書き込みが完了する場合があります。q または Enter で待たずに終了；Esc で残ります。";
     l.status_cancel_busy = "キャンセルを要求しました；現在の段階を待っています。進行中の書き込みが完了する場合があります。以降の段階はスキップされます。";
     l.status_address_saved = "アドレスをローカルに保存しました。明示的に接続するには c。";

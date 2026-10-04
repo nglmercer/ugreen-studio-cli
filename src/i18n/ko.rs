@@ -7,6 +7,7 @@ pub fn catalog() -> L {
     l.app_title = " UGREEN / Studio Pro 제어 ";
     l.connected = "연결됨";
     l.disconnected = "연결 안 됨";
+    l.unknown = "알 수 없음";
     l.target = "대상: ";
     l.target_none = "선택 안 됨";
     l.protocol = "프로토콜: ";
@@ -15,7 +16,7 @@ pub fn catalog() -> L {
     l.battery = "배터리: ";
     l.battery_pct = "{}%";
     l.unavailable = "사용 불가";
-    l.codec_line = "코덱: 사용 불가(노출 안 됨)";
+    l.codec_line = "코덱: 감지되지 않음";
     l.firmware = "펌웨어: ";
     l.snapshot = "읽기: ";
     l.snapshot_stale = "만료됨 / 최신 아님";
@@ -99,7 +100,7 @@ pub fn catalog() -> L {
     l.status_loading = "캐시에서 페어링된 기기를 불러오는 중(검색 없음)...";
     l.status_connecting = "연결하는 중, 그다음 상태와 펌웨어를 읽는 중...";
     l.status_refreshing = "상태와 펌웨어를 새로 고치는 중...";
-    l.status_disconnecting = "끊는 중...";
+    l.status_disconnecting = "제어 연결을 끊는 중...";
     l.status_applying = "프리플라이트 후 {}={}를 적용하고 확인과 읽기를 검증하는 중...";
     l.status_paired_empty =
         "캐시에 페어링된 기기가 없습니다. 먼저 시스템 Bluetooth 설정에서 페어링하세요.";
@@ -109,7 +110,7 @@ pub fn catalog() -> L {
     l.status_firmware_note = "설정은 읽었으나 펌웨어를 사용할 수 없음: {}";
     l.status_blocked_note = " 쓰기 잠금 해제에는 명시적 새로 고침(r)이 여전히 필요합니다.";
     l.status_verified = "확인과 일치하는 기기 읽기로 {}={}을(를) 검증했습니다.";
-    l.status_disconnected = "끊겼습니다. 자동 재연결은 없습니다.";
+    l.status_disconnected = "제어 연결이 끊겼습니다. Bluetooth는 변경되지 않았습니다.";
     l.status_quit_confirm = "취소를 요청했습니다. 진행 중인 쓰기가 완료될 수 있습니다. 기다리지 않고 종료하려면 q 또는 Enter; 남으려면 Esc.";
     l.status_cancel_busy = "취소를 요청했습니다; 현재 단계를 기다리는 중. 진행 중인 쓰기가 완료될 수 있습니다. 이후 단계는 건너뜁니다.";
     l.status_address_saved = "주소를 로컬에 저장했습니다. 명시적으로 연결하려면 c.";

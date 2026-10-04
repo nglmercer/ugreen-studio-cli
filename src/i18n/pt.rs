@@ -7,6 +7,7 @@ pub fn catalog() -> L {
     l.app_title = " UGREEN / controle Studio Pro ";
     l.connected = "CONECTADO";
     l.disconnected = "DESCONECTADO";
+    l.unknown = "DESCONHECIDO";
     l.target = "Destino: ";
     l.target_none = "não escolhido";
     l.protocol = "Protocolo: ";
@@ -15,7 +16,7 @@ pub fn catalog() -> L {
     l.battery = "Bateria: ";
     l.battery_pct = "{}%";
     l.unavailable = "indisponível";
-    l.codec_line = "Codec: indisponível (não exposto)";
+    l.codec_line = "Codec: não detectado";
     l.firmware = "Firmware: ";
     l.snapshot = "Leitura: ";
     l.snapshot_stale = "DESATUALIZADA / não atual";
@@ -99,7 +100,7 @@ pub fn catalog() -> L {
     l.status_loading = "Carregando dispositivos emparelhados em cache (sem varredura)...";
     l.status_connecting = "Conectando e lendo estado e firmware...";
     l.status_refreshing = "Atualizando estado e firmware...";
-    l.status_disconnecting = "Desconectando...";
+    l.status_disconnecting = "Desconectando o controle...";
     l.status_applying =
         "Aplicando {}={} após consulta prévia, verificando confirmação e leitura...";
     l.status_paired_empty =
@@ -111,7 +112,7 @@ pub fn catalog() -> L {
     l.status_firmware_note = "Ajustes lidos; firmware indisponível: {}";
     l.status_blocked_note = " Atualização explícita (r) ainda é exigida para desbloquear escritas.";
     l.status_verified = "Verificado {}={} por confirmação e leitura correspondente do dispositivo.";
-    l.status_disconnected = "Desconectado. Sem reconexão automática.";
+    l.status_disconnected = "Controle desconectado. O Bluetooth não foi modificado.";
     l.status_quit_confirm = "Cancelamento pedido. Uma escrita em andamento pode ter sido concluída. Pressione q ou Enter para sair sem esperar; Esc para ficar.";
     l.status_cancel_busy = "Cancelamento pedido; aguardando a etapa atual. Uma escrita em andamento pode ter sido concluída. Etapas seguintes serão ignoradas.";
     l.status_address_saved = "Endereço salvo localmente. Pressione c para conectar explicitamente.";

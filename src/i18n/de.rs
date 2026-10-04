@@ -7,6 +7,7 @@ pub fn catalog() -> L {
     l.app_title = " UGREEN / Studio Pro-Steuerung ";
     l.connected = "VERBUNDEN";
     l.disconnected = "GETRENNT";
+    l.unknown = "UNBEKANNT";
     l.target = "Ziel: ";
     l.target_none = "nicht gewählt";
     l.protocol = "Protokoll: ";
@@ -15,7 +16,7 @@ pub fn catalog() -> L {
     l.battery = "Akku: ";
     l.battery_pct = "{}%";
     l.unavailable = "nicht verfügbar";
-    l.codec_line = "Codec: nicht verfügbar (nicht freigegeben)";
+    l.codec_line = "Codec: nicht erkannt";
     l.firmware = "Firmware: ";
     l.snapshot = "Auslesen: ";
     l.snapshot_stale = "VERALTET / nicht aktuell";
@@ -100,7 +101,7 @@ pub fn catalog() -> L {
     l.status_loading = "Gepaarte Geräte aus dem Cache laden (kein Scan)...";
     l.status_connecting = "Verbinde und lese Status und Firmware...";
     l.status_refreshing = "Aktualisiere Status und Firmware...";
-    l.status_disconnecting = "Trenne...";
+    l.status_disconnecting = "Trenne Kontrollverbindung...";
     l.status_applying = "Wende {}={} nach Preflight an, prüfe Bestätigung und Auslesung...";
     l.status_paired_empty =
         "Keine gepaarten Geräte im Cache. Zuerst in den Bluetooth-Einstellungen paaren.";
@@ -109,7 +110,7 @@ pub fn catalog() -> L {
     l.status_firmware_note = "Einstellungen gelesen; Firmware nicht verfügbar: {}";
     l.status_blocked_note = " Explizites Aktualisieren (r) ist zum Entsperren nötig.";
     l.status_verified = "{}={} geprüft durch Bestätigung und passende Geräteauslesung.";
-    l.status_disconnected = "Getrennt. Keine automatische Wiederverbindung.";
+    l.status_disconnected = "Kontrollverbindung getrennt. Bluetooth wurde nicht verändert.";
     l.status_quit_confirm = "Abbruch angefordert. Ein laufender Schreibvorgang kann abgeschlossen werden. q oder Enter drücken, um ohne Warten zu beenden; Esc zum Bleiben.";
     l.status_cancel_busy = "Abbruch angefordert; warte auf aktuellen Schritt. Ein laufender Schreibvorgang kann abgeschlossen werden. Spätere Schritte werden übersprungen.";
     l.status_address_saved = "Adresse lokal gespeichert. c drücken, um explizit zu verbinden.";

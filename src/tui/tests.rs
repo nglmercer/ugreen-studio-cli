@@ -76,7 +76,7 @@ fn render(app: &App, width: u16, height: u16) -> String {
 #[test]
 fn startup_is_disconnected_without_implicit_actions() {
     let app = App::new(&config());
-    assert!(!app.connected);
+    assert!(!app.control_connected);
     assert!(app.info.is_none());
     assert!(app.busy.is_none());
     assert!(app.paired.is_none());
@@ -117,7 +117,7 @@ fn model_cancel_does_not_select_or_connect() {
     app.key(key(KeyCode::Char('m')));
     app.key(key(KeyCode::Esc));
     assert!(!app.model_confirmed);
-    assert!(!app.connected);
+    assert!(!app.control_connected);
 }
 #[test]
 fn address_editor_is_local_bounded_and_validated() {
@@ -129,7 +129,7 @@ fn address_editor_is_local_bounded_and_validated() {
     assert_eq!(app.address_edit.as_deref(), Some("AB:CD:EF:01:23:45"));
     assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
     assert_eq!(app.address, "AB:CD:EF:01:23:45");
-    assert!(!app.connected);
+    assert!(!app.control_connected);
     app.key(key(KeyCode::Char('a')));
     app.key(key(KeyCode::Backspace));
     app.key(key(KeyCode::Enter));
@@ -154,7 +154,7 @@ fn paired_cache_only_on_explicit_request_and_selection_does_not_connect() {
     });
     assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
     assert_eq!(app.address, "AA:BB:CC:DD:EE:FF");
-    assert!(!app.connected);
+    assert!(!app.control_connected);
 }
 #[test]
 fn first_device_pick_opens_protocol_modal_then_connects() {
@@ -411,7 +411,7 @@ fn cancel_keeps_busy_until_matching_completion() {
         writes_blocked: false,
     });
     assert!(app.busy.is_some());
-    assert!(app.connected);
+    assert!(app.control_connected);
 }
 #[test]
 fn disconnect_after_cancel_is_scheduled_only_after_completion() {
@@ -474,7 +474,7 @@ fn stale_replies_never_overwrite_ui() {
         writes_blocked: true,
     });
     assert_eq!(app.info, old);
-    assert!(app.connected);
+    assert!(app.control_connected);
     assert!(!app.writes_blocked);
 }
 #[test]
@@ -503,7 +503,7 @@ fn worker_failure_disables_future_work() {
     let mut app = ready();
     app.accepted(2, Action::Set(Setting::parse("game", "on").unwrap()));
     app.worker_failed("Worker stopped".into());
-    assert!(!app.connected);
+    assert!(!app.control_connected);
     assert!(app.writes_blocked);
     assert!(app.status.contains("may have completed"));
     assert!(matches!(app.key(key(KeyCode::Char('c'))), Intent::None));
@@ -511,10 +511,10 @@ fn worker_failure_disables_future_work() {
 #[test]
 fn default_render_truthfully_shows_missing_data() {
     let text = render(&App::new(&Config::default()), 100, 30);
-    assert!(text.contains("DISCONNECTED"));
+    assert!(text.contains("Bluetooth: UNKNOWN"));
+    assert!(text.contains("Control:   DISCONNECTED"));
     assert!(text.contains("Battery: unavailable"));
-    assert!(text.contains("Codec: unavailable"));
-    assert!(text.contains("fw 0.2.5 checked"));
+    assert!(text.contains("Codec: not detected"));
 }
 #[test]
 fn paired_rows_show_link_state_and_confirmed_model() {
@@ -526,14 +526,153 @@ fn paired_rows_show_link_state_and_confirmed_model() {
         device("11:22:33:44:55:66", "Unknown State"),
     ]);
     let text = render(&app, 100, 30);
-    assert!(text.contains("(CONNECTED)"), "{text}");
+    assert!(text.contains("[CONNECTED]"), "{text}");
     assert!(text.contains("model=studio-pro"), "{text}");
     // Never-queried state and unconfirmed models stay unclaimed.
-    assert!(
-        !text.contains("11:22:33:44:55:66  Unknown State  ("),
-        "{text}"
-    );
+    assert!(text.contains("[UNKNOWN]"), "{text}");
     assert!(!text.contains("model=studio-pro  \n11:22"), "{text}");
+}
+#[test]
+fn bluetooth_and_control_states_are_independent() {
+    // The screenshot bug: Bluetooth connected while the RFCOMM
+    // control session is not. Both facts must be visible at once.
+    let mut app = ready();
+    app.host_connection = HostConnectionState::Connected;
+    app.control_connected = false;
+    let text = render(&app, 100, 30);
+    assert!(text.contains("Bluetooth"), "{text}");
+    assert!(text.contains("CONNECTED"), "{text}");
+    assert!(text.contains("Control"), "{text}");
+    assert!(text.contains("DISCONNECTED"), "{text}");
+    // Losing the control session never rewrites the Bluetooth state.
+    app.worker_failed("Worker stopped".into());
+    assert!(!app.control_connected);
+    assert_eq!(app.host_connection, HostConnectionState::Connected);
+}
+#[test]
+fn selected_connected_device_updates_host_state() {
+    let mut app = App::new(&config());
+    app.paired =
+        Some(vec![device("AA:BB:CC:DD:EE:FF", "Studio Pro")
+            .with_connection(HostConnectionState::Connected)]);
+    app.key(key(KeyCode::Enter));
+    assert_eq!(app.host_connection, HostConnectionState::Connected);
+}
+#[test]
+fn selected_disconnected_device_updates_host_state() {
+    let mut app = App::new(&config());
+    app.paired = Some(vec![device("AA:BB:CC:DD:EE:FF", "Studio Pro")
+        .with_connection(HostConnectionState::Disconnected)]);
+    app.key(key(KeyCode::Enter));
+    assert_eq!(app.host_connection, HostConnectionState::Disconnected);
+    // Picking a device never claims an RFCOMM control session.
+    assert!(!app.control_connected);
+}
+#[test]
+fn missing_target_becomes_unknown() {
+    let mut app = App::new(&config());
+    app.host_connection = HostConnectionState::Connected;
+    // A refreshed list that no longer holds the target reports
+    // Unknown, not a guessed Disconnected.
+    app.accepted(1, Action::Paired);
+    app.receive(Reply {
+        id: 1,
+        result: Ok(Output::Paired(vec![device("11:22:33:44:55:66", "Other")])),
+        connected: false,
+        writes_blocked: false,
+    });
+    assert_eq!(app.host_connection, HostConnectionState::Unknown);
+    // A target present in the list reports its actual OS state.
+    app.accepted(2, Action::Paired);
+    app.receive(Reply {
+        id: 2,
+        result: Ok(Output::Paired(vec![device(
+            "AA:BB:CC:DD:EE:FF",
+            "Studio Pro",
+        )
+        .with_connection(HostConnectionState::Connected)])),
+        connected: false,
+        writes_blocked: false,
+    });
+    assert_eq!(app.host_connection, HostConnectionState::Connected);
+}
+#[test]
+fn connected_devices_sort_before_disconnected() {
+    let mut app = App::new(&config());
+    let unknown = device("00:00:00:00:00:03", "Unknown");
+    let disconnected = device("00:00:00:00:00:02", "Disconnected")
+        .with_connection(HostConnectionState::Disconnected);
+    let connected =
+        device("00:00:00:00:00:01", "Connected").with_connection(HostConnectionState::Connected);
+    let target =
+        device("AA:BB:CC:DD:EE:FF", "Target").with_connection(HostConnectionState::Disconnected);
+    app.accepted(1, Action::Paired);
+    app.receive(Reply {
+        id: 1,
+        result: Ok(Output::Paired(vec![
+            unknown,
+            disconnected,
+            connected,
+            target,
+        ])),
+        connected: false,
+        writes_blocked: false,
+    });
+    let order: Vec<_> = app
+        .paired
+        .as_ref()
+        .unwrap()
+        .iter()
+        .map(|device| device.name.as_str())
+        .collect();
+    assert_eq!(order, ["Target", "Connected", "Disconnected", "Unknown"]);
+}
+#[test]
+fn device_picker_shows_disconnected_state() {
+    let mut app = App::new(&config());
+    app.paired = Some(vec![device("11:22:33:44:55:66", "Other Buds")
+        .with_connection(HostConnectionState::Disconnected)]);
+    let text = render(&app, 100, 30);
+    assert!(text.contains("[DISCONNECTED]"), "{text}");
+}
+#[test]
+fn device_picker_shows_unknown_state() {
+    let mut app = App::new(&config());
+    app.paired = Some(vec![device("11:22:33:44:55:66", "Other Buds")]);
+    let text = render(&app, 100, 30);
+    assert!(text.contains("[UNKNOWN]"), "{text}");
+}
+#[test]
+fn control_disconnect_does_not_change_host_connection() {
+    let mut app = ready();
+    app.host_connection = HostConnectionState::Connected;
+    app.accepted(2, Action::Disconnect);
+    assert!(app.status.contains("Disconnecting control"));
+    app.receive(Reply {
+        id: 2,
+        result: Ok(Output::Disconnected),
+        connected: false,
+        writes_blocked: false,
+    });
+    assert!(!app.control_connected);
+    assert_eq!(app.host_connection, HostConnectionState::Connected);
+    assert!(app.status.contains("Bluetooth was not modified"));
+    let text = render(&app, 100, 30);
+    assert!(text.contains("Bluetooth: CONNECTED"), "{text}");
+    assert!(text.contains("Control:   DISCONNECTED"), "{text}");
+}
+#[test]
+fn picker_p_reload_fresh_list_instead_of_stale_modal() {
+    let mut app = App::new(&config());
+    app.paired = Some(vec![device("11:22:33:44:55:66", "Old")]);
+    // Inside the modal, p still asks the worker for a fresh list.
+    assert!(matches!(
+        app.key(key(KeyCode::Char('p'))),
+        Intent::Request(Action::Paired)
+    ));
+    // A busy worker must not be queued behind the modal either.
+    app.accepted(1, Action::Paired);
+    assert!(matches!(app.key(key(KeyCode::Char('p'))), Intent::None));
 }
 #[test]
 fn connected_render_only_shows_deviceinfo_battery() {
@@ -1192,7 +1331,7 @@ fn address_control_u_clears_prefilled_value_without_io() {
     app.key(key(KeyCode::Char('a')));
     app.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
     assert_eq!(app.address_edit.as_deref(), Some(""));
-    assert!(!app.connected);
+    assert!(!app.control_connected);
 }
 
 #[test]

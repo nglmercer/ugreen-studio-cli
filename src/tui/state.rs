@@ -3,7 +3,7 @@ use super::{
     Config,
 };
 use crate::{
-    bluetooth::{BluetoothAddress, HostHeadset},
+    bluetooth::{BluetoothAddress, HostConnectionState, HostHeadset},
     device::registry::DeviceRegistry,
     i18n::{Lang, L},
     models::Model,
@@ -58,7 +58,12 @@ pub(super) struct App {
     pub model_confirmed: bool,
     pub channel: u8,
     pub timeout_seconds: u64,
-    pub connected: bool,
+    /// The application's RFCOMM control session only. The OS Bluetooth
+    /// link is `host_connection` and never changes with this flag.
+    pub control_connected: bool,
+    /// OS Bluetooth link state of the current target, taken from paired
+    /// enumerations only; never inferred from RFCOMM success.
+    pub host_connection: HostConnectionState,
     pub info: Option<StudioProState>,
     pub firmware: Option<String>,
     pub observed_at: Option<Instant>,
@@ -100,7 +105,8 @@ impl App {
             model_confirmed: config.model_confirmed,
             channel: config.channel,
             timeout_seconds: config.timeout.as_secs(),
-            connected: false,
+            control_connected: false,
+            host_connection: HostConnectionState::Unknown,
             info: None,
             firmware: None,
             observed_at: None,
@@ -249,11 +255,22 @@ impl App {
             return None;
         }
         let (_, action) = self.busy.take().expect("matching request exists");
-        self.connected = reply.connected;
+        self.control_connected = reply.connected;
         self.writes_blocked = reply.writes_blocked;
         let t = self.t();
         match reply.result {
-            Ok(Output::Paired(devices)) => {
+            Ok(Output::Paired(mut devices)) => {
+                // Fresh enumeration in deterministic order: the current
+                // target first, then connected, disconnected, unknown.
+                let selected = BluetoothAddress::parse(&self.address).ok();
+                crate::bluetooth::sort_devices(&mut devices, selected.as_ref());
+                // The Bluetooth link state comes from the OS list only;
+                // a target the list no longer knows is Unknown, never a
+                // guessed Disconnected.
+                self.host_connection = devices
+                    .iter()
+                    .find(|device| device.address.as_str().eq_ignore_ascii_case(&self.address))
+                    .map_or(HostConnectionState::Unknown, |device| device.connected);
                 self.status = if devices.is_empty() {
                     t.status_paired_empty.into()
                 } else {
@@ -291,7 +308,7 @@ impl App {
                 if !matches!(action, Action::Paired) {
                     self.stale = self.info.is_some();
                 }
-                if !self.connected {
+                if !self.control_connected {
                     self.clear_snapshot();
                 }
                 self.status = error;
@@ -300,7 +317,7 @@ impl App {
         if self.disconnect_after {
             self.disconnect_after = false;
             self.paired = None;
-            if self.connected {
+            if self.control_connected {
                 return Some(Action::Disconnect);
             }
         }
@@ -330,7 +347,7 @@ impl App {
             self.status = error;
         }
         self.busy = None;
-        self.connected = false;
+        self.control_connected = false;
         self.stale = true;
     }
     /// Mouse: click selects settings/devices/footer buttons; second click on
@@ -694,6 +711,11 @@ impl App {
         if let Some(devices) = &self.paired {
             match key.code {
                 KeyCode::Esc => self.paired = None,
+                // Every `p` reloads a fresh list instead of trusting
+                // the modal's current contents.
+                KeyCode::Char('p') if self.busy.is_none() && self.worker_alive => {
+                    return Intent::Request(Action::Paired);
+                }
                 KeyCode::Up => self.paired_index = self.paired_index.saturating_sub(1),
                 KeyCode::Down => {
                     self.paired_index = (self.paired_index + 1).min(devices.len().saturating_sub(1))
@@ -705,6 +727,9 @@ impl App {
                         let unchanged = self.address.eq_ignore_ascii_case(device.address.as_str());
                         let keep_confirmation = unchanged && self.model_confirmed;
                         self.address = device.address.as_str().to_owned();
+                        // The OS link state follows the picked device; it
+                        // is never inferred from the RFCOMM session.
+                        self.host_connection = device.connected;
                         // Model confirmation is per address, never a
                         // session-wide flag: a pick re-derives it from
                         // the registry-confirmed model of that device,
@@ -765,7 +790,7 @@ impl App {
                 self.status = self.t().status_cancel_then_disconnect.into();
                 return Intent::Cancel;
             }
-            if self.connected {
+            if self.control_connected {
                 return Intent::Request(Action::Disconnect);
             }
         }
@@ -773,10 +798,14 @@ impl App {
             return Intent::None;
         }
         match key.code {
-            KeyCode::Char('a') if !self.connected => self.address_edit = Some(self.address.clone()),
-            KeyCode::Char('p') if !self.connected => return Intent::Request(Action::Paired),
-            KeyCode::Char('m') if !self.connected => self.model_confirmation = true,
-            KeyCode::Char('c') if !self.connected => {
+            KeyCode::Char('a') if !self.control_connected => {
+                self.address_edit = Some(self.address.clone())
+            }
+            KeyCode::Char('p') if !self.control_connected => {
+                return Intent::Request(Action::Paired)
+            }
+            KeyCode::Char('m') if !self.control_connected => self.model_confirmation = true,
+            KeyCode::Char('c') if !self.control_connected => {
                 if worker::validate_address(&self.address).is_err() {
                     self.status = self.t().status_bad_address.into();
                 } else if !self.model_confirmed {
@@ -788,8 +817,10 @@ impl App {
                     });
                 }
             }
-            KeyCode::Char('r') if self.connected => return Intent::Request(Action::Refresh),
-            KeyCode::Char('a' | 'p' | 'm') if self.connected => {
+            KeyCode::Char('r') if self.control_connected => {
+                return Intent::Request(Action::Refresh)
+            }
+            KeyCode::Char('a' | 'p' | 'm') if self.control_connected => {
                 self.status = self.t().status_must_disconnect.into()
             }
             KeyCode::Char('r') => self.status = self.t().status_must_connect.into(),
@@ -857,7 +888,7 @@ impl App {
         Intent::None
     }
     fn can_write(&self) -> bool {
-        self.connected
+        self.control_connected
             && self.model_confirmed
             && self.info.is_some()
             && !self.stale

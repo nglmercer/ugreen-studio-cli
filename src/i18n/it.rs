@@ -7,6 +7,7 @@ pub fn catalog() -> L {
     l.app_title = " UGREEN / controllo Studio Pro ";
     l.connected = "CONNESSO";
     l.disconnected = "DISCONNESSO";
+    l.unknown = "SCONOSCIUTO";
     l.target = "Destinazione: ";
     l.target_none = "non selezionata";
     l.protocol = "Protocollo: ";
@@ -15,7 +16,7 @@ pub fn catalog() -> L {
     l.battery = "Batteria: ";
     l.battery_pct = "{}%";
     l.unavailable = "non disponibile";
-    l.codec_line = "Codec: non disponibile (non esposto)";
+    l.codec_line = "Codec: non rilevato";
     l.firmware = "Firmware: ";
     l.snapshot = "Lettura: ";
     l.snapshot_stale = "OBSOLETA / non aggiornata";
@@ -99,7 +100,7 @@ pub fn catalog() -> L {
     l.status_loading = "Caricamento dispositivi appaiati in cache (nessuna scansione)...";
     l.status_connecting = "Connessione e lettura di stato e firmware...";
     l.status_refreshing = "Aggiornamento di stato e firmware...";
-    l.status_disconnecting = "Scollegamento...";
+    l.status_disconnecting = "Disconnessione del controllo...";
     l.status_applying = "Applicazione di {}={} dopo preflight, verifica di conferma e lettura...";
     l.status_paired_empty =
         "Nessun dispositivo appaiato in cache. Appaia prima nelle impostazioni Bluetooth del sistema.";
@@ -112,7 +113,7 @@ pub fn catalog() -> L {
         " È ancora richiesto un aggiornamento esplicito (r) per sbloccare le scritture.";
     l.status_verified =
         "{}={} verificato tramite conferma e lettura corrispondente del dispositivo.";
-    l.status_disconnected = "Scollegato. Nessuna riconnessione automatica.";
+    l.status_disconnected = "Controllo disconnesso. Bluetooth non è stato modificato.";
     l.status_quit_confirm = "Annullamento richiesto. Una scrittura in corso potrebbe completarsi. Premi q o Invio per uscire senza attendere; Esc per restare.";
     l.status_cancel_busy = "Annullamento richiesto; in attesa della fase corrente. Una scrittura in corso potrebbe completarsi. Le fasi successive saranno ignorate.";
     l.status_address_saved = "Indirizzo salvato localmente. Premi c per connettere esplicitamente.";
