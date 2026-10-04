@@ -19,7 +19,7 @@ El ejecutable se genera en `target/release/ugreen` en Linux o `target\release\ug
 
 El ZIP de distribución también incluye ejecutables para Linux x86-64: `bin/linux-x86_64/ugreen` (TUI + CLI) y `bin/linux-x86_64/ugreen-cli-only`. Ambos requieren glibc 2.39 o posterior y `libgcc_s.so.1`; compila localmente en distribuciones anteriores. No se incluye un ejecutable de Windows; sigue sus instrucciones de compilación.
 
-La TUI se inicia desconectada. Pulsa `a` para introducir la dirección, o `p` para cargar explícitamente la lista de dispositivos ya emparejados del sistema; confirma el protocolo Studio Pro con `m` y después `y`, y pulsa `c` para conectar y consultar el estado. Empareja antes los auriculares desde los ajustes del sistema. Abrir la interfaz, elegir un dispositivo o editar un valor propuesto no modifica sus ajustes.
+Al iniciar, la TUI se reconecta al último dispositivo confirmado (activado por defecto; `--no-autoconnect` lo desactiva). Sin destino guardado inicia desconectada: pulsa `a` para introducir la dirección, o `p` para cargar explícitamente la lista de dispositivos ya emparejados del sistema; confirma el protocolo Studio Pro con `m` y después `y`, y pulsa `c` para conectar y consultar el estado. Empareja antes los auriculares desde los ajustes del sistema. Abrir la interfaz, elegir un dispositivo o editar un valor propuesto no modifica sus ajustes.
 
 Primera comprobación sin Bluetooth:
 
@@ -86,7 +86,7 @@ Los perfiles son archivos UTF-8 con líneas `clave=valor`, de hasta 16 KiB y con
 ## Seguridad y límites
 
 - Las solicitudes al dispositivo requieren una dirección y la selección explícita del protocolo Studio Pro. Seleccionar el modelo no verifica la identidad física
-- `discover` consulta dispositivos ya emparejados. No realiza búsquedas activas, emparejamientos, elección automática de destino ni conexiones al iniciar
+- `discover` consulta dispositivos ya emparejados. No realiza búsquedas activas, emparejamientos ni elección automática de destino; la TUI solo se reconecta a tu último dispositivo confirmado (activado por defecto, `--no-autoconnect` lo desactiva) y nunca elige un dispositivo desconocido
 - La gestión multipunto (lista, desconexión, reconexión y cambio de dispositivo activo) se rechaza antes de enviar ningún byte hasta existir una captura verificada; la conmutación dual es un ajuste distinto y verificado
 - Antes de escribir se consulta la información del dispositivo; solo se anuncia éxito cuando la lectura posterior coincide
 - No se reintentan escrituras automáticamente. Un tiempo de espera agotado puede indicar que el ajuste cambió, pero se perdió la respuesta; consulta el estado antes de repetir

@@ -19,7 +19,7 @@ The executable is `target/release/ugreen` on Linux or `target\release\ugreen.exe
 
 The delivery ZIP also includes Linux x86-64 executables: `bin/linux-x86_64/ugreen` (TUI + CLI) and `bin/linux-x86_64/ugreen-cli-only`. Both require glibc 2.39 or newer and `libgcc_s.so.1`; build locally on older distributions. No Windows executable is included; use the Windows build instructions.
 
-The TUI starts disconnected. Enter an address with `a`, or explicitly load the OS's paired-device cache with `p`; press `m` then `y` to confirm the Studio Pro protocol, then press `c` to connect and read status. Pair the headphones in your OS settings first. Opening the interface, choosing a device, or editing a proposed value does not write settings.
+On start the TUI reconnects to the last confirmed device (on by default; `--no-autoconnect` opts out). With no cached target it starts disconnected: enter an address with `a`, or explicitly load the OS's paired-device cache with `p`; press `m` then `y` to confirm the Studio Pro protocol, then press `c` to connect and read status. Pair the headphones in your OS settings first. Opening the interface, choosing a device, or editing a proposed value does not write settings.
 
 For a first offline check:
 
@@ -86,7 +86,7 @@ Profiles are UTF-8 `key=value` text, at most 16 KiB, with mandatory `model=studi
 ## Safety and limits
 
 - Hardware requests need an explicit address and Studio Pro protocol selection. Model selection is not device-identity detection
-- `discover` reads cached paired devices. There is no active scan, pairing, automatic target choice, or automatic connection on startup
+- `discover` reads cached paired devices. There is no active scan, pairing, or automatic target choice; the TUI only ever reconnects to your last confirmed device (on by default, `--no-autoconnect` opts out) and never picks an unknown device
 - Multipoint peer management (list, disconnect, reconnect, switch) is refused before any byte is sent until a verified Studio Pro capture exists; the dual toggle is a separate verified setting
 - A valid device-info preflight precedes setting writes; matching readback is required to report success
 - Writes are not automatically retried. A timeout may mean a setting changed but its acknowledgement was lost; query status before trying again

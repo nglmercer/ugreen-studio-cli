@@ -15,10 +15,10 @@ use std::{
 };
 use worker::Worker;
 
-/// Startup values do not trigger discovery, connections, or setting
-/// writes unless `autoconnect` asks to connect to a cached target.
-/// Startup auto-loads the paired cache unless `skip_autoload` is set
-/// (tests).
+/// Startup values do not trigger discovery or setting writes. The cached
+/// target is restored, and the interface connects to it at startup unless
+/// `autoconnect` is off (`--no-autoconnect`). Startup auto-loads the
+/// paired cache when there is no cached target (tests set `skip_autoload`).
 #[derive(Clone, Debug)]
 pub struct Config {
     pub address: Option<String>,
@@ -38,7 +38,7 @@ impl Default for Config {
             timeout: Duration::from_secs(3),
             lang: Lang::En,
             skip_autoload: true,
-            autoconnect: false,
+            autoconnect: true,
         }
     }
 }
@@ -57,9 +57,10 @@ pub fn run(config: Config) -> io::Result<()> {
     }
     let mut app = App::new(&config);
     let mut worker = Worker::native(config)?;
-    // Startup stays offline unless auto-connect is enabled with a
-    // cached, confirmed target; then it connects directly. Failure
-    // only sets status text; startup never writes settings.
+    // Startup stays offline unless auto-connect (on by default) can use
+    // a cached, confirmed target; then it connects directly. Without a
+    // target, the paired list loads for an explicit pick. Failure only
+    // sets status text; startup never writes settings.
     if !app.config_skip_autoload() {
         if app.config_autoconnect() && !app.address.is_empty() && app.model_confirmed {
             let action = worker::Action::Connect {

@@ -37,7 +37,7 @@ pub struct DeviceEntry {
     pub model: Option<Model>,
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DeviceRegistry {
     pub selected: Option<BluetoothAddress>,
     /// Sorted by address, at most one entry per address.
@@ -45,7 +45,22 @@ pub struct DeviceRegistry {
     pub channel: Option<u8>,
     pub timeout: Option<u64>,
     pub lang: Option<Lang>,
+    /// Reconnect to the last confirmed target at startup. Defaults to
+    /// on; `--no-autoconnect` persists an explicit `autoconnect=0`.
     pub autoconnect: bool,
+}
+
+impl Default for DeviceRegistry {
+    fn default() -> Self {
+        Self {
+            selected: None,
+            devices: Vec::new(),
+            channel: None,
+            timeout: None,
+            lang: None,
+            autoconnect: true,
+        }
+    }
 }
 
 impl DeviceRegistry {
@@ -130,27 +145,25 @@ impl DeviceRegistry {
             text.push_str(selected.as_str());
             text.push('\n');
         }
-        if self.channel.is_some()
-            || self.timeout.is_some()
-            || self.lang.is_some()
-            || self.autoconnect
-        {
-            text.push_str("[settings]\n");
-            if let Some(channel) = self.channel {
-                text.push_str(&format!("channel={channel}\n"));
-            }
-            if let Some(timeout) = self.timeout {
-                text.push_str(&format!("timeout={timeout}\n"));
-            }
-            if let Some(lang) = self.lang {
-                text.push_str("lang=");
-                text.push_str(lang.code());
-                text.push('\n');
-            }
-            if self.autoconnect {
-                text.push_str("autoconnect=1\n");
-            }
+        // The autoconnect line is always written, in both states:
+        // default-on means an omitted key can never encode "off".
+        text.push_str("[settings]\n");
+        if let Some(channel) = self.channel {
+            text.push_str(&format!("channel={channel}\n"));
         }
+        if let Some(timeout) = self.timeout {
+            text.push_str(&format!("timeout={timeout}\n"));
+        }
+        if let Some(lang) = self.lang {
+            text.push_str("lang=");
+            text.push_str(lang.code());
+            text.push('\n');
+        }
+        text.push_str(if self.autoconnect {
+            "autoconnect=1\n"
+        } else {
+            "autoconnect=0\n"
+        });
         // The selected entry renders first, so size-cap trimming from
         // the end can never drop the target the user chose.
         let mut blocks: Vec<String> = Vec::with_capacity(self.devices.len());
@@ -256,7 +269,13 @@ impl DeviceRegistry {
                         registry.lang = Some(lang);
                     }
                 }
-                "autoconnect" => registry.autoconnect = value == "1",
+                // Only the two written states are meaningful; anything
+                // else keeps the default instead of guessing "off".
+                "autoconnect" => match value {
+                    "1" => registry.autoconnect = true,
+                    "0" => registry.autoconnect = false,
+                    _ => {}
+                },
                 _ => {}
             }
         }
@@ -417,6 +436,24 @@ mod tests {
     #[test]
     fn missing_file_is_empty() {
         assert_eq!(DeviceRegistry::load_from(None), DeviceRegistry::default());
+    }
+
+    #[test]
+    fn fresh_registry_autoconnects_by_default() {
+        assert!(DeviceRegistry::default().autoconnect);
+        assert!(DeviceRegistry::load_from(None).autoconnect);
+    }
+
+    #[test]
+    fn disabled_autoconnect_survives_the_roundtrip() {
+        let path = temp_path("no-autoconnect");
+        let registry = DeviceRegistry {
+            autoconnect: false,
+            ..DeviceRegistry::default()
+        };
+        registry.save_to(&path).unwrap();
+        assert!(!DeviceRegistry::load_from(Some(&path)).autoconnect);
+        let _ = fs::remove_file(&path);
     }
 
     #[test]

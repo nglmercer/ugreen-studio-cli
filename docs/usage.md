@@ -33,7 +33,7 @@ The model flag selects a protocol. It is not a hardware model check. The applica
 | CLI-only build, no arguments | Show help |
 | CLI-only build, `ugreen tui` | Report that the TUI feature is unavailable |
 
-The TUI cannot be used with redirected stdin/stdout. Use explicit CLI commands for scripts and pipelines. Starting it auto-loads the paired-device cache (no scan, no connection, no writes); pass an address to skip that, or let the cache dialog pick it. The interface needs at least 56 columns by 20 rows; at smaller sizes it asks you to resize and disables device actions.
+The TUI cannot be used with redirected stdin/stdout. Use explicit CLI commands for scripts and pipelines. Starting it restores the last target and reconnects automatically (default on, `--no-autoconnect` opts out); with no saved target it auto-loads the paired-device list — no scan, no writes — for an explicit pick. The interface needs at least 56 columns by 20 rows; at smaller sizes it asks you to resize and disables device actions.
 
 ## Language
 
@@ -76,11 +76,12 @@ The footer bar mirrors the same keys; clicking a footer label presses it.
 
 The TUI remembers your last target, channel, timeout and language in
 `~/.config/ugreen-cli/state` (override with `UGREEN_STATE_FILE`). On the next
-start the address is pre-filled and the protocol choice is already confirmed, so
-connecting is a single `c`. Pass `--autoconnect` once to also connect at startup
-on every later run; `--no-autoconnect` turns it off. The cache only stores your
-own explicit choices — it never detects the device model, and every connection
-still runs its preflight query.
+start it reconnects to that device automatically — autoconnect is on by default;
+`--no-autoconnect` disables it for future runs and `--autoconnect` turns it back
+on. With no cached target, or when autoconnect is off, the address is pre-filled
+and the protocol choice is already confirmed, so connecting is a single `c`.
+The cache only stores your own explicit choices — it never detects the device
+model, and every connection still runs its preflight query.
 
 App settings (`s`) change the interface language from a direct list
 (`Enter` on the language row, or Left/Right to cycle), the RFCOMM channel
