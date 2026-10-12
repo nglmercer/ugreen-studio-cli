@@ -52,6 +52,11 @@ ugreen commands
 ugreen --dry-run set game on
 ugreen profile example
 ugreen decode 'DD EE FF 04 01 1E 14 FF FF A0 00 01 00 00 08 0B 00 07 00 00 00 00 02 00 00 09 00 00 04 05 00 00 00 0C 0D 0E D0 E3'
+ugreen decode 'AA BB CC 0D 01 00 E1 93'
+ugreen candidate peers
+ugreen candidate codec
+ugreen candidate find left on
+ugreen analyze 'DD EE FF 0D 01 10 01 01 4D 79 20 50 68 6F 6E 65 AA BB CC DD EE FF 16 A0'
 ```
 
 The included Linux-only smoke script exercises five offline lifecycle scenarios:
@@ -183,6 +188,22 @@ framing. Live notification semantics and framing have not been promoted.
 Remaining verification is the Phase-3 official-app capture work described
 in [the report](reverse-engineering.md#phase-3-verification-recipe-live-hardware).
 TUI feature integration is recorded below; these offline checks do not establish physical feature compatibility.
+
+Phase-2 offline artifacts: ten synthetic candidate fixtures under
+`tests/fixtures/protocol/` (peer query and both peer-response shapes,
+codec query/response, both find-headphones start frames, the
+finder-state notification, box-MAC and factory-reset requests) carry
+provenance comments stating they are constructed from the report, not
+captured. Checks prove each request matches the offline encoder, each
+response decodes with a valid CCITT checksum, and peer payloads parse
+into the documented `[flag][index][name][mac]` layout. `decode` now
+prints `feature=<name>` for capture-verified instructions and
+`feature=<name> (unverified)` for static candidates; notification
+output separates the envelope byte from the event code at frame byte 5.
+`describe_instruction` and `describe_notification_event` label the
+verified set apart from the static candidates, and reserved slots
+(`0x13`, `0x1A`, `0x1D`) stay deliberately unmapped. These are
+offline framing and labeling checks only.
 
 Typed control execution is also implemented behind independent capture
 gates. Mock checks validate all controls refuse before I/O, LDAC/channel
