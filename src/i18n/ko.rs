@@ -151,9 +151,7 @@ pub fn catalog() -> L {
     l.err_mismatch_noack = "쓰기를 보냈지만 {}이(가) {}과(와) 일치하지 않습니다. 다시 쓰기 전에 명시적으로 새로 고치세요.";
     l.err_cancel_uncertain = "이후 단계를 취소했습니다. 진행 중인 쓰기가 완료됐을 수 있습니다; 다시 쓰기 전에 명시적으로 새로 고치세요.";
     l.err_cancel = "취소했습니다; 이후 단계는 시작하지 않습니다.";
-    l.cli_help = "ugreen 0.1.0 — 비공식 UGREEN Studio Pro Bluetooth CLI\n\n사용법\n  ugreen [옵션] 명령\n\n오프라인 명령\n  help                          이 도움말 표시\n  tui                           선택적 터미널 UI 열기\n  models                        프로토콜 호환성과 제한 표시\n  commands                      지원되는 설정 나열\n  decode HEX                    캡처한 응답 바이트를 오프라인으로 검증/복호화\n  profile example               설정 프로필 예시 표시\n\nBluetooth 명령(먼저 시스템 설정에서 페어링)\n  discover                      캐시의 페어링된 기기 나열; 무선 검색 없음\n  capture                       세션의 TX/RX 원시 바이트를 피처 16진수로 기록\n  status                        배터리, 펌웨어, 설정 읽기\n  set 키 값                   설정 하나를 변경하고 읽기 검증\n  profile export                설정을 읽어 재사용 가능한 프로필 출력\n  profile apply 파일          프로필 검증, 적용, 각 설정 검증\n\n옵션(명령 앞)\n  --address XX:XX:XX:XX:XX:XX    명시적인 대상 Bluetooth 주소\n  --model studio-pro            하드웨어 요청에 필수; 자동 감지 안 함\n  --channel 1                   RFCOMM 채널, 1–30(기본 1)\n  --timeout 3                   작업당 타임아웃 초, 1–60\n  --lang ko                     인터페이스 언어: en, es, pt, de, fr, it, nl, ru, zh, ja, ko(기본 en)\n  --autoconnect                 시작 시 마지막 기기에 연결(기본값 활성화)\n  --no-autoconnect              시작 시 자동 연결 비활성화\n  --dry-run                     Bluetooth 접근 없이 설정 패킷 표시\n  --help, -h                    도움말 표시\n  --version, -V                 버전 표시\n\n예시\n  ugreen discover\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status\n  ugreen --dry-run set anc ultra\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro set eq bass\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro profile export > 프로필.conf\n  ugreen --dry-run profile apply 프로필.conf\n\nStudio Pro HP206 프로토콜은 소매 펌웨어 0.2.5에서 검증됨(1대);\nHiTune Max5c는 명령 ID가 충돌합니다. 펌웨어, 리셋, 직접 쓰기,\n헤드폰 찾기 기능은 제공하지 않습니다. 프로필은 실패 시 일부만 적용될 수 있습니다.\n";
     l.cli_models = "studio-pro: UGREEN Studio Pro HP206 참조 코드와 캡처에 기반한 프로토콜\n하드웨어 테스트 상태: 소매 펌웨어 0.2.5에서 검증됨(Linux, 채널 1; docs/verification.md 참조)\nHiTune Max5c: 지원 안 함(명령 ID 충돌)\n다른 UGREEN 모델/펌웨어: 미검증";
-    l.cli_commands = "anc: off|ultra|general|gentle|adaptive|ambient\neq: classic|jazz|electronic|pop|classical|rock|bass|treble\ngame, spatial, dual, wind: on|off\nprompts: voice|beeps\nvolume-up-action, volume-down-action: none|next|previous";
     l.cli_banner = "Studio Pro HP206 프로토콜을 {}에서 사용, RFCOMM 채널 {}";
     l.cli_need_model =
         "이 모델 전용 프로토콜을 명시적으로 선택하려면 --model studio-pro를 전달하세요";
@@ -210,5 +208,44 @@ pub fn catalog() -> L {
     l.set_mismatch = "쓰기는 확인됐지만 {}의 읽기가 {}과(와) 일치하지 않습니다; 상태를 조회하세요";
     l.set_mismatch_noack =
         "쓰기를 보냈지만 {}의 읽기가 {}과(와) 일치하지 않습니다; 상태를 조회하세요";
+    // 생성된 도움말 조각; 화면 자체는
+    // 명령 레지스트리에서 렌더링됩니다.
+    l.help_subtitle = "UGREEN Studio Pro 비공식 Bluetooth CLI";
+    l.help_usage = "사용법";
+    l.help_offline = "오프라인 명령";
+    l.help_bluetooth = "BLUETOOTH 명령 (먼저 시스템 설정에서 페어링)";
+    l.help_capture_gated = "캡처 보호 쿼리 (연결 전에 거부됩니다)";
+    l.help_options = "옵션 (명령 앞)";
+    l.help_examples = "예시";
+    l.help_footer = "Studio Pro HP206 프로토콜은 retail 펌웨어 0.2.5에서 검증됨(1대);\nHiTune Max5c는 명령 ID가 충돌합니다. 펌웨어, 초기화, 원시 쓰기, 헤드폰 찾기\n작업은 제공되지 않습니다. 프로필은 실패 시 일부만 적용될 수 있습니다.";
+    l.opt_address = "명시적 대상 Bluetooth 주소";
+    l.opt_model = "하드웨어 요청에 필수; 자동 감지하지 않음";
+    l.opt_channel = "RFCOMM 채널, 1–30 (기본 1)";
+    l.opt_timeout = "작업별 시간 제한, 초, 1–60";
+    l.opt_lang = "인터페이스 언어: en, es, pt, de, fr, it, nl, ru, zh, ja, ko (기본 en)";
+    l.opt_autoconnect = "시작 시 마지막 기기에 연결 (기본 켜짐)";
+    l.opt_no_autoconnect = "시작 시 자동 연결 비활성화";
+    l.opt_dry_run = "Bluetooth 접근 없이 설정 패킷 출력";
+    l.opt_help = "도움말 표시";
+    l.opt_version = "버전 표시";
+    l.cmd_help = "이 도움말 표시";
+    l.cmd_tui = "선택적 대화형 터미널 화면 열기";
+    l.cmd_models = "프로토콜 호환성 및 제한 표시";
+    l.cmd_commands = "지원되는 설정 나열";
+    l.cmd_decode = "캡처한 응답 바이트를 오프라인에서 검증/디코딩";
+    l.cmd_analyze = "APK 정적 분석 결과를 오프라인에서 해석";
+    l.cmd_candidate = "정적 패킷 후보 출력; 전송되지 않음";
+    l.cmd_profile = "설정 프로필 관리";
+    l.cmd_profile_example = "설정 프로필 예시 출력";
+    l.cmd_profile_export = "설정을 읽어 재사용 가능한 프로필 출력";
+    l.cmd_profile_apply = "프로필 검증 후 적용하고 각 설정 검증";
+    l.cmd_discover = "캐시된 페어링된 기기 나열 (무선 스캔 없음)";
+    l.cmd_capture = "세션의 원시 TX/RX 바이트를 픽스처 hex로 기록";
+    l.cmd_status = "배터리, 펌웨어, 설정 읽기";
+    l.cmd_set = "설정 변경 후 읽기로 검증";
+    l.cmd_query = "캡처 보호 쿼리; 이 펌웨어에서 미검증";
+    l.cmd_control = "캡처 보호 제어; --dry-run이 바이트 출력";
+    l.cmd_find = "캡처 보호 찾음 음";
+    l.cmd_audio_devices = "Windows 웨이브출력 장치 나열";
     l
 }

@@ -239,9 +239,7 @@ pub struct L {
     pub err_mismatch_noack: &'static str,
     pub err_cancel_uncertain: &'static str,
     pub err_cancel: &'static str,
-    pub cli_help: &'static str,
     pub cli_models: &'static str,
-    pub cli_commands: &'static str,
     pub cli_banner: &'static str,
     pub cli_need_model: &'static str,
     pub cli_need_address: &'static str,
@@ -290,6 +288,46 @@ pub struct L {
     pub set_rbfail_noack: &'static str,
     pub set_mismatch: &'static str,
     pub set_mismatch_noack: &'static str,
+    // Generated-help building blocks. The help screen
+    // itself is rendered from the command registry;
+    // only these prose fragments are localized.
+    pub help_subtitle: &'static str,
+    pub help_usage: &'static str,
+    pub help_offline: &'static str,
+    pub help_bluetooth: &'static str,
+    pub help_capture_gated: &'static str,
+    pub help_options: &'static str,
+    pub help_examples: &'static str,
+    pub help_footer: &'static str,
+    pub opt_address: &'static str,
+    pub opt_model: &'static str,
+    pub opt_channel: &'static str,
+    pub opt_timeout: &'static str,
+    pub opt_lang: &'static str,
+    pub opt_autoconnect: &'static str,
+    pub opt_no_autoconnect: &'static str,
+    pub opt_dry_run: &'static str,
+    pub opt_help: &'static str,
+    pub opt_version: &'static str,
+    pub cmd_help: &'static str,
+    pub cmd_tui: &'static str,
+    pub cmd_models: &'static str,
+    pub cmd_commands: &'static str,
+    pub cmd_decode: &'static str,
+    pub cmd_analyze: &'static str,
+    pub cmd_candidate: &'static str,
+    pub cmd_profile: &'static str,
+    pub cmd_profile_example: &'static str,
+    pub cmd_profile_export: &'static str,
+    pub cmd_profile_apply: &'static str,
+    pub cmd_discover: &'static str,
+    pub cmd_capture: &'static str,
+    pub cmd_status: &'static str,
+    pub cmd_set: &'static str,
+    pub cmd_query: &'static str,
+    pub cmd_control: &'static str,
+    pub cmd_find: &'static str,
+    pub cmd_audio_devices: &'static str,
 }
 
 /// Catalog for a language, built once and shared.
@@ -337,7 +375,7 @@ mod tests {
             "Enter six colon-separated hexadecimal octets, e.g. AA:BB:CC:DD:EE:FF."
         );
         assert!(t.status_verified.starts_with("Verified "));
-        assert!(t.cli_help.contains("USAGE"));
+        assert!(super::super::cli::help::full(Lang::En).contains("USAGE"));
         assert!(t.cli_models.contains("VERIFIED on retail firmware 0.2.5"));
     }
     #[test]
@@ -345,7 +383,7 @@ mod tests {
         let t = txt(Lang::Es);
         assert!(t.status_startup.contains("Desconectado"));
         assert!(t.status_verified.starts_with("Verificado "));
-        assert!(t.cli_help.contains("USO"));
+        assert!(super::super::cli::help::full(Lang::Es).contains("USO"));
         assert!(!t.status_verified.contains("acknowledgement"));
     }
     #[test]

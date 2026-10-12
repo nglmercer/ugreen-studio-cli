@@ -1,5 +1,14 @@
 //! Model-specific settings. These instruction IDs must NOT be used for HiTune Max5c.
-use crate::{i18n::Lang, protocol};
+//!
+//! `SPECS` is the single authority for setting metadata: CLI
+//! parsing, `ugreen commands`, readback verification and the
+//! TUI all derive from these records. Keys, value names and
+//! wire bytes are protocol identifiers and are never
+//! translated; only error prose is localized.
+use crate::{
+    i18n::{Lang, L},
+    protocol,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Setting {
@@ -8,84 +17,203 @@ pub struct Setting {
     pub instruction: u8,
     pub payload: Vec<u8>,
 }
-const EQ: [&str; 8] = [
-    "classic",
-    "jazz",
-    "electronic",
-    "pop",
-    "classical",
-    "rock",
-    "bass",
-    "treble",
+
+/// One verified setting: its instruction, value encoding and
+/// readback semantics. Adding a setting means adding one
+/// record here; every interface derives from it.
+pub struct SettingSpec {
+    /// Canonical profile and CLI key.
+    pub key: &'static str,
+    /// Wire instruction ID.
+    pub instruction: u8,
+    /// Accepted (value, wire byte) pairs, in display order.
+    pub values: &'static [(&'static str, u8)],
+    /// Device-info byte index used for readback matching.
+    pub readback_index: u8,
+    /// ANC off/ambient match the low nibble only: the device
+    /// preserves its previous ANC depth on some firmware.
+    pub nibble_masked: bool,
+    /// spatial audio writes are not acknowledged by the device.
+    pub expects_ack: bool,
+    /// Consecutive settings sharing a group render on one
+    /// `ugreen commands` line.
+    pub group: Option<&'static str>,
+    /// Localized invalid-value error for this setting.
+    pub invalid_value: fn(&'static L) -> &'static str,
+}
+
+const ON_OFF: &[(&str, u8)] = &[("on", 1), ("off", 0)];
+const ACTIONS: &[(&str, u8)] = &[("none", 0), ("next", 4), ("previous", 5)];
+
+pub const SPECS: &[SettingSpec] = &[
+    SettingSpec {
+        key: "anc",
+        instruction: 9,
+        values: &[
+            ("off", 0xa0),
+            ("ultra", 0xa1),
+            ("general", 0xb1),
+            ("gentle", 0xc1),
+            ("adaptive", 0xd1),
+            ("ambient", 0xa2),
+        ],
+        readback_index: 3,
+        nibble_masked: true,
+        expects_ack: true,
+        group: None,
+        invalid_value: |t| t.set_bad_anc,
+    },
+    SettingSpec {
+        key: "eq",
+        instruction: 5,
+        values: &[
+            ("classic", 0),
+            ("jazz", 1),
+            ("electronic", 2),
+            ("pop", 3),
+            ("classical", 4),
+            ("rock", 5),
+            ("bass", 6),
+            ("treble", 7),
+        ],
+        readback_index: 4,
+        nibble_masked: false,
+        expects_ack: true,
+        group: None,
+        invalid_value: |t| t.set_bad_eq,
+    },
+    SettingSpec {
+        key: "game",
+        instruction: 8,
+        values: ON_OFF,
+        readback_index: 6,
+        nibble_masked: false,
+        expects_ack: true,
+        group: Some("on-off"),
+        invalid_value: |t| t.set_bad_onoff,
+    },
+    SettingSpec {
+        key: "spatial",
+        instruction: 18,
+        values: ON_OFF,
+        readback_index: 20,
+        nibble_masked: false,
+        expects_ack: false,
+        group: Some("on-off"),
+        invalid_value: |t| t.set_bad_onoff,
+    },
+    SettingSpec {
+        key: "dual",
+        instruction: 6,
+        values: ON_OFF,
+        readback_index: 5,
+        nibble_masked: false,
+        expects_ack: true,
+        group: Some("on-off"),
+        invalid_value: |t| t.set_bad_onoff,
+    },
+    SettingSpec {
+        key: "wind",
+        instruction: 23,
+        values: ON_OFF,
+        readback_index: 25,
+        nibble_masked: false,
+        expects_ack: true,
+        group: Some("on-off"),
+        invalid_value: |t| t.set_bad_onoff,
+    },
+    SettingSpec {
+        key: "prompts",
+        instruction: 12,
+        values: &[("voice", 0), ("beeps", 2)],
+        readback_index: 16,
+        nibble_masked: false,
+        expects_ack: true,
+        group: None,
+        invalid_value: |t| t.set_bad_prompts,
+    },
+    SettingSpec {
+        key: "volume-up-action",
+        instruction: 20,
+        values: ACTIONS,
+        readback_index: 22,
+        nibble_masked: false,
+        expects_ack: true,
+        group: Some("actions"),
+        invalid_value: |t| t.set_bad_button,
+    },
+    SettingSpec {
+        key: "volume-down-action",
+        instruction: 21,
+        values: ACTIONS,
+        readback_index: 23,
+        nibble_masked: false,
+        expects_ack: true,
+        group: Some("actions"),
+        invalid_value: |t| t.set_bad_button,
+    },
 ];
-const ANC: [(&str, u8); 6] = [
-    ("off", 0xa0),
-    ("ultra", 0xa1),
-    ("general", 0xb1),
-    ("gentle", 0xc1),
-    ("adaptive", 0xd1),
-    ("ambient", 0xa2),
-];
-pub const HELP: &str = "anc: off|ultra|general|gentle|adaptive|ambient\neq: classic|jazz|electronic|pop|classical|rock|bass|treble\ngame, spatial, dual, wind: on|off\nprompts: voice|beeps\nvolume-up-action, volume-down-action: none|next|previous";
+
+fn spec_of(key: &str) -> Option<&'static SettingSpec> {
+    SPECS.iter().find(|spec| spec.key == key)
+}
+
+/// The `ugreen commands` listing, generated from `SPECS`.
+/// Keys and value names are protocol identifiers.
+pub fn commands_help() -> String {
+    let mut lines = Vec::new();
+    let mut index = 0;
+    while index < SPECS.len() {
+        let spec = &SPECS[index];
+        match spec.group {
+            Some(group) => {
+                let mut keys = vec![spec.key];
+                let mut next = index + 1;
+                while next < SPECS.len() && SPECS[next].group == Some(group) {
+                    keys.push(SPECS[next].key);
+                    next += 1;
+                }
+                lines.push(format!("{}: {}", keys.join(", "), value_list(spec.values)));
+                index = next;
+            }
+            None => {
+                lines.push(format!("{}: {}", spec.key, value_list(spec.values)));
+                index += 1;
+            }
+        }
+    }
+    lines.join("\n")
+}
+
+fn value_list(values: &[(&'static str, u8)]) -> String {
+    values
+        .iter()
+        .map(|(name, _)| *name)
+        .collect::<Vec<_>>()
+        .join("|")
+}
+
 impl Setting {
     pub fn parse(key: &str, value: &str) -> Result<Self, String> {
         Self::parse_in(Lang::En, key, value)
     }
     pub fn parse_in(lang: Lang, key: &str, value: &str) -> Result<Self, String> {
         let t = crate::i18n::txt(lang);
-        let (instruction, byte) = match key {
-            "anc" => (
-                9,
-                ANC.iter()
-                    .find(|(name, _)| *name == value)
-                    .map(|(_, b)| *b)
-                    .ok_or(t.set_bad_anc)?,
-            ),
-            "eq" => (
-                5,
-                EQ.iter()
-                    .position(|name| *name == value)
-                    .ok_or(t.set_bad_eq)? as u8,
-            ),
-            "game" | "spatial" | "dual" | "wind" => {
-                let byte = match value {
-                    "on" => 1,
-                    "off" => 0,
-                    _ => return Err(t.set_bad_onoff.into()),
-                };
-                (
-                    match key {
-                        "game" => 8,
-                        "spatial" => 18,
-                        "dual" => 6,
-                        _ => 23,
-                    },
-                    byte,
-                )
-            }
-            "prompts" => (
-                12,
-                match value {
-                    "voice" => 0,
-                    "beeps" => 2,
-                    _ => return Err(t.set_bad_prompts.into()),
-                },
-            ),
-            "volume-up-action" | "volume-down-action" => (
-                if key == "volume-up-action" { 20 } else { 21 },
-                match value {
-                    "none" => 0,
-                    "next" => 4,
-                    "previous" => 5,
-                    _ => return Err(t.set_bad_button.into()),
-                },
-            ),
-            _ => return Err(t.set_unknown.replacen("{}", key, 1).replacen("{}", HELP, 1)),
-        };
+        let spec = spec_of(key).ok_or_else(|| {
+            t.set_unknown
+                .replacen("{}", key, 1)
+                .replacen("{}", &commands_help(), 1)
+        })?;
+        let byte = spec
+            .values
+            .iter()
+            .find(|(name, _)| *name == value)
+            .map(|(_, byte)| *byte)
+            .ok_or_else(|| (spec.invalid_value)(t).to_string())?;
         Ok(Self {
             key: key.into(),
             value: value.into(),
-            instruction,
+            instruction: spec.instruction,
             payload: vec![byte],
         })
     }
@@ -93,28 +221,23 @@ impl Setting {
         protocol::request(self.instruction, &self.payload).expect("known setting payload fits")
     }
     pub fn expects_ack(&self) -> bool {
-        self.instruction != 18
+        spec_of(&self.key)
+            .map(|spec| spec.expects_ack)
+            .unwrap_or(true)
     }
     pub fn matches(&self, info: &StudioProState) -> bool {
-        let idx = match self.key.as_str() {
-            "anc" => 3,
-            "eq" => 4,
-            "dual" => 5,
-            "game" => 6,
-            "prompts" => 16,
-            "spatial" => 20,
-            "volume-up-action" => 22,
-            "volume-down-action" => 23,
-            "wind" => 25,
-            _ => return false,
+        let Some(spec) = spec_of(&self.key) else {
+            return false;
         };
-        match info.raw.get(idx) {
-            // Off/ambient preserve the device's previous ANC depth on some firmware.
-            Some(actual) if self.key == "anc" && self.payload[0] & 15 != 1 => {
-                actual & 15 == self.payload[0] & 15
-            }
-            Some(actual) => *actual == self.payload[0],
-            None => false,
+        let Some(actual) = info.raw.get(spec.readback_index as usize).copied() else {
+            return false;
+        };
+        match (spec.nibble_masked, self.payload[0] & 15) {
+            // Off/ambient preserve the device's previous ANC
+            // depth on some firmware, so the high nibble may
+            // differ; ultra shares its nibble and matches exactly.
+            (true, nibble) if nibble != 1 => actual & 15 == nibble,
+            _ => actual == self.payload[0],
         }
     }
 }
@@ -136,40 +259,21 @@ impl StudioProState {
         self.raw.first().copied().filter(|v| (1..=100).contains(v))
     }
     pub fn value(&self, key: &str) -> Option<String> {
-        let value = match key {
-            "anc" => match *self.raw.get(3)? {
-                b if b & 15 == 0 => "off",
-                b if b & 15 == 2 => "ambient",
-                b => ANC.iter().find(|(_, v)| *v == b)?.0,
-            },
-            "eq" => *EQ.get(usize::from(*self.raw.get(4)?))?,
-            "dual" | "game" | "spatial" | "wind" => match *self.raw.get(match key {
-                "dual" => 5,
-                "game" => 6,
-                "spatial" => 20,
-                _ => 25,
-            })? {
-                0 => "off",
-                1 => "on",
-                _ => return None,
-            },
-            "prompts" => match *self.raw.get(16)? {
-                0 => "voice",
-                2 => "beeps",
-                _ => return None,
-            },
-            "volume-up-action" | "volume-down-action" => match *self
-                .raw
-                .get(if key == "volume-up-action" { 22 } else { 23 })?
-            {
-                0 => "none",
-                4 => "next",
-                5 => "previous",
-                _ => return None,
-            },
-            _ => return None,
+        let spec = spec_of(key)?;
+        let raw = *self.raw.get(spec.readback_index as usize)?;
+        let byte = if spec.nibble_masked {
+            match raw & 15 {
+                0 => return Some("off".into()),
+                2 => return Some("ambient".into()),
+                _ => raw,
+            }
+        } else {
+            raw
         };
-        Some(value.into())
+        spec.values
+            .iter()
+            .find(|(_, wire)| *wire == byte)
+            .map(|(name, _)| (*name).into())
     }
     pub fn profile(&self) -> String {
         let mut out = "# UGREEN Studio Pro profile v1\nmodel=studio-pro\n".to_string();

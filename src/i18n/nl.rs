@@ -153,9 +153,7 @@ pub fn catalog() -> L {
     l.err_mismatch_noack = "Schrijven verzonden maar {} kwam niet overeen met {}. Ververs expliciet voor een volgende schrijfbewerking.";
     l.err_cancel_uncertain = "Latere stappen geannuleerd. Een lopende schrijfbewerking is mogelijk voltooid; ververs expliciet voor een volgende schrijfbewerking.";
     l.err_cancel = "Geannuleerd; geen volgende stappen starten.";
-    l.cli_help = "ugreen 0.1.0 — niet-officiële Bluetooth-CLI voor UGREEN Studio Pro\n\nGEBRUIK\n  ugreen [OPTIES] OPDRACHT\n\nOFFLINE OPDRACHTEN\n  help                          Deze hulp tonen\n  tui                           Optionele terminal-interface openen\n  models                        Protocolcompatibiliteit en limieten tonen\n  commands                      Ondersteunde instellingen opnoemen\n  decode HEX                    Gecapte responsebytes offline valideren/decoderen\n  profile example               Een voorbeeldprofiel tonen\n\nBLUETOOTH-OPDRACHTEN (koppel eerst in de systeeminstellingen)\n  discover                      Gekoppelde apparaten uit cache; geen radioscan\n  capture                       Rauwe TX/RX-bytes van een sessie vastleggen als fixture-hex\n  status                        Batterij, firmware en instellingen lezen\n  set SLEUTEL WAARDE            Een instelling wijzigen en uitlezing verifiëren\n  profile export                Instellingen lezen en een herbruikbaar profiel afdrukken\n  profile apply BESTAND         Profiel valideren, toepassen en elke instelling verifiëren\n\nOPTIES (vóór de OPDRACHT)\n  --address XX:XX:XX:XX:XX:XX    Expliciet Bluetooth-doeladres\n  --model studio-pro            Vereist voor hardwareverzoeken; nooit automatisch gedetecteerd\n  --channel 1                   RFCOMM-kanaal, 1–30 (standaard 1)\n  --timeout 3                   Tijdlimiet per bewerking in seconden, 1–60\n  --lang nl                     Interface-taal: en, es, pt, de, fr, it, nl, ru, zh, ja, ko (standaard en)\n  --autoconnect                 Verbind met het laatste apparaat bij start (standaard aan)\n  --no-autoconnect              Automatische verbinding bij start uitschakelen\n  --dry-run                     Instellingspakketten afdrukken zonder Bluetooth-toegang\n  --help, -h                    Hulp tonen\n  --version, -V                 Versie tonen\n\nVOORBEELDEN\n  ugreen discover\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status\n  ugreen --dry-run set anc ultra\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro set eq bass\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro profile export > mijn-profiel.conf\n  ugreen --dry-run profile apply mijn-profiel.conf\n\nStudio Pro HP206-protocol gecontroleerd op retail-firmware 0.2.5 (één apparaat);\nHiTune Max5c gebruikt conflicterende opdracht-IDs. Geen firmware-, reset-, ruwe\nschrijf- of zoekacties. Profielen kunnen deels worden toegepast bij een fout.\n";
     l.cli_models = "studio-pro: protocol gebaseerd op de UGREEN Studio Pro HP206-referentiecode en -opname\nHardware-teststatus: GECONTROLEERD op retail-firmware 0.2.5 (Linux, kanaal 1; zie docs/verification.md)\nHiTune Max5c: NIET ONDERSTEUND (conflicterende opdracht-IDs)\nAndere UGREEN-modellen/firmware: NIET GECONTROLEERD";
-    l.cli_commands = "anc: off|ultra|general|gentle|adaptive|ambient\neq: classic|jazz|electronic|pop|classical|rock|bass|treble\ngame, spatial, dual, wind: on|off\nprompts: voice|beeps\nvolume-up-action, volume-down-action: none|next|previous";
     l.cli_banner = "Studio Pro HP206-protocol op {}, RFCOMM-kanaal {}";
     l.cli_need_model =
         "geef --model studio-pro om dit model-specifieke protocol expliciet te kiezen";
@@ -212,5 +210,46 @@ pub fn catalog() -> L {
         "schrijven bevestigd maar de uitlezing van {} komt niet overeen met {}; vraag de status";
     l.set_mismatch_noack =
         "schrijven verzonden maar de uitlezing van {} komt niet overeen met {}; vraag de status";
+    // Fragmenten van gegenereerde hulp;
+    // het scherm zelf wordt uit het
+    // opdrachtregister gegenereerd.
+    l.help_subtitle = "onofficiële Bluetooth-CLI voor UGREEN Studio Pro";
+    l.help_usage = "GEBRUIK";
+    l.help_offline = "OFFLINE-OPDRACHTEN";
+    l.help_bluetooth = "BLUETOOTH-OPDRACHTEN (koppel eerst in de systeeminstellingen)";
+    l.help_capture_gated =
+        "CAPTURE-BEVEILIGDE OPVRAGINGEN (worden nu geweigerd vóór het verbinden)";
+    l.help_options = "OPTIES (voor de OPDRACHT)";
+    l.help_examples = "VOORBEELDEN";
+    l.help_footer = "Studio Pro HP206-protocol geverifieerd op retail-firmware 0.2.5 (één apparaat);\nHiTune Max5c gebruikt conflicterende opdracht-IDs. Er zijn geen firmware-, reset-\nrauwe-schrijf- of koptelefoonzoekacties. Profielen kunnen bij fouten deels worden toegepast.";
+    l.opt_address = "Expliciet Bluetooth-adres van het doel";
+    l.opt_model = "Vereist voor hardwareverzoeken; wordt nooit automatisch gedetecteerd";
+    l.opt_channel = "RFCOMM-kanaal, 1–30 (standaard 1)";
+    l.opt_timeout = "Time-out per operatie in seconden, 1–60";
+    l.opt_lang = "Interface-taal: en, es, pt, de, fr, it, nl, ru, zh, ja, ko (standaard en)";
+    l.opt_autoconnect = "Verbind met het laatst gebruikte apparaat bij opstarten (standaard aan)";
+    l.opt_no_autoconnect = "Automatische verbinding bij opstarten uitschakelen";
+    l.opt_dry_run = "Instelingspakketten afdrukken zonder Bluetooth-toegang";
+    l.opt_help = "Hulp tonen";
+    l.opt_version = "Versie tonen";
+    l.cmd_help = "Deze hulp tonen";
+    l.cmd_tui = "De optionale interactieve terminalinterface openen";
+    l.cmd_models = "Protocolcompatibiliteit en limieten tonen";
+    l.cmd_commands = "Ondersteunde instellingen oplijsten";
+    l.cmd_decode = "Gecaptureerde antwoordbytes offline valideren/decoderen";
+    l.cmd_analyze = "Statische APK-bevindingen offline interpreteren";
+    l.cmd_candidate = "Een statisch pakketkandidaat afdrukken; wordt nooit verzonden";
+    l.cmd_profile = "Instelingsprofielen beheren";
+    l.cmd_profile_example = "Een voorbeeldinstelingsprofiel afdrukken";
+    l.cmd_profile_export = "Instellingen lezen en een herbruikbaar profiel afdrukken";
+    l.cmd_profile_apply = "Profiel valideren, toepassen en elke instelling verifiëren";
+    l.cmd_discover = "Gecachte gekoppelde apparaten oplijsten; geen radioscan";
+    l.cmd_capture = "Ruwe TX/RX-bytes van een sessie opnemen als fixture-hex";
+    l.cmd_status = "Batterij, firmware en instellingen lezen";
+    l.cmd_set = "Een instelling wijzigen en vervolgens de readback verifiëren";
+    l.cmd_query = "Capture-beveiligde opvraging; niet geverifieerd op deze firmware";
+    l.cmd_control = "Capture-beveiligde besturing; --dry-run drukt bytes af";
+    l.cmd_find = "Capture-beveiligde zoontoon";
+    l.cmd_audio_devices = "Windows-uitvoerapparaten oplijsten";
     l
 }

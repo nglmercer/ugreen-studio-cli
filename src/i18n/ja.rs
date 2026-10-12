@@ -149,9 +149,7 @@ pub fn catalog() -> L {
     l.err_mismatch_noack = "書き込みを送信しましたが {} が {} と一致しません。次の書き込み前に明示的に更新してください。";
     l.err_cancel_uncertain = "以降の段階をキャンセルしました。進行中の書き込みが完了した可能性があります；次の書き込み前に明示的に更新してください。";
     l.err_cancel = "キャンセルしました；以降の段階は開始しません。";
-    l.cli_help = "ugreen 0.1.0 — UGREEN Studio Pro の非公式 Bluetooth CLI\n\n使用法\n  ugreen [オプション] コマンド\n\nオフラインコマンド\n  help                          このヘルプを表示\n  tui                           任意のターミナル UI を開く\n  models                        プロトコルの互換性と制限を表示\n  commands                      対応設定を一覧表示\n  decode HEX                    取得した応答バイトをオフラインで検証/復号\n  profile example               設定プロファイルの例を表示\n\nBluetooth コマンド（先にシステム設定でペアリング）\n  discover                      キャッシュのペアリング済み一覧；電波スキャンなし\n  capture                       セッションの TX/RX 生バイトをフィクスチャ16進数で記録\n  status                        バッテリー・ファームウェア・設定を読取\n  set キー 値                 設定を変更し読取を検証\n  profile export                設定を読取り再利用可能なプロファイルを出力\n  profile apply ファイル        プロファイルを検証・適用し各設定を検証\n\nオプション（コマンドの前）\n  --address XX:XX:XX:XX:XX:XX    明示的な対象 Bluetooth アドレス\n  --model studio-pro            ハードウェア要求に必須；自動検出しない\n  --channel 1                   RFCOMM チャンネル，1–30（既定 1）\n  --timeout 3                   操作ごとのタイムアウト秒数，1–60\n  --lang ja                     UI 言語：en, es, pt, de, fr, it, nl, ru, zh, ja, ko（既定 en）\n  --autoconnect                 起動時に前回のデバイスへ接続（デフォルトで有効）\n  --no-autoconnect              起動時の自動接続を無効化\n  --dry-run                     Bluetooth にアクセスせず設定パケットを表示\n  --help, -h                    ヘルプ表示\n  --version, -V                 バージョン表示\n\n例\n  ugreen discover\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status\n  ugreen --dry-run set anc ultra\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro set eq bass\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro profile export > プロファイル.conf\n  ugreen --dry-run profile apply プロファイル.conf\n\nStudio Pro HP206 プロトコルは小売ファームウェア 0.2.5 で検証済み（1台）；\nHiTune Max5c はコマンド ID が衝突します。ファームウェア・リセット・生の書き込み・\nヘッドホン検索は提供しません。プロファイルは失敗時に部分的に適用される場合があります。\n";
     l.cli_models = "studio-pro：UGREEN Studio Pro HP206 のリファレンスコードとキャプチャに基づくプロトコル\nハードウェアテスト状況：小売ファームウェア 0.2.5 で検証済み（Linux，チャンネル 1；docs/verification.md 参照）\nHiTune Max5c：非対応（コマンド ID が衝突）\nその他の UGREEN モデル/ファームウェア：未検証";
-    l.cli_commands = "anc: off|ultra|general|gentle|adaptive|ambient\neq: classic|jazz|electronic|pop|classical|rock|bass|treble\ngame, spatial, dual, wind: on|off\nprompts: voice|beeps\nvolume-up-action, volume-down-action: none|next|previous";
     l.cli_banner = "Studio Pro HP206 プロトコルを {} で使用，RFCOMM チャンネル {}";
     l.cli_need_model =
         "--model studio-pro を渡してこのモデル固有プロトコルを明示的に選択してください";
@@ -207,5 +205,44 @@ pub fn catalog() -> L {
         "書き込みを確認しましたが {} の読取が {} と一致しません；状態を照会してください";
     l.set_mismatch_noack =
         "書き込みを送信しましたが {} の読取が {} と一致しません；状態を照会してください";
+    // 生成されたヘルプの断片；画面自体は
+    // コマンドレジストリからレンダリングされる。
+    l.help_subtitle = "UGREEN Studio Pro の非公式 Bluetooth CLI";
+    l.help_usage = "使用法";
+    l.help_offline = "オフラインコマンド";
+    l.help_bluetooth = "BLUETOOTH コマンド（先にシステム設定でペアリング）";
+    l.help_capture_gated = "キャプチャ保護クエリ（接続前に拒否されます）";
+    l.help_options = "オプション（コマンドの前）";
+    l.help_examples = "例";
+    l.help_footer = "Studio Pro HP206 プロトコルは retail ファームウェア 0.2.5 で検証済み（1 台）；\nHiTune Max5c はコマンド ID が衝突します。ファームウェア、リセット、生書き込み、\nヘッドフォン検索の各操作は提供されません。プロファイルは失敗時に部分的に適用される場合があります。";
+    l.opt_address = "明示的なターゲット Bluetooth アドレス";
+    l.opt_model = "ハードウェア要求に必須；自動検出はされません";
+    l.opt_channel = "RFCOMM チャンネル，1–30（既定 1）";
+    l.opt_timeout = "操作ごとのタイムアウト，秒，1–60";
+    l.opt_lang = "インターフェース言語：en, es, pt, de, fr, it, nl, ru, zh, ja, ko（既定 en）";
+    l.opt_autoconnect = "起動時に最後のデバイスへ接続（既定オン）";
+    l.opt_no_autoconnect = "起動時の自動接続を無効化";
+    l.opt_dry_run = "Bluetooth アクセスなしで設定パケットを表示";
+    l.opt_help = "ヘルプを表示";
+    l.opt_version = "バージョンを表示";
+    l.cmd_help = "このヘルプを表示";
+    l.cmd_tui = "オプションの対話ターミナル画面を開く";
+    l.cmd_models = "プロトコルの互換性と制限を表示";
+    l.cmd_commands = "サポートされる設定を一覧表示";
+    l.cmd_decode = "キャプチャした応答バイトをオフラインで検証/デコード";
+    l.cmd_analyze = "APK の静的解析結果をオフラインで解釈";
+    l.cmd_candidate = "静的パケット候補を表示；送信はされません";
+    l.cmd_profile = "設定プロファイルを管理";
+    l.cmd_profile_example = "設定プロファイルの例を表示";
+    l.cmd_profile_export = "設定を読み取って再利用可能なプロファイルを表示";
+    l.cmd_profile_apply = "プロファイルを検証し、適用して各設定を検証";
+    l.cmd_discover = "キャッシュされたペアリング済みデバイスを一覧表示（電波スキャンなし）";
+    l.cmd_capture = "セッションの生 TX/RX バイトをテスト用 hex で記録";
+    l.cmd_status = "バッテリー、ファームウェア、設定を読み取り";
+    l.cmd_set = "設定を変更し、読み取りで検証";
+    l.cmd_query = "キャプチャ保護クエリ；このファームウェアでは未検証";
+    l.cmd_control = "キャプチャ保護制御；--dry-run でバイトを表示";
+    l.cmd_find = "キャプチャ保護の検索音";
+    l.cmd_audio_devices = "Windows の波形出力デバイスを一覧表示";
     l
 }

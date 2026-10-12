@@ -1,5 +1,6 @@
 //! Unofficial Studio Pro protocol. No hardware access occurs until explicitly requested.
 pub mod bluetooth;
+pub mod cli;
 pub mod client;
 pub mod device;
 pub mod finder;

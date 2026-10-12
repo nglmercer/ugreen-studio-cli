@@ -142,9 +142,7 @@ pub fn catalog() -> L {
     l.err_mismatch_noack = "写入已发送，但 {} 与 {} 不一致。再次写入前请显式刷新。";
     l.err_cancel_uncertain = "后续阶段已取消。进行中的写入可能已完成；再次写入前请显式刷新。";
     l.err_cancel = "已取消；不会开始后续阶段。";
-    l.cli_help = "ugreen 0.1.0 — 非官方的 UGREEN Studio Pro 蓝牙 CLI\n\n用法\n  ugreen [选项] 命令\n\n离线命令\n  help                          显示本帮助\n  tui                           打开可选的终端界面\n  models                        显示协议兼容性与限制\n  commands                      列出支持的设置\n  decode HEX                    离线校验/解码捕获的响应字节\n  profile example               显示示例设置配置文件\n\n蓝牙命令（请先在系统设置中配对）\n  discover                      列出缓存中的已配对设备；不扫描无线电\n  capture                       将会话的原始 TX/RX 字节记录为基准十六进制\n  status                        读取电池、固件与设置\n  set 键 值                    更改一个设置并验证读回\n  profile export                读取设置并打印可复用的配置文件\n  profile apply 文件            校验配置文件，应用并验证每个设置\n\n选项（位于命令之前）\n  --address XX:XX:XX:XX:XX:XX    显式的目标蓝牙地址\n  --model studio-pro            硬件请求必需；从不自动检测\n  --channel 1                   RFCOMM 通道，1–30（默认 1）\n  --timeout 3                   每次操作超时秒数，1–60\n  --lang zh                     界面语言：en, es, pt, de, fr, it, nl, ru, zh, ja, ko（默认 en）\n  --autoconnect                 启动时连接上次的设备（默认开启）\n  --no-autoconnect              禁用启动时自动连接\n  --dry-run                     仅打印设置数据包，不访问蓝牙\n  --help, -h                    显示帮助\n  --version, -V                 显示版本\n\n示例\n  ugreen discover\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status\n  ugreen --dry-run set anc ultra\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro set eq bass\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro profile export > 我的配置.conf\n  ugreen --dry-run profile apply 我的配置.conf\n\nStudio Pro HP206 协议已在零售固件 0.2.5 上验证（一台设备）；\nHiTune Max5c 使用冲突的命令 ID。不提供固件、复位、原始写入\n或搜索耳机功能。配置文件失败时可能部分应用。\n";
     l.cli_models = "studio-pro：基于 UGREEN Studio Pro HP206 参考代码及其捕获的协议\n硬件测试状态：已在零售固件 0.2.5 上验证（Linux，通道 1；见 docs/verification.md）\nHiTune Max5c：不支持（命令 ID 冲突）\n其他 UGREEN 型号/固件：未验证";
-    l.cli_commands = "anc: off|ultra|general|gentle|adaptive|ambient\neq: classic|jazz|electronic|pop|classical|rock|bass|treble\ngame, spatial, dual, wind: on|off\nprompts: voice|beeps\nvolume-up-action, volume-down-action: none|next|previous";
     l.cli_banner = "在 {} 上使用 Studio Pro HP206 协议，RFCOMM 通道 {}";
     l.cli_need_model = "请传递 --model studio-pro 以显式选择此型号专用协议";
     l.cli_need_address = "缺少 --address；请使用 discover 列出已配对设备";
@@ -195,5 +193,44 @@ pub fn catalog() -> L {
     l.set_rbfail_noack = "写入已发送，但读回失败：{}";
     l.set_mismatch = "写入已确认，但 {} 的读回与 {} 不一致；请查询状态";
     l.set_mismatch_noack = "写入已发送，但 {} 的读回与 {} 不一致；请查询状态";
+    // 生成帮助文本的片段；帮助屏幕
+    // 本身由命令注册表渲染。
+    l.help_subtitle = "非官方的 UGREEN Studio Pro 蓝牙命令行工具";
+    l.help_usage = "用法";
+    l.help_offline = "离线命令";
+    l.help_bluetooth = "蓝牙命令（请先在系统设置中配对）";
+    l.help_capture_gated = "捕获门控查询（连接前会被拒绝）";
+    l.help_options = "选项（位于命令之前）";
+    l.help_examples = "示例";
+    l.help_footer = "Studio Pro HP206 协议已在零售固件 0.2.5 上验证（一台设备）；\nHiTune Max5c 使用冲突的命令 ID。不提供固件、重置、原始写入或\n查找耳机操作。配置文件在失败时可能部分应用。";
+    l.opt_address = "显式目标蓝牙地址";
+    l.opt_model = "硬件请求必需；从不自动检测";
+    l.opt_channel = "RFCOMM 通道，1–30（默认 1）";
+    l.opt_timeout = "每次操作超时，秒，1–60";
+    l.opt_lang = "界面语言：en, es, pt, de, fr, it, nl, ru, zh, ja, ko（默认 en）";
+    l.opt_autoconnect = "启动时连接到最后使用的设备（默认开启）";
+    l.opt_no_autoconnect = "禁用启动时自动连接";
+    l.opt_dry_run = "打印设置数据包而不访问蓝牙";
+    l.opt_help = "显示帮助";
+    l.opt_version = "显示版本";
+    l.cmd_help = "显示此帮助";
+    l.cmd_tui = "打开可选的交互式终端界面";
+    l.cmd_models = "显示协议兼容性与限制";
+    l.cmd_commands = "列出支持的设置";
+    l.cmd_decode = "离线验证/解码捕获的响应字节";
+    l.cmd_analyze = "离线解释静态 APK 分析结果";
+    l.cmd_candidate = "打印静态数据包候选；从不发送";
+    l.cmd_profile = "管理设置配置文件";
+    l.cmd_profile_example = "打印示例设置配置文件";
+    l.cmd_profile_export = "读取设置并打印可复用的配置文件";
+    l.cmd_profile_apply = "验证配置文件，应用并逐项验证设置";
+    l.cmd_discover = "列出缓存的已配对设备；不扫描无线电";
+    l.cmd_capture = "记录会话的原始 TX/RX 字节为测试十六进制";
+    l.cmd_status = "读取电池、固件和设置";
+    l.cmd_set = "更改一个设置，然后通过回读验证";
+    l.cmd_query = "捕获门控查询；在本固件上未验证";
+    l.cmd_control = "捕获门控控制；--dry-run 打印字节";
+    l.cmd_find = "捕获门控查找音";
+    l.cmd_audio_devices = "列出 Windows 波形输出设备";
     l
 }

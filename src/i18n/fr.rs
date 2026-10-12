@@ -157,9 +157,7 @@ pub fn catalog() -> L {
     l.err_mismatch_noack = "Écriture envoyée mais {} ne correspondait pas à {}. Actualisez explicitement avant une autre écriture.";
     l.err_cancel_uncertain = "Étapes suivantes annulées. Une écriture en cours a peut-être abouti ; actualisez explicitement avant une autre écriture.";
     l.err_cancel = "Annulé ; aucune étape suivante ne démarrera.";
-    l.cli_help = "ugreen 0.1.0 — CLI Bluetooth non officielle pour UGREEN Studio Pro\n\nUTILISATION\n  ugreen [OPTIONS] COMMANDE\n\nCOMMANDES HORS LIGNE\n  help                          Afficher cette aide\n  tui                           Ouvrir l'interface terminale optionnelle\n  models                        Afficher compatibilité et limites du protocole\n  commands                      Lister les réglages pris en charge\n  decode HEX                    Valider/décoder des octets de réponse capturés hors ligne\n  profile example               Afficher un profil de réglages d'exemple\n\nCOMMANDES BLUETOOTH (appelez d'abord dans les réglages système)\n  discover                      Lister les appareils appairés en cache ; aucun scan radio\n  capture                       Enregistrer les octets TX/RX bruts d'une session en hex\n  status                        Lire batterie, firmware et réglages\n  set CLÉ VALEUR                Changer un réglage puis vérifier le relevé\n  profile export                Lire les réglages et imprimer un profil réutilisable\n  profile apply FICHIER         Valider le profil, appliquer et vérifier chaque réglage\n\nOPTIONS (avant la COMMANDE)\n  --address XX:XX:XX:XX:XX:XX    Adresse Bluetooth cible explicite\n  --model studio-pro            Requis pour les requêtes matérielles ; jamais détecté\n  --channel 1                   Canal RFCOMM, 1–30 (défaut 1)\n  --timeout 3                   Délai par opération en secondes, 1–60\n  --lang fr                     Langue de l'interface : en, es, pt, de, fr, it, nl, ru, zh, ja, ko (défaut en)\n  --autoconnect                 Se connecter au dernier appareil au démarrage (activé par défaut)\n  --no-autoconnect              Désactive la connexion automatique au démarrage\n  --dry-run                     Afficher les paquets de réglages sans accès Bluetooth\n  --help, -h                    Afficher l'aide\n  --version, -V                 Afficher la version\n\nEXEMPLES\n  ugreen discover\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status\n  ugreen --dry-run set anc ultra\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro set eq bass\n  ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro profile export > mon-profil.conf\n  ugreen --dry-run profile apply mon-profil.conf\n\nProtocole Studio Pro HP206 vérifié sur le firmware retail 0.2.5 (une unité) ;\nHiTune Max5c utilise des identifiants de commande conflictuels. Aucune action\nde firmware, réinitialisation, écriture brute ou recherche. Les profils peuvent\ns'appliquer partiellement en cas d'échec.\n";
     l.cli_models = "studio-pro : protocole basé sur le code de référence UGREEN Studio Pro HP206 et sa capture\nStatut du test matériel : VÉRIFIÉ sur le firmware retail 0.2.5 (Linux, canal 1 ; voir docs/verification.md)\nHiTune Max5c : NON PRISE EN CHARGE (identifiants de commande conflictuels)\nAutres modèles/firmwares UGREEN : NON VÉRIFIÉS";
-    l.cli_commands = "anc: off|ultra|general|gentle|adaptive|ambient\neq: classic|jazz|electronic|pop|classical|rock|bass|treble\ngame, spatial, dual, wind: on|off\nprompts: voice|beeps\nvolume-up-action, volume-down-action: none|next|previous";
     l.cli_banner = "Protocole Studio Pro HP206 sur {}, canal RFCOMM {}";
     l.cli_need_model =
         "passez --model studio-pro pour choisir explicitement ce protocole spécifique au modèle";
@@ -217,5 +215,45 @@ pub fn catalog() -> L {
         "écriture confirmée mais le relevé de {} ne correspond pas à {} ; interrogez l'état";
     l.set_mismatch_noack =
         "écriture envoyée mais le relevé de {} ne correspond pas à {} ; interrogez l'état";
+    // Fragments d'aide générée ; l'écran
+    // est rendu à partir du registre de commandes.
+    l.help_subtitle = "CLI Bluetooth non officielle pour UGREEN Studio Pro";
+    l.help_usage = "UTILISATION";
+    l.help_offline = "COMMANDES HORS LIGNE";
+    l.help_bluetooth = "COMMANDES BLUETOOTH (appairez d'abord dans les paramètres système)";
+    l.help_capture_gated = "REQUÊTES À PORTE (refusées avant la connexion pour le moment)";
+    l.help_options = "OPTIONS (avant la COMMANDE)";
+    l.help_examples = "EXEMPLES";
+    l.help_footer = "Protocole Studio Pro HP206 vérifié sur le firmware retail 0.2.5 (un appareil) ;\nHiTune Max5c utilise des identifiants de commande conflictuels. Aucune action de\nfirmware, réinitialisation, écriture brute ou recherche de casque n'est fournie. Les profils peuvent s'appliquer partiellement en cas d'échec.";
+    l.opt_address = "Adresse Bluetooth explicite de la cible";
+    l.opt_model = "Requis pour les requêtes matérielles ; jamais détecté automatiquement";
+    l.opt_channel = "Canal RFCOMM, 1–30 (par défaut 1)";
+    l.opt_timeout = "Délai par opération en secondes, 1–60";
+    l.opt_lang =
+        "Langue de l'interface : en, es, pt, de, fr, it, nl, ru, zh, ja, ko (par défaut en)";
+    l.opt_autoconnect = "Se connecter au dernier appareil au démarrage (par défaut oui)";
+    l.opt_no_autoconnect = "Désactiver la connexion automatique au démarrage";
+    l.opt_dry_run = "Imprimer les paquets de réglages sans accès Bluetooth";
+    l.opt_help = "Afficher l'aide";
+    l.opt_version = "Afficher la version";
+    l.cmd_help = "Afficher cette aide";
+    l.cmd_tui = "Ouvrir l'interface de terminal interactive optionnelle";
+    l.cmd_models = "Afficher la compatibilité du protocole et les limites";
+    l.cmd_commands = "Lister les réglages pris en charge";
+    l.cmd_decode = "Valider/décoder hors ligne des octets de réponse capturés";
+    l.cmd_analyze = "Interpréter hors ligne les résultats statiques de l'APK";
+    l.cmd_candidate = "Imprimer un candidat de paquet statique ; n'est jamais envoyé";
+    l.cmd_profile = "Gérer les profils de réglages";
+    l.cmd_profile_example = "Imprimer un exemple de profil de réglages";
+    l.cmd_profile_export = "Lire les réglages et imprimer un profil réutilisable";
+    l.cmd_profile_apply = "Valider le profil, appliquer et vérifier chaque réglage";
+    l.cmd_discover = "Lister les appareils appairés en cache ; aucune analyse radio";
+    l.cmd_capture = "Enregistrer les octets TX/RX bruts d'une session en hexadécimal de test";
+    l.cmd_status = "Lire la batterie, le firmware et les réglages";
+    l.cmd_set = "Modifier un réglage puis vérifier par lecture";
+    l.cmd_query = "Requête à porte ; non vérifiée sur ce firmware";
+    l.cmd_control = "Contrôle à porte ; --dry-run imprime les octets";
+    l.cmd_find = "Ton de recherche à porte";
+    l.cmd_audio_devices = "Lister les sorties audio Windows";
     l
 }
