@@ -501,22 +501,55 @@ fn run(o: Options) -> Result<(), String> {
             let frames = decoder.feed(&bytes);
             for frame in &frames {
                 match frame {
-                    protocol::IncomingFrame::Response(frame) => println!(
-                        "instruction=0x{:02X} success={} crc=valid payload={}",
-                        frame.instruction,
-                        frame.succeeded,
-                        protocol::hex(&frame.payload)
-                    ),
-                    protocol::IncomingFrame::Notification(frame) => println!(
-                        "notification kind=0x{:02X} payload={} event=unknown",
-                        frame.kind,
-                        protocol::hex(&frame.payload)
-                    ),
-                    protocol::IncomingFrame::Unknown(frame) => println!(
-                        "unknown instruction=0x{:02X} payload={} rx-meaning=unverified",
-                        frame.instruction,
-                        protocol::hex(&frame.payload)
-                    ),
+                    protocol::IncomingFrame::Response(frame) => {
+                        let mut line = format!(
+                            "instruction=0x{:02X} success={} crc=valid payload={}",
+                            frame.instruction,
+                            frame.succeeded,
+                            protocol::hex(&frame.payload)
+                        );
+                        if let Some((feature, verified)) =
+                            protocol::static_analysis::describe_instruction(frame.instruction)
+                        {
+                            if verified {
+                                line.push_str(&format!(" feature={feature}"));
+                            } else {
+                                line.push_str(&format!(" feature={feature} (unverified)"));
+                            }
+                        }
+                        println!("{line}");
+                    }
+                    protocol::IncomingFrame::Notification(frame) => {
+                        // The event code is frame byte 5 (payload[0]);
+                        // the envelope byte (`kind`) is 0x02 in every
+                        // capture so far. Event labels are static APK
+                        // evidence, never capture-verified.
+                        let event = frame.payload[0];
+                        let feature =
+                            match protocol::static_analysis::describe_notification_event(event) {
+                                Some(name) => format!(" feature={name} (unverified)"),
+                                None => String::new(),
+                            };
+                        println!(
+                            "notification envelope=0x{:02X} event=0x{:02X} payload={}{feature}",
+                            frame.kind,
+                            event,
+                            protocol::hex(&frame.payload)
+                        );
+                    }
+                    protocol::IncomingFrame::Unknown(frame) => {
+                        let mut line = format!(
+                            "unknown instruction=0x{:02X} payload={} rx-meaning=unverified",
+                            frame.instruction,
+                            protocol::hex(&frame.payload)
+                        );
+                        if let Some((feature, _)) =
+                            protocol::static_analysis::describe_instruction(frame.instruction)
+                        {
+                            line.push_str(&format!(" feature={feature} (unverified)"));
+                        }
+                        println!("{line}");
+                    }
                 }
             }
             let stats = decoder.stats;

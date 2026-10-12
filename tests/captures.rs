@@ -172,3 +172,103 @@ fn static_notification_mapping_uses_apk_event_offset() {
         }
     );
 }
+
+/// Candidate fixtures are synthetic (docs/reverse-engineering.md),
+/// so these checks only prove framing, checksums and offline
+/// parsing — never hardware behaviour.
+#[test]
+fn candidate_request_fixtures_match_the_offline_encoder() {
+    for (name, instruction, payload) in [
+        ("peer-query-request.hex", 0x0D, vec![0x00]),
+        ("codec-query-request.hex", 0x0F, vec![0x00]),
+        ("box-mac-query-request.hex", 0x1F, vec![0x00]),
+        ("factory-reset-request.hex", 0x0E, vec![0x00]),
+    ] {
+        assert_eq!(
+            bytes(name),
+            protocol::request(instruction, &payload).expect("small payload"),
+            "{name}"
+        );
+    }
+    assert_eq!(
+        bytes("find-start-left-request.hex"),
+        protocol::request(0x07, &[0x01, 0x01]).expect("small payload")
+    );
+    assert_eq!(
+        bytes("find-start-right-request.hex"),
+        protocol::request(0x07, &[0x01, 0x02]).expect("small payload")
+    );
+}
+
+#[test]
+fn candidate_response_fixtures_decode_cleanly() {
+    for name in [
+        "peer-response-single.hex",
+        "peer-response-second.hex",
+        "codec-response.hex",
+    ] {
+        let mut decoder = Decoder::default();
+        let frames = decoder.feed(&bytes(name));
+        assert_clean(name, &decoder);
+        assert_eq!(frames.len(), 1, "{name}");
+        let IncomingFrame::Response(frame) = &frames[0] else {
+            panic!("{name}: expected a response, got {:?}", frames[0]);
+        };
+        assert!(frame.succeeded, "{name}");
+    }
+}
+
+#[test]
+fn candidate_peer_responses_parse_into_peer_updates() {
+    use ugreen_cli::protocol::static_analysis::{PeerList, PeerUpdate};
+    let mut decoder = Decoder::default();
+    let frames = decoder.feed(&bytes("peer-response-single.hex"));
+    let IncomingFrame::Response(single) = &frames[0] else {
+        panic!("expected a response");
+    };
+    let mut list = PeerList::default();
+    list.apply(PeerUpdate::parse(&single.payload).expect("single-peer payload"))
+        .expect("single-peer update");
+    let peer = list.slots[0].as_ref().expect("peer 1 present");
+    assert_eq!(peer.index, 1);
+    assert_eq!(peer.name, "My Phone");
+    assert_eq!(peer.address.octets(), [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]);
+    // flag=01 with index=01 marks peer 2 absent and completes the list.
+    assert!(list.complete);
+    assert!(list.slots[1].is_none());
+
+    let mut decoder = Decoder::default();
+    let frames = decoder.feed(&bytes("peer-response-second.hex"));
+    let IncomingFrame::Response(second) = &frames[0] else {
+        panic!("expected a response");
+    };
+    let mut list = PeerList::default();
+    list.apply(PeerUpdate::parse(&second.payload).expect("second-peer payload"))
+        .expect("second-peer update");
+    let peer = list.slots[1].as_ref().expect("peer 2 present");
+    assert_eq!(peer.index, 2);
+    assert_eq!(peer.name, "Work Laptop");
+    assert_eq!(peer.address.octets(), [0x11, 0x22, 0x33, 0x44, 0x55, 0x66]);
+    // flag=00 with a lone peer 2 does NOT complete the list.
+    assert!(!list.complete);
+    assert!(list.slots[0].is_none());
+}
+
+#[test]
+fn candidate_finder_notification_uses_the_event_code_offset() {
+    let mut decoder = Decoder::default();
+    let frames = decoder.feed(&bytes("notification-finder-state.hex"));
+    assert_clean("notification-finder-state", &decoder);
+    assert_eq!(frames.len(), 1);
+    let IncomingFrame::Notification(frame) = &frames[0] else {
+        panic!("expected a notification, got {:?}", frames[0]);
+    };
+    // Byte 3 is the envelope (0x02 in every capture); the
+    // event code is payload[0] (frame byte 5), per the APK.
+    assert_eq!(frame.kind, 0x02);
+    assert_eq!(frame.payload, [0x09, 0x01]);
+    assert_eq!(
+        ugreen_cli::protocol::static_analysis::describe_notification_event(frame.payload[0]),
+        Some("headphone-finder")
+    );
+}

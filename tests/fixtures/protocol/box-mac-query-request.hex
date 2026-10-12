@@ -1,0 +1,7 @@
+# SYNTHETIC candidate frame — NOT a hardware capture.
+# Charging-box MAC query (instruction 0x1F, payload [0]),
+# constructed from the layout in docs/reverse-engineering.md.
+# Request framing: AA BB CC, MODBUS CRC 41 96 over 1F 01 00.
+# The response carries the 6 MAC bytes reversed.
+# Unverified: do not send to hardware until a capture promotes it.
+AA BB CC 1F 01 00 41 96

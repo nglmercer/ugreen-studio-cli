@@ -1,0 +1,9 @@
+# SYNTHETIC candidate frame — NOT a hardware capture.
+# Headphone-finder state notification. Frame layout:
+# 85 86 87, envelope byte 0x02 (every capture so far),
+# event code 0x09 = frame byte 5 / payload[0] (finder),
+# value 0x01 = left earphone finding on, right off.
+# Fixed six bytes, no checksum. Event labels are static
+# APK evidence; no notification semantics are verified.
+# Unverified: layout from docs/reverse-engineering.md.
+85 86 87 02 09 01

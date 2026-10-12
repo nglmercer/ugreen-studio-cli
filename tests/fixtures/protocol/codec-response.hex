@@ -1,0 +1,7 @@
+# SYNTHETIC candidate frame — NOT a hardware capture.
+# Codec response to the 0x0F query: two [type, code] pairs,
+# here type=01 code=02 (AAC) for the first and type=02
+# code=02 (AAC) for the second. CCITT-FALSE CRC 75 E9.
+# Codec codes: 0=SBC, 2=AAC, 255=LDAC (UGreen table).
+# Unverified: layout from docs/reverse-engineering.md.
+DD EE FF 0F 01 04 01 02 02 02 75 E9

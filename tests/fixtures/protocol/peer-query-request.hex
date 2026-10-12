@@ -1,0 +1,6 @@
+# SYNTHETIC candidate frame — NOT a hardware capture.
+# Multipoint peer-list query (instruction 0x0D, payload [0]),
+# constructed from the layout in docs/reverse-engineering.md.
+# Request framing: AA BB CC, MODBUS CRC E1 93 over 0D 01 00.
+# Unverified: do not send to hardware until a capture promotes it.
+AA BB CC 0D 01 00 E1 93

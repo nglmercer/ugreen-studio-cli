@@ -1,0 +1,7 @@
+# SYNTHETIC candidate frame — NOT a hardware capture.
+# Peer-1-only response to the 0x0D query: flag=01 (peer 2
+# absent), index=01, name "My Phone" (UTF-8), raw MAC
+# AA:BB:CC:DD:EE:FF. CCITT-FALSE CRC 16 A0. Payload is
+# 16 bytes (0x10): 2 header + 8 name + 6 MAC.
+# Unverified: layout from docs/reverse-engineering.md.
+DD EE FF 0D 01 10 01 01 4D 79 20 50 68 6F 6E 65 AA BB CC DD EE FF 16 A0

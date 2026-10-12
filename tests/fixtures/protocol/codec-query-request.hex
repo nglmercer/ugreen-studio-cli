@@ -1,0 +1,6 @@
+# SYNTHETIC candidate frame — NOT a hardware capture.
+# Codec query (instruction 0x0F, payload [0]), constructed
+# from the layout in docs/reverse-engineering.md. Request
+# framing: AA BB CC, MODBUS CRC 40 53 over 0F 01 00.
+# Unverified: do not send to hardware until a capture promotes it.
+AA BB CC 0F 01 00 40 53

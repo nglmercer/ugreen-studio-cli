@@ -68,14 +68,14 @@ from the page send-sites and the `parsePacketApp` response parser.
 
 | Instr | Hex | Request payload | Meaning | Response payload | Status |
 |---|---|---|---|---|---|
-| 1 | `0x01` | `[0]` | firmware version query | `v1[0..2]‖v2[3..5]` (two 3-byte versions) | static |
+| 1 | `0x01` | `[0]` | firmware version query | `v1[0..2]‖v2[3..5]` (two 3-byte versions) | **verified** |
 | 2 | `0x02` | `[0]` | headphone ID query | `[id]` | static |
 | 3 | `0x03` | `[0]` | headphone color query | `[color]` | static |
 | 4 | `0x04` | `[0]` | device info query | 31-byte payload, see below | **verified** |
 | 5 | `0x05` | `[mode]` | EQ preset | `[EQ_mode]` | **verified** |
 | 6 | `0x06` | `[1]`/`[0]` | dual device on/off | `[double_link_mode]` | **verified** |
-| 7 | `0x07` | `[1,1]`/`[1,2]`/`[0,1]`/`[0,2]` | find headphones start/stop left/right | none (state via notification kind 9) | static |
-| 8 | `0x08` | `[1]`/`[0]` | game mode | via notification kind 4 | **verified** |
+| 7 | `0x07` | `[1,1]`/`[1,2]`/`[0,1]`/`[0,2]` | find headphones start/stop left/right | none (state via notification event 9) | static |
+| 8 | `0x08` | `[1]`/`[0]` | game mode | via notification event 4 | **verified** |
 | 9 | `0x09` | `[depth]` | ANC mode | `[noise_mode]` | **verified** |
 | 10 | `0x0A` | 8 bytes: tap/double/triple/long × left/right | button control | none | static |
 | 11 | `0x0B` | `[1]`/`[0]`, or `[1,mac×6]`/`[0,0×6]` | high-quality decoding (LDAC) on/off | `acousticsResponse{state, value=[p0]}` | static |

@@ -434,6 +434,84 @@ mod tests {
         assert!(Action::try_from(10).is_err());
     }
     #[test]
+    fn describe_labels_separate_verified_from_static() {
+        // The 2026-10-04 live session proved these.
+        for (instruction, name) in [
+            (0x01, "firmware"),
+            (0x04, "device-info"),
+            (0x05, "eq"),
+            (0x06, "dual"),
+            (0x08, "game"),
+            (0x09, "anc"),
+            (0x0C, "prompts"),
+            (0x12, "spatial"),
+            (0x14, "volume-up-action"),
+            (0x15, "volume-down-action"),
+            (0x17, "wind"),
+        ] {
+            assert_eq!(
+                describe_instruction(instruction),
+                Some((name, true)),
+                "instruction {instruction:02X} must be verified"
+            );
+        }
+        // APK-derived candidates are labelled but never verified.
+        for (instruction, name) in [
+            (0x02, "headphone-id"),
+            (0x03, "headphone-color"),
+            (0x07, "find-headphones"),
+            (0x0A, "button-control"),
+            (0x0B, "high-quality-decoding"),
+            (0x0D, "connected-device-info"),
+            (0x0E, "factory-reset"),
+            (0x0F, "codec"),
+            (0x10, "volume"),
+            (0x11, "ear-in-box"),
+            (0x16, "audio-sharing"),
+            (0x18, "ai-actions"),
+            (0x19, "channel-mode"),
+            (0x1B, "ai-control"),
+            (0x1E, "high-quality-decoding-alt"),
+            (0x1F, "box-mac"),
+        ] {
+            assert_eq!(
+                describe_instruction(instruction),
+                Some((name, false)),
+                "instruction {instruction:02X} must be static"
+            );
+        }
+        // Reserved slots with no response interpretation stay unmapped.
+        for reserved in [0x13, 0x1A, 0x1D, 0x00, 0xFF] {
+            assert_eq!(
+                describe_instruction(reserved),
+                None,
+                "reserved {reserved:02X} must not be labelled"
+            );
+        }
+    }
+    #[test]
+    fn notification_event_labels_are_all_static() {
+        for (event, name) in [
+            (0x01, "battery"),
+            (0x02, "anc"),
+            (0x04, "game"),
+            (0x05, "eq"),
+            (0x08, "master-slave-switch"),
+            (0x09, "headphone-finder"),
+            (0x0A, "spatial"),
+            (0x0B, "audio-sharing"),
+            (0x0C, "dual"),
+            (0x0E, "event-0E"),
+        ] {
+            assert_eq!(describe_notification_event(event), Some(name));
+        }
+        // No notification semantics are capture-verified; unknown
+        // event codes stay unmapped rather than guessed.
+        for unknown in [0x00, 0x03, 0x06, 0x07, 0x0D, 0x0F, 0xFF] {
+            assert_eq!(describe_notification_event(unknown), None);
+        }
+    }
+    #[test]
     fn peer_updates_preserve_utf8_and_mac_order() {
         let mut list = PeerList::default();
         for index in [1, 2] {
@@ -594,5 +672,76 @@ pub fn interpret_notification(frame: &super::NotificationFrame) -> Notification 
             code,
             value,
         },
+    }
+}
+
+/// Human label for an instruction byte plus whether this
+/// project has capture-verified it on retail firmware 0.2.5.
+///
+/// The verified set is exactly what the 2026-10-04 live
+/// session proved (`docs/verification.md`). Every other
+/// label is static APK evidence from
+/// `docs/reverse-engineering.md` and stays unverified: a
+/// `false` here never becomes `true` without a capture.
+/// `None` means the byte has no known meaning in either set
+/// (reserved slots `0x13`, `0x1A`, `0x1D` are deliberately
+/// unmapped — the APK defines constants for them but no
+/// response interpretation).
+pub fn describe_instruction(instruction: u8) -> Option<(&'static str, bool)> {
+    match instruction {
+        // Capture-verified on firmware 0.2.5.
+        0x01 => Some(("firmware", true)),
+        0x04 => Some(("device-info", true)),
+        0x05 => Some(("eq", true)),
+        0x06 => Some(("dual", true)),
+        0x08 => Some(("game", true)),
+        0x09 => Some(("anc", true)),
+        0x0C => Some(("prompts", true)),
+        0x12 => Some(("spatial", true)),
+        0x14 => Some(("volume-up-action", true)),
+        0x15 => Some(("volume-down-action", true)),
+        0x17 => Some(("wind", true)),
+        // Static APK evidence only — never presented as verified.
+        0x02 => Some(("headphone-id", false)),
+        0x03 => Some(("headphone-color", false)),
+        0x07 => Some(("find-headphones", false)),
+        0x0A => Some(("button-control", false)),
+        0x0B => Some(("high-quality-decoding", false)),
+        0x0D => Some(("connected-device-info", false)),
+        0x0E => Some(("factory-reset", false)),
+        0x0F => Some(("codec", false)),
+        0x10 => Some(("volume", false)),
+        0x11 => Some(("ear-in-box", false)),
+        0x16 => Some(("audio-sharing", false)),
+        0x18 => Some(("ai-actions", false)),
+        0x19 => Some(("channel-mode", false)),
+        0x1B => Some(("ai-control", false)),
+        0x1E => Some(("high-quality-decoding-alt", false)),
+        0x1F => Some(("box-mac", false)),
+        _ => None,
+    }
+}
+
+/// Label for a notification event code. The event code is
+/// frame byte 5 (`payload[0]`); byte 4 (`payload[1]`) is
+/// the event's first value byte, and byte 3 (`kind`) is an
+/// envelope field that is `0x02` in every capture so far.
+///
+/// Every label is static APK evidence: no notification
+/// semantics have been promoted by a capture yet, so
+/// callers must always present these as unverified.
+pub fn describe_notification_event(event: u8) -> Option<&'static str> {
+    match event {
+        0x01 => Some("battery"),
+        0x02 => Some("anc"),
+        0x04 => Some("game"),
+        0x05 => Some("eq"),
+        0x08 => Some("master-slave-switch"),
+        0x09 => Some("headphone-finder"),
+        0x0A => Some("spatial"),
+        0x0B => Some("audio-sharing"),
+        0x0C => Some("dual"),
+        0x0E => Some("event-0E"),
+        _ => None,
     }
 }

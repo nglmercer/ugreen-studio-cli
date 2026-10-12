@@ -1,0 +1,7 @@
+# SYNTHETIC candidate frame — NOT a hardware capture.
+# Peer-2 response to the 0x0D query: flag=00, index=02,
+# name "Work Laptop" (UTF-8), raw MAC 11:22:33:44:55:66.
+# CCITT-FALSE CRC BB A8. Payload is 19 bytes (0x13):
+# 2 header + 11 name + 6 MAC.
+# Unverified: layout from docs/reverse-engineering.md.
+DD EE FF 0D 01 13 00 02 57 6F 72 6B 20 4C 61 70 74 6F 70 11 22 33 44 55 66 BB A8

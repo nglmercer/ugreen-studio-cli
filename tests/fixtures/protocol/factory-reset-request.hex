@@ -1,0 +1,8 @@
+# SYNTHETIC candidate frame — NOT a hardware capture.
+# Factory reset (instruction 0x0E, payload [0]), constructed
+# from the layout in docs/reverse-engineering.md. Request
+# framing: AA BB CC, MODBUS CRC 11 93 over 0E 01 00.
+# DESTRUCTIVE on hardware: the device unpairs and the host
+# must then unpair and forget the registry entry.
+# Unverified: do not send to hardware until a capture promotes it.
+AA BB CC 0E 01 00 11 93

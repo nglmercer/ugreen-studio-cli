@@ -1,0 +1,7 @@
+# SYNTHETIC candidate frame — NOT a hardware capture.
+# Find-headphones start, right earphone (instruction 0x07,
+# payload [0x01, 0x02]), constructed from the layout in
+# docs/reverse-engineering.md. Request framing: AA BB CC,
+# MODBUS CRC 20 C1 over 07 02 01 02.
+# Unverified: do not send to hardware until a capture promotes it.
+AA BB CC 07 02 01 02 20 C1
