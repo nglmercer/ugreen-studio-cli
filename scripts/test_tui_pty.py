@@ -12,6 +12,7 @@ import subprocess
 import sys
 import termios
 import time
+import tempfile
 from pathlib import Path
 
 
@@ -40,11 +41,15 @@ def scenario(binary, name, args, actions):
     master, slave = pty.openpty()
     proc = None
     output = bytearray()
+    temporary = tempfile.TemporaryDirectory(prefix='ugreen-pty-')
     try:
         resize(slave, 30, 110)
         before = termios.tcgetattr(slave)
-        proc = subprocess.Popen([str(binary), *args], stdin=slave, stdout=slave,
-                                stderr=slave, env={**os.environ, 'TERM': 'xterm-256color'})
+        proc = subprocess.Popen([str(binary), '--no-autoconnect', '--address',
+                                 'AA:BB:CC:DD:EE:FF', '--model', 'studio-pro', *args],
+                                stdin=slave, stdout=slave, stderr=slave,
+                                env={**os.environ, 'TERM': 'xterm-256color',
+                                     'UGREEN_STATE_FILE': str(Path(temporary.name) / 'state')})
         drain(master, output, 0.5)
         if b'\x1b[?1049h' not in output:
             raise AssertionError(f'{name}: no alternate-screen entry: {bytes(output)!r}')
@@ -75,6 +80,7 @@ def scenario(binary, name, args, actions):
             proc.wait(timeout=5)
         os.close(master)
         os.close(slave)
+        temporary.cleanup()
 
 
 def main():
@@ -87,6 +93,7 @@ def main():
         ('explicit quit', ['tui'], [b'q']),
         ('automatic TTY entry', [], [b'q']),
         ('Ctrl+C exit', ['tui'], [b'\x03']),
+        ('feature gate and editor cancellation', ['tui'], [b'F', b'codec', b'\r', b'\x1b', b'q']),
         ('small-screen resize recovery', ['tui'], [(8, 24), b'j', (30, 110), b'q']),
         ('address edit cancellation', ['tui'], [b'a', b'AA:BB:CC:DD:EE:FF', b'\x1b', b'q']),
     ]

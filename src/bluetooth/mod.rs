@@ -161,6 +161,12 @@ pub fn list_devices() -> io::Result<Vec<HostHeadset>> {
     Ok(devices)
 }
 
+/// Remove host pairing for exactly this address after an acknowledged reset.
+/// This is separate from headset peer management and never scans or pairs.
+pub fn unpair(address: &BluetoothAddress) -> io::Result<()> {
+    platform::unpair(address)
+}
+
 /// Sort by address and keep exactly one entry per address. The first
 /// occurrence wins; names never create identity.
 pub fn normalize(devices: &mut Vec<HostHeadset>) {

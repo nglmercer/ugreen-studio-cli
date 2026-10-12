@@ -139,3 +139,36 @@ fn every_fixture_has_provenance_comments() {
         );
     }
 }
+
+#[test]
+fn static_notification_mapping_uses_apk_event_offset() {
+    use ugreen_cli::protocol::{
+        static_analysis::{interpret_notification, Notification},
+        NotificationFrame,
+    };
+    assert_eq!(
+        interpret_notification(&NotificationFrame {
+            kind: 2,
+            payload: [10, 1]
+        }),
+        Notification::Spatial(1)
+    );
+    assert_eq!(
+        interpret_notification(&NotificationFrame {
+            kind: 2,
+            payload: [5, 0]
+        }),
+        Notification::Eq(0)
+    );
+    assert_eq!(
+        interpret_notification(&NotificationFrame {
+            kind: 2,
+            payload: [1, 90]
+        }),
+        Notification::Battery {
+            left: 90,
+            right: None,
+            case: None
+        }
+    );
+}

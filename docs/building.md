@@ -11,12 +11,12 @@ The binary name is `ugreen`; the Cargo package is `ugreen-cli`. `Cargo.lock` is 
 | Build | Command | Contents |
 | --- | --- | --- |
 | Default | `cargo build --release --locked` | CLI plus optional-in-source, default-enabled TUI |
-| CLI only | `cargo build --release --locked --no-default-features` | Standard-library-only application, no TUI dependencies compiled |
+| CLI only | `cargo build --release --locked --no-default-features` | No TUI dependencies; Linux uses libc for signal handling |
 | Explicit TUI | `cargo build --release --locked --no-default-features --features tui` | Same terminal feature enabled explicitly |
 
-The `tui` feature selects Ratatui 0.30.2 and Crossterm 0.29.0. Their transitive dependencies are pinned by the lockfile. The complete default build has third-party Cargo dependencies; the CLI-only variant keeps the application code standard-library-only.
+The `tui` feature selects Ratatui 0.30.2 and Crossterm 0.29.0. Their transitive dependencies are pinned by the lockfile. The complete default build has third-party Cargo dependencies; the CLI-only variant omits terminal dependencies and uses pinned libc 0.2.189 on Linux for native signal layouts. Windows uses direct native APIs.
 
-`--locked` prevents an unnoticed lockfile update; it does not mean offline. If building without a network connection, first obtain the correct toolchain and cache the locked dependencies on a connected machine using Cargo's supported workflow. Then add `--offline`. A CLI-only build needs no third-party crates compiled but Cargo can still require registry metadata for lockfile resolution. Do not delete `Cargo.lock` to hide a dependency-resolution error.
+`--locked` prevents an unnoticed lockfile update; it does not mean offline. If building without a network connection, first obtain the correct toolchain and cache the locked dependencies on a connected machine using Cargo's supported workflow. Then add `--offline`. A Linux CLI-only build compiles libc; other platforms omit that target-specific dependency. Cargo can still require registry metadata for lockfile resolution. Do not delete `Cargo.lock` to hide a dependency-resolution error.
 
 ## Linux
 

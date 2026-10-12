@@ -1,13 +1,14 @@
 //! Minimal BlueZ enumeration over the D-Bus system bus.
 //!
 //! Why a hand-written client: the project keeps its dependency set at
-//! ratatui/crossterm only, and this needs exactly two method calls
-//! (`Hello`, `ObjectManager.GetManagedObjects`) with typed results —
+//! small and avoids a D-Bus runtime dependency. Enumeration uses `Hello` and
+//! `ObjectManager.GetManagedObjects`; reset cleanup adds `RemoveDevice` —
 //! no async runtime, no signal subscriptions, no reconnection logic.
 //!
 //! Safety bounds: the socket path is fixed, reads/writes carry a 5 s
 //! timeout, message sizes are capped, the reply wait is bounded, and
-//! nothing here ever writes to BlueZ (read-only `GetManagedObjects`).
+//! enumeration uses read-only `GetManagedObjects`. Reset cleanup separately
+//! performs a targeted `Adapter1.RemoveDevice` after a reset acknowledgement.
 //! Any failure propagates to the caller, which falls back to the
 //! bounded `bluetoothctl` path.
 
@@ -36,6 +37,77 @@ pub(super) fn list_devices() -> io::Result<Vec<HostHeadset>> {
         .collect();
     super::normalize(&mut devices);
     Ok(devices)
+}
+
+pub(super) fn unpair(address: &BluetoothAddress) -> io::Result<()> {
+    let mut bus = Bus::open()?;
+    let objects = bus.get_managed_objects()?;
+    let Some((adapter, device)) = removal_target(&objects, address)? else {
+        return Ok(());
+    };
+    bus.serial = bus
+        .serial
+        .checked_add(1)
+        .ok_or_else(|| io::Error::other("D-Bus serial exhausted"))?;
+    let message = build_remove_call(bus.serial, &adapter, &device)?;
+    bus.stream.write_all(&message)?;
+    bus.await_reply()?;
+    Ok(())
+}
+
+fn removal_target(
+    objects: &[ManagedObject],
+    address: &BluetoothAddress,
+) -> io::Result<Option<(String, String)>> {
+    let mut matches = objects.iter().filter(|object| {
+        object
+            .address
+            .as_deref()
+            .and_then(|v| BluetoothAddress::parse(v).ok())
+            .as_ref()
+            == Some(address)
+    });
+    let Some(object) = matches.next() else {
+        return Ok(None);
+    };
+    if matches.next().is_some() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "device occurs on multiple Bluetooth adapters; pairing removal is ambiguous",
+        ));
+    }
+    let (adapter, device) = object
+        .path
+        .rsplit_once('/')
+        .ok_or_else(|| io::Error::other("invalid BlueZ device path"))?;
+    let adapter_index = adapter
+        .strip_prefix("/org/bluez/hci")
+        .ok_or_else(|| io::Error::other("invalid BlueZ adapter path"))?;
+    if adapter_index.is_empty()
+        || !adapter_index.bytes().all(|b| b.is_ascii_digit())
+        || device != format!("dev_{}", address.as_str().replace(':', "_"))
+    {
+        return Err(io::Error::other(
+            "BlueZ device path does not match target identity",
+        ));
+    }
+    Ok(Some((adapter.to_owned(), object.path.clone())))
+}
+
+fn build_remove_call(serial: u32, adapter: &str, device: &str) -> io::Result<Vec<u8>> {
+    let mut body = Vec::new();
+    push_string(&mut body, device);
+    let mut message = build_method_call(
+        serial,
+        adapter,
+        "org.bluez.Adapter1",
+        "RemoveDevice",
+        "org.bluez",
+        Some("o"),
+    )?;
+    message[4..8].copy_from_slice(&(body.len() as u32).to_ne_bytes());
+    message.extend_from_slice(&body);
+    Ok(message)
 }
 
 struct Bus {
@@ -945,5 +1017,44 @@ mod tests {
             assert!(!device.name.is_empty() || device.paired);
         }
         println!("{} device(s) via D-Bus", devices.len());
+    }
+    #[test]
+    fn removal_targets_only_exact_device_and_rejects_adapter_ambiguity() {
+        let address = BluetoothAddress::from_octets([1, 2, 3, 4, 5, 6]);
+        let object = ManagedObject {
+            path: "/org/bluez/hci0/dev_01_02_03_04_05_06".into(),
+            address: Some(address.to_string()),
+            ..Default::default()
+        };
+        let result = removal_target(std::slice::from_ref(&object), &address)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.0, "/org/bluez/hci0");
+        assert_eq!(result.1, object.path);
+        assert!(removal_target(&[], &address).unwrap().is_none());
+        let other = BluetoothAddress::from_octets([2; 6]);
+        assert!(removal_target(std::slice::from_ref(&object), &other)
+            .unwrap()
+            .is_none());
+        assert!(removal_target(&[object.clone(), object.clone()], &address).is_err());
+        let mut invalid = object;
+        invalid.path = "/org/bluez/hci0/dev_02_02_02_02_02_02".into();
+        assert!(removal_target(&[invalid], &address).is_err());
+    }
+    #[test]
+    fn removal_call_contains_typed_object_path_body() {
+        let device = "/org/bluez/hci0/dev_01_02_03_04_05_06";
+        let message = build_remove_call(9, "/org/bluez/hci0", device).unwrap();
+        let little = cfg!(target_endian = "little");
+        let body_len = u32_at(&message[4..8], little) as usize;
+        let fields_len = u32_at(&message[12..16], little) as usize;
+        let body_start = (16 + fields_len + 7) & !7;
+        assert_eq!(message.len(), body_start + body_len);
+        let mut reader = Reader::new(&message[body_start..], little);
+        assert_eq!(reader.string().unwrap(), device);
+        assert!(message
+            .windows("RemoveDevice".len())
+            .any(|v| v == b"RemoveDevice"));
+        assert!(message.windows(4).any(|v| v == [8, 1, b'g', 0]));
     }
 }

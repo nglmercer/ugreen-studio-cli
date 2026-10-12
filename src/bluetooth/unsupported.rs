@@ -27,3 +27,7 @@ impl Connection {
 pub(super) fn list_devices() -> io::Result<Vec<HostHeadset>> {
     Err(unsupported())
 }
+
+pub(super) fn unpair(_: &super::BluetoothAddress) -> io::Result<()> {
+    Err(unsupported())
+}

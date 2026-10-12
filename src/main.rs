@@ -289,6 +289,211 @@ fn run(o: Options) -> Result<(), String> {
             exact(args, 1, "ugreen commands")?;
             println!("{}", t.cli_commands);
         }
+        "peers" | "codec" | "id" | "color" | "box-mac" => {
+            exact(args, 1, "ugreen [OPTIONS] peers|codec|id|color|box-mac")?;
+            let (bit, feature) = match args[0].as_str() {
+                "peers" => (
+                    ugreen_cli::models::Capabilities::MULTIPOINT_PEERS,
+                    "multipoint peer list",
+                ),
+                "codec" => (
+                    ugreen_cli::models::Capabilities::CODEC_STATUS,
+                    "codec status",
+                ),
+                "id" => (
+                    ugreen_cli::models::Capabilities::HEADPHONE_ID,
+                    "headphone ID",
+                ),
+                "color" => (
+                    ugreen_cli::models::Capabilities::HEADPHONE_COLOR,
+                    "headphone color",
+                ),
+                _ => (ugreen_cli::models::Capabilities::BOX_MAC, "box MAC"),
+            };
+            if o.dry_run {
+                return Err("use candidate for offline static query packets".into());
+            }
+            if !ugreen_cli::models::Model::StudioPro
+                .capabilities()
+                .contains(bit)
+            {
+                return Err(format!(
+                    "{feature} is not verified for Studio Pro; official-app capture required"
+                ));
+            }
+            let mut client = connect(&o)?;
+            match args[0].as_str() {
+                "peers" => {
+                    let peers = client.peers().map_err(|e| e.to_string())?;
+                    for peer in peers.slots.into_iter().flatten() {
+                        println!(
+                            "peer={} address={} name={}",
+                            peer.index,
+                            peer.address,
+                            terminal_text(&peer.name)
+                        );
+                    }
+                }
+                "codec" => println!("codecs={:?}", client.codecs().map_err(|e| e.to_string())?),
+                "id" => println!("id={}", client.headphone_id().map_err(|e| e.to_string())?),
+                "color" => println!(
+                    "color={}",
+                    client.headphone_color().map_err(|e| e.to_string())?
+                ),
+                _ => println!("box_mac={}", client.box_mac().map_err(|e| e.to_string())?),
+            }
+        }
+        "audio-devices" => {
+            exact(args, 1, "ugreen audio-devices")?;
+            if o.dry_run {
+                return Err(
+                    "audio-devices reads host output devices; --dry-run is unsupported".into(),
+                );
+            }
+            for (id, name) in
+                ugreen_cli::finder::windows_output_devices().map_err(|e| e.to_string())?
+            {
+                println!("{id} {}", terminal_text(&name));
+            }
+        }
+        "find" => {
+            exact(
+                args,
+                4,
+                "ugreen [OPTIONS] find left|right SECONDS AUDIO_TARGET",
+            )?;
+            let side = match args[1].as_str() {
+                "left" => protocol::static_analysis::Side::Left,
+                "right" => protocol::static_analysis::Side::Right,
+                _ => return Err("finder side must be left or right".into()),
+            };
+            let seconds: u8 = args[2]
+                .parse()
+                .map_err(|_| "finder duration must be 1..30 seconds")?;
+            if !(1..=30).contains(&seconds) {
+                return Err("finder duration must be 1..30 seconds".into());
+            }
+            if o.dry_run {
+                return Err("use candidate find left|right on|off for offline packets".into());
+            }
+            ugreen_cli::finder::validate(seconds, &args[3]).map_err(|e| e.to_string())?;
+            protocol::static_analysis::Command::Find {
+                enabled: true,
+                side,
+            }
+            .check_control()
+            .map_err(|e| e.to_string())?;
+            let interrupts = ugreen_cli::interrupt::Guard::install().map_err(|e| e.to_string())?;
+            let mut client = connect(&o)?;
+            client
+                .info()
+                .map_err(|e| format!("finder preflight failed: {e}"))?;
+            ugreen_cli::finder::ring_cancellable(&mut client, side, seconds, &args[3], || {
+                interrupts.interrupted()
+            })
+            .map_err(|e| e.to_string())?;
+            println!("host finder playback completed; stop sent; device state unconfirmed");
+        }
+        "control" => {
+            let command = protocol::static_analysis::Command::parse(&args[1..])?;
+            if command.control_capability().is_none() {
+                return Err("query is not a control; use its query command".into());
+            }
+            if o.dry_run {
+                println!("# static APK candidate; unverified; no Bluetooth access");
+                println!(
+                    "{}",
+                    protocol::hex(&command.packet().map_err(|e| e.to_string())?)
+                );
+            } else {
+                command.check_control().map_err(|e| e.to_string())?;
+                let mut client = connect(&o)?;
+                client
+                    .info()
+                    .map_err(|e| format!("control preflight failed: {e}"))?;
+                let outcome = client.control(&command).map_err(|e| e.to_string())?;
+                if command == protocol::static_analysis::Command::FactoryReset {
+                    drop(client);
+                    let address = BluetoothAddress::parse(
+                        o.address.as_deref().expect("connect validated address"),
+                    )
+                    .map_err(|e| e.to_string())?;
+                    ugreen_cli::reset::cleanup(&address).map_err(|e| e.to_string())?;
+                    println!("reset acknowledged; host pairing and registry entry removed");
+                    return Ok(());
+                }
+                match outcome {
+                    ugreen_cli::client::ControlOutcome::Readback(_) => {
+                        println!("control verified by device-info readback")
+                    }
+                    ugreen_cli::client::ControlOutcome::Acknowledged(_) => println!(
+                        "control acknowledged; resulting device state not independently confirmed"
+                    ),
+                    ugreen_cli::client::ControlOutcome::SentUnconfirmed => {
+                        println!("control sent; finder state and audio playback unconfirmed")
+                    }
+                }
+            }
+        }
+        "candidate" => {
+            let command = protocol::static_analysis::Command::parse(&args[1..])?;
+            println!("# static APK candidate; unverified; no Bluetooth access");
+            println!(
+                "{}",
+                protocol::hex(&command.packet().map_err(|e| e.to_string())?)
+            );
+        }
+        "analyze" => {
+            exact(args, 2, "ugreen analyze 'DD EE FF ...'")?;
+            let bytes = protocol::parse_hex(&args[1])?;
+            let mut decoder = protocol::Decoder::default();
+            let frames = decoder.feed(&bytes);
+            if frames.is_empty()
+                || decoder.pending_bytes() != 0
+                || decoder.stats.response_crc_failures != 0
+                || decoder.stats.discarded_bytes != 0
+                || decoder.stats.unknown_frames != 0
+            {
+                return Err("analysis requires complete CRC-valid incoming frames".into());
+            }
+            println!("static APK interpretations; unverified on hardware");
+            let mut peers = protocol::static_analysis::PeerList::default();
+            for frame in frames {
+                match frame {
+                    protocol::IncomingFrame::Response(frame)
+                        if frame.instruction == protocol::INFO =>
+                    {
+                        if !frame.succeeded {
+                            return Err("device rejected request".into());
+                        }
+                        println!(
+                            "{:?}",
+                            protocol::static_analysis::DeviceInfo::parse(&frame.payload)?
+                        );
+                    }
+                    protocol::IncomingFrame::Response(frame) => {
+                        let response = protocol::static_analysis::interpret(&frame)?;
+                        if let protocol::static_analysis::Response::Peers(update) = &response {
+                            peers.apply(update.clone())?;
+                        }
+                        println!("{response:?}");
+                    }
+                    protocol::IncomingFrame::Notification(frame) => {
+                        println!(
+                            "{:?}",
+                            protocol::static_analysis::interpret_notification(&frame)
+                        );
+                    }
+                    protocol::IncomingFrame::Unknown(_) => unreachable!(),
+                }
+            }
+            if peers.observed {
+                println!(
+                    "static_peer_list complete={} slots={:?}",
+                    peers.complete, peers.slots
+                );
+            }
+        }
         "decode" => {
             exact(args, 2, "ugreen decode 'DD EE FF ...'")?;
             let bytes = protocol::parse_hex(&args[1])?;

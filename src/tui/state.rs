@@ -67,6 +67,7 @@ pub(super) struct App {
     pub host_connection: HostConnectionState,
     pub info: Option<StudioProState>,
     pub firmware: Option<String>,
+    pub codecs: Option<[(u8, crate::protocol::static_analysis::Codec); 2]>,
     pub observed_at: Option<Instant>,
     pub stale: bool,
     pub writes_blocked: bool,
@@ -82,6 +83,8 @@ pub(super) struct App {
     pub model_confirmation: bool,
     pub quit_confirmation: bool,
     pub help: bool,
+    pub feature_input: Option<String>,
+    pub feature_confirmation: bool,
     pub help_scroll: u16,
     pub options: bool,
     pub options_index: usize,
@@ -110,6 +113,7 @@ impl App {
             host_connection: HostConnectionState::Unknown,
             info: None,
             firmware: None,
+            codecs: None,
             observed_at: None,
             stale: false,
             writes_blocked: false,
@@ -125,6 +129,8 @@ impl App {
             model_confirmation: false,
             quit_confirmation: false,
             help: false,
+            feature_input: None,
+            feature_confirmation: false,
             help_scroll: 0,
             options: false,
             options_index: 0,
@@ -221,6 +227,7 @@ impl App {
             Action::Connect { .. } => t.status_connecting.into(),
             Action::Refresh => t.status_refreshing.into(),
             Action::Disconnect => t.status_disconnecting.into(),
+            Action::Feature(_) => "Running headset feature operation".into(),
             Action::Set(setting) => {
                 let noack = !setting.expects_ack();
                 let template = if noack {
@@ -245,8 +252,11 @@ impl App {
             // status before submitting the change.
             Action::Configure { .. } => self.status.clone(),
         };
-        if matches!(action, Action::Refresh | Action::Set(_)) {
+        if matches!(action, Action::Refresh | Action::Set(_)) || action.is_write() {
             self.stale = true;
+        }
+        if action.is_write() {
+            self.codecs = None;
         }
         self.busy = Some((id, action));
     }
@@ -300,6 +310,25 @@ impl App {
                 self.proposals = Default::default();
                 self.status = fill(t.status_verified, &[&setting.key, &setting.value]);
             }
+            Ok(Output::Feature(result)) => {
+                if let Some(codecs) = result.codecs {
+                    self.codecs = Some(codecs);
+                }
+                if let Some(info) = result.info {
+                    self.info = Some(info);
+                    self.observed_at = Some(Instant::now());
+                    self.stale = false;
+                    self.proposals = Default::default();
+                } else if action.is_write() {
+                    self.stale = self.info.is_some();
+                }
+                if result.reset {
+                    self.clear_snapshot();
+                    self.model_confirmed = false;
+                    self.host_connection = HostConnectionState::Unknown;
+                }
+                self.status = result.text;
+            }
             Ok(Output::Disconnected) => {
                 self.clear_snapshot();
                 self.status = t.status_disconnected.into();
@@ -336,6 +365,7 @@ impl App {
     fn clear_snapshot(&mut self) {
         self.info = None;
         self.firmware = None;
+        self.codecs = None;
         self.observed_at = None;
         self.proposals = Default::default();
         self.stale = false;
@@ -380,6 +410,9 @@ impl App {
         }
         let (x, y) = (event.column, event.row);
         if width < super::view::MIN_WIDTH || height < super::view::MIN_HEIGHT {
+            return Intent::None;
+        }
+        if self.feature_input.is_some() {
             return Intent::None;
         }
         // Value list: clicking a row applies that value at once.
@@ -512,6 +545,46 @@ impl App {
         }
         Intent::None
     }
+    pub(super) fn prepare_feature(&mut self, caps: crate::models::Capabilities) -> Intent {
+        let operation = match super::features::Operation::parse(
+            self.feature_input.as_deref().unwrap_or_default(),
+        ) {
+            Ok(operation) => operation,
+            Err(error) => {
+                self.status = error;
+                return Intent::None;
+            }
+        };
+        if let Err(error) = operation.check(caps) {
+            self.status = error.to_string();
+            return Intent::None;
+        }
+        if !self.control_connected || !self.model_confirmed {
+            self.status = self.t().status_must_connect.into();
+            return Intent::None;
+        }
+        if self.busy.is_some() || !self.worker_alive {
+            return Intent::None;
+        }
+        if operation.is_write() && self.writes_blocked {
+            self.status = self.t().status_blocked_note.into();
+            return Intent::None;
+        }
+        if operation.is_write() && !self.feature_confirmation {
+            self.feature_confirmation = true;
+            self.status = if operation.is_reset() {
+                "Factory reset removes host pairing and saved device. Enter to confirm; Esc to cancel.".into()
+            } else {
+                format!(
+                    "Apply feature to {}? Enter to confirm; Esc to cancel.",
+                    self.address
+                )
+            };
+            return Intent::None;
+        }
+        self.feature_confirmation = false;
+        Intent::Request(Action::Feature(operation))
+    }
     pub fn key(&mut self, key: KeyEvent) -> Intent {
         if key.kind != KeyEventKind::Press {
             return Intent::None;
@@ -520,7 +593,10 @@ impl App {
         let quit = key.code == KeyCode::Char('q')
             || (key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL));
         // Address entry uses q as text, but Ctrl-C remains a quit action.
-        if quit && (self.address_edit.is_none() || key.modifiers.contains(KeyModifiers::CONTROL)) {
+        if quit
+            && ((self.address_edit.is_none() && self.feature_input.is_none())
+                || key.modifiers.contains(KeyModifiers::CONTROL))
+        {
             // A lone paired-cache read cannot corrupt device state, so quitting
             // through it needs no confirmation; anything else in flight might
             // still complete a write.
@@ -544,6 +620,48 @@ impl App {
                 }
                 _ => Intent::None,
             };
+        }
+        if self.feature_input.is_some() {
+            if self.busy.is_some() {
+                return if key.code == KeyCode::Esc {
+                    Intent::Cancel
+                } else {
+                    Intent::None
+                };
+            }
+            match key.code {
+                KeyCode::Esc => {
+                    if self.feature_confirmation {
+                        self.feature_confirmation = false;
+                    } else {
+                        self.feature_input = None;
+                    }
+                }
+                KeyCode::Enter => {
+                    return self.prepare_feature(Model::StudioPro.capabilities());
+                }
+                KeyCode::Backspace => {
+                    self.feature_confirmation = false;
+                    self.feature_input.as_mut().unwrap().pop();
+                }
+                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.feature_confirmation = false;
+                    self.feature_input.as_mut().unwrap().clear();
+                }
+                KeyCode::Char(c)
+                    if c.is_ascii()
+                        && !c.is_ascii_control()
+                        && !key.modifiers.contains(KeyModifiers::CONTROL) =>
+                {
+                    self.feature_confirmation = false;
+                    let input = self.feature_input.as_mut().unwrap();
+                    if input.len() < 256 {
+                        input.push(c);
+                    }
+                }
+                _ => {}
+            }
+            return Intent::None;
         }
         if let Some(index) = self.picker {
             // Value list: pick directly instead of stepping
@@ -773,6 +891,11 @@ impl App {
                 return Intent::Cancel;
             }
             self.proposals[self.selected] = None;
+            return Intent::None;
+        }
+        if key.code == KeyCode::Char('F') {
+            self.feature_input = Some(String::new());
+            self.feature_confirmation = false;
             return Intent::None;
         }
         if key.code == KeyCode::Char('l') {

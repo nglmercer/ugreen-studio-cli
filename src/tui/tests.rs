@@ -979,10 +979,32 @@ struct MockState {
     cancel_info: Option<usize>,
     cancel_ack: bool,
     cancel_connect: bool,
+    feature_caps: Option<crate::models::Capabilities>,
+    feature_certain: Option<bool>,
+    fail_feature: bool,
+    cancel_feature: bool,
+    record_drop: bool,
+    fail_cleanup: bool,
 }
 struct FakeBackend(Arc<Mutex<MockState>>);
 struct FakeSession(Arc<Mutex<MockState>>);
 impl Backend for FakeBackend {
+    fn capabilities(&self) -> crate::models::Capabilities {
+        self.0
+            .lock()
+            .unwrap()
+            .feature_caps
+            .unwrap_or_else(|| Model::StudioPro.capabilities())
+    }
+    fn reset_cleanup(&mut self, address: &BluetoothAddress) -> io::Result<()> {
+        let mut s = self.0.lock().unwrap();
+        s.calls.push(format!("reset-cleanup:{address}"));
+        if s.fail_cleanup {
+            Err(io::Error::other("mock cleanup failed"))
+        } else {
+            Ok(())
+        }
+    }
     fn paired(&mut self) -> io::Result<Vec<HostHeadset>> {
         self.0.lock().unwrap().calls.push("paired".into());
         Ok(vec![])
@@ -996,7 +1018,41 @@ impl Backend for FakeBackend {
         Ok(Box::new(FakeSession(self.0.clone())))
     }
 }
+impl Drop for FakeSession {
+    fn drop(&mut self) {
+        let mut s = self.0.lock().unwrap();
+        if s.record_drop {
+            s.calls.push("close-session".into());
+        }
+    }
+}
 impl Session for FakeSession {
+    fn feature(
+        &mut self,
+        op: &super::features::Operation,
+        cancelled: &dyn Fn() -> bool,
+    ) -> io::Result<super::features::ResultData> {
+        let mut s = self.0.lock().unwrap();
+        s.calls.push("feature".into());
+        if s.cancel_feature {
+            s.cancel.as_ref().unwrap().store(true, Ordering::SeqCst);
+        }
+        if s.fail_feature || cancelled() {
+            return Err(io::Error::other("mock feature failed/cancelled"));
+        }
+        let certain = s.feature_certain.unwrap_or(true);
+        Ok(super::features::ResultData {
+            text: "mock result".into(),
+            codecs: None,
+            info: if certain && op.is_write() && !op.is_reset() {
+                Some(StudioProState::new(s.raw.clone()).unwrap())
+            } else {
+                None
+            },
+            reset: op.is_reset(),
+            certain,
+        })
+    }
     fn info(&mut self) -> io::Result<StudioProState> {
         let mut s = self.0.lock().unwrap();
         s.calls.push("info".into());
@@ -1469,4 +1525,257 @@ fn closure_shutdown_guard_cancels_worker_without_waiting() {
         assert!(Instant::now() < deadline);
         std::thread::sleep(Duration::from_millis(5));
     }
+}
+
+#[test]
+fn feature_panel_input_is_bounded_and_gates_before_worker_submission() {
+    let mut app = ready();
+    app.key(key(KeyCode::Char('F')));
+    assert_eq!(app.feature_input.as_deref(), Some(""));
+    for c in "control ldac on".chars() {
+        assert!(matches!(app.key(key(KeyCode::Char(c))), Intent::None));
+    }
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    assert!(app.status.contains("official-app capture required"));
+    assert!(!app.feature_confirmation);
+    assert!(render(&app, 100, 30).contains("Headset features"));
+    app.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+    app.key(key(KeyCode::Char('q')));
+    assert_eq!(app.feature_input.as_deref(), Some("q"));
+    for _ in 0..300 {
+        app.key(key(KeyCode::Char('x')));
+    }
+    assert_eq!(app.feature_input.as_ref().unwrap().len(), 256);
+    app.key(key(KeyCode::Esc));
+    assert!(app.feature_input.is_none());
+}
+#[test]
+fn promoted_feature_controls_require_review_and_edits_cancel_confirmation() {
+    use crate::models::Capabilities as C;
+    let caps = C::from_bits(C::VOLUME | C::CODEC_STATUS | C::FACTORY_RESET);
+    let mut app = ready();
+    app.feature_input = Some("control volume 8".into());
+    assert!(matches!(app.prepare_feature(caps), Intent::None));
+    assert!(app.feature_confirmation);
+    app.key(key(KeyCode::Backspace));
+    assert!(!app.feature_confirmation);
+    app.feature_input = Some("control volume 8".into());
+    app.prepare_feature(caps);
+    assert!(matches!(
+        app.prepare_feature(caps),
+        Intent::Request(Action::Feature(_))
+    ));
+    app.feature_input = Some("codec".into());
+    assert!(matches!(
+        app.prepare_feature(caps),
+        Intent::Request(Action::Feature(_))
+    ));
+    app.feature_input = Some("control factory-reset".into());
+    app.prepare_feature(caps);
+    assert!(app.status.contains("removes host pairing"));
+    app.key(key(KeyCode::Esc));
+    assert!(!app.feature_confirmation);
+    app.writes_blocked = true;
+    assert!(matches!(app.prepare_feature(caps), Intent::None));
+    assert!(!app.feature_confirmation);
+}
+#[test]
+fn feature_worker_gates_before_preflight_and_blocks_uncertain_outcomes() {
+    use super::features::Operation;
+    use crate::models::Capabilities as C;
+    let (mut engine, state) = connected_engine();
+    let op = Operation::parse("control volume 8").unwrap();
+    assert!(engine
+        .execute(request(Action::Feature(op.clone())))
+        .result
+        .is_err());
+    assert!(state.lock().unwrap().calls.is_empty());
+    {
+        let mut s = state.lock().unwrap();
+        s.feature_caps = Some(C::from_bits(C::VOLUME));
+        s.feature_certain = Some(false);
+    }
+    let reply = engine.execute(request(Action::Feature(op.clone())));
+    assert!(reply.result.is_ok());
+    assert!(reply.writes_blocked);
+    let calls = state.lock().unwrap().calls.clone();
+    assert!(engine.execute(request(Action::Feature(op))).result.is_err());
+    assert_eq!(state.lock().unwrap().calls, calls);
+    assert!(!engine.execute(request(Action::Refresh)).writes_blocked);
+}
+#[test]
+fn feature_worker_respects_cancellation_before_and_after_write() {
+    use super::features::Operation;
+    use crate::models::Capabilities as C;
+    for during_write in [false, true] {
+        let (mut engine, state) = connected_engine();
+        let req = request(Action::Feature(
+            Operation::parse("control volume 8").unwrap(),
+        ));
+        {
+            let mut s = state.lock().unwrap();
+            s.feature_caps = Some(C::from_bits(C::VOLUME));
+            s.cancel = Some(req.cancelled.clone());
+            if during_write {
+                s.cancel_feature = true;
+            } else {
+                s.cancel_info = Some(1);
+            }
+        }
+        let reply = engine.execute(req);
+        assert!(reply.result.is_err());
+        assert_eq!(reply.writes_blocked, during_write);
+        assert_eq!(
+            state.lock().unwrap().calls.contains(&"feature".into()),
+            during_write
+        );
+    }
+}
+#[test]
+fn feature_reset_closes_session_before_cleanup_for_actual_connected_address() {
+    use super::features::Operation;
+    use crate::models::Capabilities as C;
+    for fail_cleanup in [false, true] {
+        let (mut engine, state) = engine();
+        engine.execute(request(Action::Connect {
+            address: "11:22:33:44:55:66".into(),
+            model_confirmed: true,
+        }));
+        {
+            let mut s = state.lock().unwrap();
+            s.calls.clear();
+            s.record_drop = true;
+            s.fail_cleanup = fail_cleanup;
+            s.feature_caps = Some(C::from_bits(C::FACTORY_RESET));
+        }
+        let reply = engine.execute(request(Action::Feature(
+            Operation::parse("control factory-reset").unwrap(),
+        )));
+        assert!(!reply.connected);
+        assert_eq!(reply.result.is_err(), fail_cleanup);
+        let calls = &state.lock().unwrap().calls;
+        assert_eq!(
+            calls.as_slice(),
+            [
+                "info",
+                "feature",
+                "close-session",
+                "reset-cleanup:11:22:33:44:55:66"
+            ]
+        );
+    }
+}
+#[test]
+fn feature_panel_busy_escape_cancels_and_results_follow_request_ids() {
+    use super::features::{Operation, ResultData};
+    let mut app = ready();
+    app.feature_input = Some("peers".into());
+    app.accepted(8, Action::Feature(Operation::Peers));
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    assert!(matches!(app.key(key(KeyCode::Esc)), Intent::Cancel));
+    app.receive(Reply {
+        id: 7,
+        result: Ok(Output::Feature(ResultData {
+            text: "stale".into(),
+            codecs: None,
+            info: None,
+            reset: false,
+            certain: true,
+        })),
+        connected: true,
+        writes_blocked: false,
+    });
+    assert!(!app.status.contains("stale"));
+    app.receive(Reply {
+        id: 8,
+        result: Ok(Output::Feature(ResultData {
+            text: "Peer phone".into(),
+            codecs: None,
+            info: None,
+            reset: false,
+            certain: true,
+        })),
+        connected: true,
+        writes_blocked: false,
+    });
+    assert_eq!(app.status, "Peer phone");
+}
+
+#[test]
+fn feature_panel_mouse_and_ctrl_c_do_not_bypass_busy_safety() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let mut app = ready();
+    app.feature_input = Some("control volume 8".into());
+    let mouse = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 35,
+        row: 12,
+        modifiers: KeyModifiers::NONE,
+    };
+    assert!(matches!(app.mouse(mouse, 100, 30), Intent::None));
+    app.accepted(
+        9,
+        Action::Feature(super::features::Operation::parse("control volume 8").unwrap()),
+    );
+    assert!(matches!(
+        app.key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+        Intent::Cancel
+    ));
+    assert!(app.quit_confirmation);
+    assert!(render(&app, 100, 30).contains("Quit"));
+}
+#[test]
+fn feature_parser_rejects_reserved_and_invalid_forms_and_classifies_writes() {
+    use super::features::Operation;
+    for input in [
+        "",
+        "firmware",
+        "control codec",
+        "control volume 256",
+        "control sharing 0 01:02:03:04:05:06",
+        "find both 1 sink",
+        "find left 31 sink",
+        "peers extra",
+        "codec\n",
+        "é",
+    ] {
+        assert!(Operation::parse(input).is_err(), "{input}");
+    }
+    for input in ["peers", "codec", "id", "color", "box-mac"] {
+        let op = Operation::parse(input).unwrap();
+        assert!(!op.is_write());
+        assert!(op.check(Model::StudioPro.capabilities()).is_err());
+    }
+    for input in [
+        "control ldac on",
+        "control ai-control off",
+        "control factory-reset",
+    ] {
+        let op = Operation::parse(input).unwrap();
+        assert!(op.is_write());
+        assert!(op.check(Model::StudioPro.capabilities()).is_err());
+    }
+}
+
+#[test]
+fn codec_query_result_updates_header_and_writes_invalidate_it() {
+    use super::features::{Operation, ResultData};
+    use crate::protocol::static_analysis::Codec;
+    let mut app = ready();
+    app.accepted(12, Action::Feature(Operation::Codec));
+    app.receive(Reply {
+        id: 12,
+        result: Ok(Output::Feature(ResultData {
+            text: "Codecs queried".into(),
+            info: None,
+            codecs: Some([(1, Codec::Sbc), (2, Codec::Ldac)]),
+            reset: false,
+            certain: true,
+        })),
+        connected: true,
+        writes_blocked: false,
+    });
+    assert!(render(&app, 110, 30).contains("Codecs (last query): SBC/LDAC"));
+    app.accepted(13, Action::Set(Setting::parse("game", "on").unwrap()));
+    assert!(app.codecs.is_none());
 }

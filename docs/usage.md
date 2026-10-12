@@ -231,3 +231,181 @@ ugreen decode "$(cat session.hex)"
 If a query fails mid-session, the bytes recorded so far are still printed before the error exits nonzero, because a failed session is exactly when the record matters. The output shape matches `tests/fixtures/protocol/`, so a reported session can become a reviewed fixture after review.
 
 Successful CLI commands exit 0; errors exit nonzero and are written to stderr. Shells can separate output from errors, but diagnostic output is not a versioned machine-readable API. For an uncertain setting write, do not build an automatic retry loop around a nonzero exit code.
+
+## Offline APK analysis
+
+`ugreen analyze 'DD EE FF ...'` interprets complete CRC-valid response
+frames using the static findings in [the reverse-engineering report](reverse-engineering.md).
+It also accepts the six-byte notification frames. Output is explicitly
+unverified; it does not change live status or enable headset commands.
+Names are printed with Rust debug escaping to prevent terminal control sequences.
+
+The library's `protocol::static_analysis` module provides candidate packet
+builders for peer and codec queries, finder start/stop, LDAC (plain and
+MAC-bound), button and AI actions, volume, channel mode, audio sharing,
+AI control, factory reset, ID/color and box-MAC queries. These builders
+only return bytes. They have no transport methods. The volume byte has
+no documented range beyond its byte representation; offset 19 remains
+ambiguous between box status and volume.
+
+Peer responses preserve UTF-8 names and raw MAC order. `PeerList` accepts
+multiple response updates, clears both slots on index zero, and clears
+slot two when peer one's absence flag is set. Box-MAC query responses
+reverse the six MAC bytes. Unknown codec values remain explicit.
+
+Static notification interpretations remain separate from live events.
+The APK reads notification event codes from byte 5, after the byte-4
+envelope. Six-byte captures expose one data byte: finder-right and
+additional battery values remain unknown pending longer-frame captures.
+Reserved instructions, the other chipset dialect, custom EQ and firmware
+updates have no candidate command interface.
+
+Live operations for these static findings remain gated until official-app
+captures satisfy the report's verification requirement. Per-peer
+connection control remains unsupported because no corresponding frame
+was found.
+
+### Candidate packets
+
+`candidate` is always offline, including when address/model flags are
+present. It prints a comment identifying static evidence followed by the
+request frame with its MODBUS checksum. It does not play audio, reset a
+device, or send bytes. Supported forms:
+
+```sh
+ugreen candidate firmware
+ugreen candidate id
+ugreen candidate color
+ugreen candidate peers
+ugreen candidate codec
+ugreen candidate box-mac
+ugreen candidate factory-reset
+ugreen candidate find left on
+ugreen candidate find right off
+ugreen candidate ldac on
+ugreen candidate ldac on 01:02:03:04:05:06
+ugreen candidate ldac off 01:02:03:04:05:06
+ugreen candidate high-quality off
+ugreen candidate volume 8
+ugreen candidate channel stereo
+ugreen candidate ai-control on
+ugreen candidate buttons 0,1,2,3,4,5,9,11
+ugreen candidate ai-actions 6,7,8,0
+ugreen candidate sharing off
+ugreen candidate sharing single
+ugreen candidate sharing 2 01:02:03:04:05:06
+```
+
+Finder sides are `left` and `right`; toggles accept `on`/`off`. Channel
+accepts `mono`/`stereo`. Button action bytes follow the report's action
+map; eight values specify left tap/double/triple/long followed by right
+tap/double/triple/long. AI actions take four values in tap/double/triple/long
+order. Reserved action 10 is rejected. `sharing single` builds the
+single-peer sentinel; explicit sharing takes peer index 1 or 2 and a MAC.
+MAC-bound LDAC disable emits six zero MAC bytes as the app does.
+
+### Capture-gated queries
+
+`peers`, `codec`, `id`, `color` and `box-mac` have client and CLI
+implementations. Each checks its model capability before connecting or
+sending anything. All five currently refuse with an unverified-feature
+error because official-app hardware captures are missing. Use `candidate`
+to inspect their request frames and `analyze` to inspect captured replies.
+`--dry-run` directs users to `candidate` rather than implying a verified query.
+
+After capture-backed promotion, `peers` will query all headset peer slots
+and print each slot's name and address. Names are escaped for terminal
+safety. A timeout before an explicit empty list, single-peer absence flag,
+or two populated slots fails the query rather than claiming completion.
+Codec output preserves both type/code pairs and unknown codec values.
+The box-MAC query reverses the response bytes before displaying the MAC.
+
+For a capture containing instruction-13 peer responses, `analyze` also
+prints `static_peer_list complete=...`. One peer without an absence flag
+is incomplete; it never implies that the other peer is absent. Explicit
+clear/single-peer absence or both populated slots establish completion
+within the supplied capture only. This remains a static interpretation.
+
+### Capture-gated controls
+
+`ugreen [OPTIONS] control OP [ARGS]` accepts the control forms listed
+under `candidate`: finder, buttons, AI actions, LDAC, high-quality,
+volume, channel, AI control, sharing and factory reset. Query forms are
+rejected. Every live control currently refuses before connecting because
+its official-app capture gate is unset. `--dry-run control ...` prints
+an explicitly unverified candidate and never opens Bluetooth.
+
+After capture-backed promotion, the executor checks echoed values before
+accepting acknowledgements. Buttons use device-info readback without
+waiting for an undocumented acknowledgement. AI actions, volume, AI control
+and sharing also require device-info readback. Sharing enable additionally
+requires wind reduction to read off. LDAC and channel mode return an
+acknowledged result, without claiming independent device-state verification.
+The executor never retries writes implicitly.
+
+Raw finder controls return an unconfirmed result; they do not play audio.
+The bounded `find` command adds host playback as described below. Factory
+reset closes the control session after acknowledgement, then removes host
+pairing and the selected registry entry. Cleanup failures distinguish reset,
+unpairing and registry persistence so users do not resend an applied reset. No live controls
+are enabled by these implementation additions.
+
+### Finder playback and reset cleanup
+
+`ugreen [OPTIONS] find left|right SECONDS AUDIO_TARGET` is a gated,
+bounded finder operation. Duration must be 1–30 seconds. On Linux it
+plays an original 900 Hz pulsed stereo WAV through `pw-play` to the given
+sink name or serial; only the selected channel has samples. PipeWire
+properties disable fallback, reconnection and target movement. The player
+has a duration-plus-five-second deadline and the generated private
+file is removed afterward. See [PipeWire routing properties](https://docs.pipewire.org/page_man_pipewire-props_7.html).
+
+The command attempts finder stop even when start or playback fails,
+and reports stop errors separately. Successful host playback cannot
+prove audible output or headset finder state. Cancellation kills/reaps
+the Linux player or resets Windows audio before attempting finder stop.
+Scoped CLI handlers catch Linux SIGINT/SIGTERM or Windows Ctrl+C/Ctrl+Break
+and restore prior handlers after cleanup. Stop cannot be guaranteed after
+forced process termination or a lost Bluetooth connection. This command
+is still disabled by its capture gate. Raw `control find ...` only sends the control frame.
+
+After an acknowledged `control factory-reset`, the CLI closes RFCOMM
+before unpairing. Linux uses [BlueZ RemoveDevice](https://bluez.readthedocs.io/en/latest/adapter-api/)
+for the exact address; multiple matching adapters fail as ambiguous.
+Windows uses [BluetoothRemoveDevice](https://learn.microsoft.com/en-us/windows/win32/api/bluetoothapis/nf-bluetoothapis-bluetoothremovedevice).
+An absent host device is already unpaired. The registry forgets only
+the reset target and clears the selection if it selected that target;
+other devices and preferences remain. Cleanup failure does not resend
+reset. The factory-reset capture gate remains closed.
+
+On Windows, `ugreen audio-devices` lists cached waveform output indices
+and names without playing audio or opening Bluetooth. Pass an explicit
+index (including 0) to `find`; the default WAVE_MAPPER is rejected. Native
+[waveOut playback](https://learn.microsoft.com/en-us/windows/win32/api/mmeapi/nf-mmeapi-waveoutopen)
+uses the same generated stereo tone, with a completion callback,
+duration-plus-five-second deadline and reset/unprepare/close cleanup.
+Windows playback and console interruption need native runtime verification.
+On Linux, identify the headset's sink using `wpctl status`; `audio-devices`
+is Windows-only. Target selection is explicit and separate from the
+headset's RFCOMM Bluetooth address.
+
+### TUI feature commands
+
+Press `F` in the main TUI to open the headset feature panel. Its commands
+are `peers`, `codec`, `id`, `color`, `box-mac`, `control OP ARGS` and
+`find left|right SECONDS TARGET`, using the same arguments as the CLI.
+Command names stay canonical across interface languages. All static
+features currently refuse with a capture-required message.
+
+After capture-backed promotion, Enter runs a query or reviews a control;
+a second Enter confirms the control. Editing the command cancels its
+confirmation. Reset review states that pairing and the saved device will
+be removed. Esc cancels review, closes the panel, or cancels active work;
+Ctrl+U clears the input. Input is limited to 256 printable ASCII bytes.
+Mouse clicks cannot apply underlying settings while this panel is open.
+
+Only the worker owns Bluetooth and audio execution. The UI and worker each
+check capabilities. Unconfirmed or acknowledgement-only controls block
+further writes until explicit refresh. Finder uses the worker cancellation
+flag, stops host playback and attempts headset stop. Reset closes the
+session before host cleanup and clears the UI's saved device state.

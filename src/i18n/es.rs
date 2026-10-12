@@ -75,6 +75,7 @@ pub fn catalog() -> L {
                 ("s", "Ajustes de la app: idioma, canal, espera"),
                 ("L", "Ajustes de la app, fila de idioma elegida"),
                 ("l", "Registro de sesión (últimos 100 eventos)"),
+                ("F", "Comandos del auricular (requieren verificación)"),
                 ("?", "Esta pantalla de atajos"),
                 ("q", "Salir (pregunta si hay trabajo en curso)"),
             ],

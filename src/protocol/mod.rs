@@ -11,6 +11,7 @@ pub mod decoder;
 pub mod monitor;
 pub mod notification;
 pub mod response;
+pub mod static_analysis;
 
 pub use crc::{crc_ccitt, crc_modbus};
 pub use decoder::{Decoder, DecoderStats, IncomingFrame, UnknownFrame};

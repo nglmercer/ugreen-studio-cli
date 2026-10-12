@@ -53,7 +53,7 @@ The native transport gives connect/read/write operations deadlines. `read_exact`
 
 The wire protocol has no request sequence number here. Correlation is by instruction, and this implementation performs requests sequentially. A CRC-valid acknowledgement alone does not establish the desired final state; readback is essential. Incompatible firmware or delayed same-instruction responses cannot be ruled out by the framing layer alone.
 
-Multipoint peer operations are the same story one level up: `Client::multipoint_peers` and the peer disconnect/reconnect/switch methods return `UnsupportedFeature` before assembling any frame. No model capability verifies a peer-management protocol yet, so a refusal is final and immediate, not a timeout, and no `peers` subcommand exists to reach them.
+Multipoint peer operations are the same story one level up: `Client::peers` and `Client::multipoint_peers` check the model capability before I/O; the peer disconnect/reconnect/switch methods return `UnsupportedFeature` before assembling any frame. No model capability verifies a peer-management protocol yet, so a refusal is final and immediate, not a timeout, and the `peers` subcommand refuses before connecting. The gated collector supports fragmented and coalesced peer responses and requires explicit completion. Codec, ID, color and box-MAC queries have separate capture gates.
 
 ## Platform implementation
 
@@ -86,3 +86,15 @@ The FFI definitions deliberately preserve SDK layout details, particularly the p
 The core has one model mapping, not a universal UGREEN protocol abstraction. Adding another model requires separate researched mappings and tests, not an alias. There is no codec inference, firmware updater, factory reset, arbitrary raw write, audible locator, actual-volume adjustment or ANC-button remapping. Multipoint peer management (list, disconnect, reconnect, switch) stays refused until a Studio Pro capture from the official app verifies those frames; the verified dual-device toggle (`dual`, instruction `0x06`) is a separate two-radio switch and proves nothing about a peer protocol.
 
 Profiles have sequential, best-effort application with verification per setting. Automatic retries and rollback are deliberately absent because acknowledgement loss leaves device state uncertain. See [Usage](usage.md) for recovery after partial application.
+
+## Capture-gated TUI operations
+
+The `F` feature panel parses typed operations in `src/tui/features.rs`.
+Both the state machine and session-owning worker check capture-backed
+capabilities. Queries run on the worker; controls require local review
+and confirmation plus worker preflight. Acknowledgement-only and
+unconfirmed controls retain uncertain-write lockout until explicit
+refresh. Codec header values are labelled as last-query data and cleared
+on writes. Cancellable finder execution uses the worker's request/shutdown
+flags. An acknowledged reset closes the session before cleanup of the
+actual connected address, even if cancellation arrives after the reset.

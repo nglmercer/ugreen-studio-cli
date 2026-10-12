@@ -18,8 +18,8 @@
 //!   ([`Capabilities::MULTIPOINT_PEERS`],
 //!   [`Capabilities::PEER_DISCONNECT`], [`Capabilities::PEER_RECONNECT`],
 //!   [`Capabilities::PEER_SWITCH`]) stay unset, every operation fails
-//!   with [`UnsupportedFeature`] before any bytes are written, and no
-//!   `peers` subcommand exists to reach them.
+//!   with [`UnsupportedFeature`] before any bytes are written, and the
+//!   `peers` subcommand refuses before opening a connection.
 
 use crate::{bluetooth::BluetoothAddress, models::Capabilities, settings::StudioProState};
 use std::{error::Error, fmt, io};
@@ -27,8 +27,9 @@ use std::{error::Error, fmt, io};
 /// One multipoint peer slot of the headset.
 ///
 /// The shape exists so a future verified capture has a place to land.
-/// Nothing constructs it from unverified bytes: no Studio Pro frame has
-/// been captured that encodes a peer identity yet.
+/// The client constructs this view only after the peer-query capability
+/// has been promoted by official-app capture evidence. The separate
+/// static parser can interpret offline bytes without that promotion.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MultipointPeer {
     /// Peer address as the headset reports it once a verified parser

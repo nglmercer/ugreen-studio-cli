@@ -66,6 +66,19 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }), area);
         return;
     }
+    let codec_line = app
+        .codecs
+        .map(|pairs| {
+            use crate::protocol::static_analysis::Codec;
+            let names = pairs.map(|(_, codec)| match codec {
+                Codec::Sbc => "SBC".into(),
+                Codec::Aac => "AAC".into(),
+                Codec::Ldac => "LDAC".into(),
+                Codec::Unknown(v) => format!("unknown({v})"),
+            });
+            format!("Codecs (last query): {}/{}", names[0], names[1])
+        })
+        .unwrap_or_else(|| t.codec_line.into());
     let sections = Layout::vertical([
         Constraint::Length(7),
         Constraint::Length(1),
@@ -132,7 +145,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             }
         )),
         Line::raw(format!(" {}{}", t.protocol, protocol)),
-        Line::raw(format!(" {}{}  {}", t.battery, battery, t.codec_line)),
+        Line::raw(format!(" {}{}  {}", t.battery, battery, codec_line)),
         Line::raw(format!(
             " {}{}  {}{}",
             t.firmware,
@@ -214,7 +227,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             .wrap(Wrap { trim: true }),
         sections[3],
     );
-    let footer: Vec<Line> = t
+    let mut footer: Vec<Line> = t
         .footer
         .iter()
         .map(|row| {
@@ -226,11 +239,36 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             )
         })
         .collect();
+    if let Some(line) = footer.last_mut() {
+        line.spans
+            .push(Span::styled(" F features", Style::default().fg(ACCENT)));
+    }
     frame.render_widget(
         Paragraph::new(footer).wrap(Wrap { trim: true }),
         sections[4],
     );
-    if app.log_open {
+    if let Some(input) = &app.feature_input {
+        overlay(
+            frame,
+            "Headset features",
+            vec![
+                "peers | codec | id | color | box-mac".into(),
+                "control ldac on|off [MAC] | control channel mono|stereo".into(),
+                "control volume BYTE | control sharing off|single|INDEX MAC".into(),
+                "control buttons A,A,A,A,A,A,A,A | control ai-actions A,A,A,A".into(),
+                "control ai-control on|off | control high-quality on|off".into(),
+                "find left|right SECONDS TARGET | control factory-reset".into(),
+                "Features require official-app hardware verification.".into(),
+                format!("> {}", clean(input)),
+                clean(&app.status),
+                if app.feature_confirmation {
+                    "Enter: confirm  Esc: cancel confirmation".into()
+                } else {
+                    "Enter: query or review control  Esc: close/cancel  Ctrl+U: clear".into()
+                },
+            ],
+        );
+    } else if app.log_open {
         let rect = centered(
             area,
             area.width.saturating_sub(4).min(110),

@@ -476,6 +476,11 @@ fn parse_device_lines(output: &str) -> io::Result<Vec<(BluetoothAddress, String)
     Ok(devices)
 }
 
+/// Reset cleanup uses a typed BlueZ RemoveDevice call; no shell fallback.
+pub(super) fn unpair(address: &super::BluetoothAddress) -> io::Result<()> {
+    super::dbus::unpair(address)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

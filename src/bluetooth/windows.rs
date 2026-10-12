@@ -362,6 +362,7 @@ unsafe extern "system" {
     ) -> *mut c_void;
     fn BluetoothFindNextDevice(handle: *mut c_void, device: *mut BluetoothDeviceInfo) -> i32;
     fn BluetoothFindDeviceClose(handle: *mut c_void) -> i32;
+    fn BluetoothRemoveDevice(address: *const BluetoothAddress) -> u32;
 }
 
 struct DeviceFind(*mut c_void);
@@ -439,6 +440,22 @@ pub(super) fn list_devices() -> io::Result<Vec<HostHeadset>> {
         }
     }
     Ok(devices)
+}
+
+pub(super) fn unpair(address: &super::BluetoothAddress) -> io::Result<()> {
+    let address = BluetoothAddress {
+        value: address
+            .octets()
+            .into_iter()
+            .fold(0u64, |value, octet| (value << 8) | u64::from(octet)),
+    };
+    // SAFETY: a valid, aligned BLUETOOTH_ADDRESS is borrowed for this call.
+    // BluetoothRemoveDevice does not retain the pointer.
+    let result = unsafe { BluetoothRemoveDevice(&address) };
+    match result {
+        0 | 1168 => Ok(()), // success, or device already absent
+        code => Err(io::Error::from_raw_os_error(code as i32)),
+    }
 }
 
 #[cfg(test)]

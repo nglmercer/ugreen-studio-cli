@@ -30,6 +30,27 @@ impl Capabilities {
     /// Active-peer switch write: set only after Studio Pro captures.
     pub const PEER_SWITCH: u32 = 1 << 8;
 
+    /// Codec query (0x0F); unset pending official-app captures.
+    pub const CODEC_STATUS: u32 = 1 << 9;
+    pub const HEADPHONE_ID: u32 = 1 << 10;
+    pub const HEADPHONE_COLOR: u32 = 1 << 11;
+    pub const BOX_MAC: u32 = 1 << 12;
+
+    pub const BUTTONS: u32 = 1 << 13;
+    pub const AI_ACTIONS: u32 = 1 << 14;
+    pub const LDAC: u32 = 1 << 15;
+    pub const LDAC_PEER: u32 = 1 << 16;
+    pub const HIGH_QUALITY_DECODING: u32 = 1 << 17;
+    pub const VOLUME: u32 = 1 << 18;
+    pub const CHANNEL_MODE: u32 = 1 << 19;
+    pub const AI_CONTROL: u32 = 1 << 20;
+    pub const AUDIO_SHARING: u32 = 1 << 21;
+    pub const AUDIO_SHARING_PEER: u32 = 1 << 22;
+    pub const AUDIO_SHARING_SINGLE: u32 = 1 << 23;
+    pub const FACTORY_RESET: u32 = 1 << 24;
+    pub const FIND_LEFT: u32 = 1 << 25;
+    pub const FIND_RIGHT: u32 = 1 << 26;
+
     pub const fn new() -> Self {
         Self(0)
     }

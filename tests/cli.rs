@@ -129,3 +129,220 @@ fn dry_run_tui_is_rejected_without_terminal_setup() {
     assert!(!o.status.success());
     assert!(!o.stdout.contains(&0x1b));
 }
+
+#[test]
+fn static_analysis_is_offline_and_explicitly_unverified() {
+    let packet = ugreen_cli::protocol::NotificationFrame {
+        kind: 2,
+        payload: [9, 1],
+    };
+    assert!(matches!(
+        ugreen_cli::protocol::static_analysis::interpret_notification(&packet),
+        ugreen_cli::protocol::static_analysis::Notification::Finder {
+            left: 1,
+            right: None
+        }
+    ));
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_ugreen"))
+        .args(["analyze", "85 86 87 02 09 01"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("unverified on hardware"));
+    assert!(stdout.contains("Finder"));
+    for hex in [
+        "DD EE FF 0F 01 04 01 FF 02 00 00 00",
+        "85 86 87 09 01",
+        "00 85 86 87 02 09 01",
+    ] {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_ugreen"))
+            .args(["analyze", hex])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+    }
+}
+
+#[test]
+fn candidate_commands_cover_static_instruction_map_without_hardware() {
+    let mac = "01:02:03:04:05:06";
+    let cases: Vec<(Vec<&str>, u8, Vec<u8>)> = vec![
+        (vec!["firmware"], 1, vec![0]),
+        (vec!["id"], 2, vec![0]),
+        (vec!["color"], 3, vec![0]),
+        (vec!["peers"], 13, vec![0]),
+        (vec!["codec"], 15, vec![0]),
+        (vec!["box-mac"], 31, vec![0]),
+        (vec!["factory-reset"], 14, vec![0]),
+        (vec!["find", "left", "on"], 7, vec![1, 1]),
+        (vec!["find", "right", "off"], 7, vec![0, 2]),
+        (vec!["ldac", "on"], 11, vec![1]),
+        (vec!["ldac", "on", mac], 11, vec![1, 1, 2, 3, 4, 5, 6]),
+        (vec!["ldac", "off", mac], 11, vec![0; 7]),
+        (vec!["high-quality", "off"], 30, vec![0]),
+        (vec!["volume", "8"], 16, vec![8]),
+        (vec!["channel", "mono"], 25, vec![0]),
+        (vec!["channel", "stereo"], 25, vec![1]),
+        (vec!["ai-control", "on"], 27, vec![1]),
+        (
+            vec!["buttons", "0,1,2,3,4,5,9,11"],
+            10,
+            vec![0, 1, 2, 3, 4, 5, 9, 11],
+        ),
+        (vec!["ai-actions", "6,7,8,0"], 24, vec![6, 7, 8, 0]),
+        (vec!["sharing", "off"], 22, vec![0]),
+        (
+            vec!["sharing", "single"],
+            22,
+            vec![1, 255, 255, 255, 255, 255, 255, 255],
+        ),
+        (vec!["sharing", "2", mac], 22, vec![1, 2, 1, 2, 3, 4, 5, 6]),
+    ];
+    for (args, instruction, payload) in cases {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_ugreen"))
+            .arg("candidate")
+            .args(&args)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{args:?}: {:?}", output.stderr);
+        let bytes =
+            ugreen_cli::protocol::parse_hex(&String::from_utf8(output.stdout).unwrap()).unwrap();
+        assert_eq!(
+            bytes,
+            ugreen_cli::protocol::request(instruction, &payload).unwrap()
+        );
+        assert!(output.stderr.is_empty());
+    }
+    for args in [
+        vec![],
+        vec!["peers", "extra"],
+        vec!["volume", "256"],
+        vec!["volume", "-1"],
+        vec!["buttons", "0,0,0,0,0,0,0,10"],
+        vec!["ai-actions", "0,0,0"],
+        vec!["find", "both", "on"],
+        vec!["ldac", "on", "bad"],
+        vec!["channel", "surround"],
+        vec!["sharing", "0", mac],
+        vec!["19", "on"],
+    ] {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_ugreen"))
+            .arg("candidate")
+            .args(&args)
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "{args:?}");
+        assert!(output.stdout.is_empty());
+    }
+}
+
+#[test]
+fn unverified_queries_refuse_before_connecting() {
+    for command in ["peers", "codec", "id", "color", "box-mac"] {
+        let output = run(&[
+            "--address",
+            "01:02:03:04:05:06",
+            "--model",
+            "studio-pro",
+            command,
+        ]);
+        assert!(!output.status.success());
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            error.contains("official-app capture required"),
+            "{command}: {error}"
+        );
+        assert!(!error.contains("Connecting"));
+        assert!(output.stdout.is_empty());
+        assert!(!run(&[command, "extra"]).status.success());
+    }
+}
+
+#[test]
+fn analyze_peer_capture_reports_completion_and_escapes_names() {
+    fn frame(payload: &[u8]) -> Vec<u8> {
+        let mut bytes = vec![0xdd, 0xee, 0xff, 13, 1, payload.len() as u8];
+        bytes.extend_from_slice(payload);
+        bytes.extend_from_slice(&ugreen_cli::protocol::crc_ccitt(&bytes[3..]).to_le_bytes());
+        bytes
+    }
+    let first = frame(&[0, 1, b'A', 0x1b, 1, 2, 3, 4, 5, 6]);
+    let second = frame(&[0, 2, b'B', 6, 5, 4, 3, 2, 1]);
+    for (bytes, complete) in [
+        (first.clone(), false),
+        ([first, second].concat(), true),
+        (frame(&[0, 0]), true),
+    ] {
+        let output = run(&["analyze", &ugreen_cli::protocol::hex(&bytes)]);
+        assert!(output.status.success());
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(stdout.contains(&format!("static_peer_list complete={complete}")));
+        assert!(!stdout.contains('\u{1b}'));
+    }
+}
+
+#[test]
+fn controls_refuse_before_connect_and_dry_run_remains_offline() {
+    for args in [
+        vec!["ldac", "on"],
+        vec!["volume", "8"],
+        vec!["buttons", "0,0,0,0,0,0,0,0"],
+        vec!["ai-actions", "0,0,0,0"],
+        vec!["channel", "mono"],
+        vec!["sharing", "single"],
+        vec!["ai-control", "on"],
+        vec!["factory-reset"],
+        vec!["find", "left", "on"],
+        vec!["high-quality", "off"],
+    ] {
+        let mut live = vec![
+            "--address",
+            "01:02:03:04:05:06",
+            "--model",
+            "studio-pro",
+            "control",
+        ];
+        live.extend_from_slice(&args);
+        let output = run(&live);
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("official-app capture required"));
+        assert!(output.stdout.is_empty());
+        let mut offline = vec!["--dry-run", "control"];
+        offline.extend_from_slice(&args);
+        let output = run(&offline);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("no Bluetooth access"));
+    }
+    for args in [
+        vec!["control", "codec"],
+        vec!["--dry-run", "control", "peers"],
+        vec!["control", "volume", "256"],
+    ] {
+        let output = run(&args);
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+    }
+}
+
+#[test]
+fn finder_refuses_unverified_packets_before_audio_or_connection() {
+    let target = if cfg!(target_os = "windows") {
+        "0"
+    } else {
+        "sink"
+    };
+    let output = run(&["find", "left", "1", target]);
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("official-app capture required"));
+    for args in [
+        vec!["find", "both", "1", "sink"],
+        vec!["find", "right", "0", "sink"],
+        vec!["find", "right", "31", "sink"],
+        vec!["find", "left", "1"],
+    ] {
+        assert!(!run(&args).status.success());
+    }
+}

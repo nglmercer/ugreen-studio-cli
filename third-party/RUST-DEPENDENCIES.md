@@ -1,6 +1,6 @@
 # Rust dependency notices
 
-This inventory covers all third-party packages in Cargo.lock, including target-specific and build dependencies. The CLI-only feature set has no active third-party dependencies. License texts are copied verbatim from the downloaded crates.io packages; identical texts are stored once.
+This inventory covers all third-party packages in Cargo.lock, including target-specific and build dependencies. The Linux CLI-only feature set uses libc 0.2.189 for native signal handling; other platforms have no active third-party dependencies in that feature set. License texts are copied verbatim from the downloaded crates.io packages; identical texts are stored once.
 
 | Package | Declared license | Original notices |
 |---|---|---|

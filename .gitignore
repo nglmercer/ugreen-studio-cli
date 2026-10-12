@@ -1,5 +1,8 @@
 /target/
 /.serena/
 /bin/
+/.re/
 __pycache__/
 *.log
+# Reference binary, too large for git; see docs/reverse-engineering.md
+docs/*.apk

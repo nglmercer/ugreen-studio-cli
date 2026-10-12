@@ -1,4 +1,5 @@
 //! Optional, explicitly operated terminal interface. Startup is entirely offline.
+mod features;
 mod state;
 mod view;
 mod worker;

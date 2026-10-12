@@ -122,6 +122,21 @@ impl DeviceRegistry {
         }
     }
 
+    /// Forget just this target; preserve other devices and global preferences.
+    pub fn forget(&mut self, address: &BluetoothAddress) {
+        self.devices.retain(|entry| &entry.address != address);
+        if self.selected.as_ref() == Some(address) {
+            self.selected = None;
+        }
+    }
+    /// Persist reset cleanup without hiding errors from the caller.
+    pub fn save_checked(&self) -> io::Result<()> {
+        let path = state_path().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::NotFound, "device registry path unavailable")
+        })?;
+        self.save_to(&path)
+    }
+
     pub fn save(&self) {
         if let Some(path) = state_path() {
             let _ = self.save_to(&path);
@@ -604,5 +619,30 @@ mod tests {
         registry.annotate(&mut headsets);
         assert_eq!(headsets[0].model, Some(Model::StudioPro));
         assert_eq!(headsets[1].model, None);
+    }
+    #[test]
+    fn forgetting_reset_target_preserves_other_devices_and_preferences() {
+        let a = BluetoothAddress::from_octets([1; 6]);
+        let b = BluetoothAddress::from_octets([2; 6]);
+        let mut registry = DeviceRegistry::default();
+        registry.set_selected(&a);
+        registry.set_model(&a, Some(Model::StudioPro));
+        registry.set_selected(&b);
+        registry.set_model(&b, Some(Model::StudioPro));
+        registry.channel = Some(2);
+        registry.timeout = Some(4);
+        registry.lang = Some(Lang::Es);
+        registry.forget(&a);
+        assert!(registry.entry(&a).is_none());
+        assert_eq!(registry.selected.as_ref(), Some(&b));
+        assert_eq!(registry.model_of(&b), Some(Model::StudioPro));
+        assert_eq!(
+            (registry.channel, registry.timeout, registry.lang),
+            (Some(2), Some(4), Some(Lang::Es))
+        );
+        registry.forget(&b);
+        assert!(registry.selected.is_none());
+        registry.forget(&b);
+        assert!(registry.devices.is_empty());
     }
 }

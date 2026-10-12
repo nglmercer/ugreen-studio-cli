@@ -160,3 +160,70 @@ what the refactor changed.
 When testing on your own confirmed Studio Pro pair, record the exact retail/model label, firmware, OS, adapter, application version, build feature set and selected RFCOMM channel. Begin with read-only status. Record raw replies and check CRC before a single supported reversible setting, then compare the acknowledgement and readback. Stop on incompatible or ambiguous behavior. Redact device addresses before sharing captures publicly.
 
 Do not use unsupported models, raw writes, firmware updates or resets as validation shortcuts. Those actions are outside this application's interface.
+
+## Reverse-engineering implementation checks (2026-10-12)
+
+Static APK analysis is implemented separately from verified live status.
+The offline `candidate` command covers query, finder, LDAC, buttons, AI,
+volume, channel, audio sharing and reset layouts. `analyze` validates framing
+and checksums before interpreting responses and accumulating peer updates.
+These are implementation checks, not official-app hardware captures.
+
+Peer, codec, ID, color and box-MAC queries now have gated client/CLI paths.
+Mock peer-collection checks cover short writes, fragmented and coalesced
+responses, interleaved notifications, explicit empty/single/two-peer
+completion, missing peers, rejection and malformed payloads. Separate
+checks prove all current query gates refuse before writing or connecting.
+
+The APK's notification parser was inspected directly: it switches on
+byte 5, not byte 4. Static parsing now reflects that offset and leaves
+additional battery/finder values absent under the captured six-byte
+framing. Live notification semantics and framing have not been promoted.
+
+Remaining verification is the Phase-3 official-app capture work described
+in [the report](reverse-engineering.md#phase-3-verification-recipe-live-hardware).
+TUI feature integration is recorded below; these offline checks do not establish physical feature compatibility.
+
+Typed control execution is also implemented behind independent capture
+gates. Mock checks validate all controls refuse before I/O, LDAC/channel
+acknowledgement values match, writes are not implicitly retried, readback
+fields match, and sharing enable requires wind reduction off. Finder
+sends report an unconfirmed outcome. CLI checks verify control gates
+refuse before connecting and `--dry-run control` stays offline. These
+checks do not verify playback, reset host cleanup or physical controls.
+
+Reset cleanup now has Linux BlueZ and Windows API implementations.
+Offline checks cover exact-address selection, multiple-adapter ambiguity,
+D-Bus object-path marshalling, registry preservation and cleanup order/error
+reporting. No host pairing was removed by these checks.
+
+Finder tone checks validate WAV lengths, silent opposite channels, amplitude
+bounds and invalid durations. Mock orchestration checks stop after failed
+start/playback and report failed stop. CLI checks refuse before wire/audio
+access. Actual PipeWire playback, audibility and Windows playback remain
+unverified. Native interruption checks are recorded below.
+
+Finder interruption handling is implemented using Linux sigaction with
+SDK layouts supplied by pinned libc, and Windows SetConsoleCtrlHandler.
+Isolated Linux subprocess tests deliver SIGINT and SIGTERM, check the
+cancellation flag, and verify prior handlers/masks are restored. Separate
+checks verify player cancellation reaps the spawned test process and
+private generated tone files are removed. No audio was played by these
+checks. Windows waveform playback has compile-time SDK-layout assertions
+and passes source/Clippy checks; no Windows audio or console runtime test
+is claimed. Official-app captures remain pending.
+
+TUI feature operations now run through the session-owning worker. Offline
+checks cover feature-panel input bounds, capture refusals before preflight,
+confirmation/review, edit cancellation, busy-state restrictions, request-ID
+matching, uncertain-write lockout, cancellation before/after writes and
+reset session-close ordering for the actual connected address. The native
+backend still uses the model's unchanged capture-backed capabilities.
+Fake capabilities used in tests belong only to mock backends; no production
+capability or hardware evidence is changed by those tests.
+
+Six offline PTY scenarios pass with temporary registry files and startup
+connection disabled, including feature-panel capture refusal and editor
+cancellation. All exit cleanly and restore terminal attributes. Codec
+query results update the header as a last-query value and are invalidated
+by subsequent writes; rendering tests cover that distinction.

@@ -1,6 +1,9 @@
 //! The worker is the only owner of the Bluetooth client. A single request is
 //! admitted at a time; neither rendering nor key handling performs I/O.
-use super::Config;
+use super::{
+    features::{Operation, ResultData},
+    Config,
+};
 use crate::{
     bluetooth::{self, BluetoothAddress, HostHeadset},
     client::Client,
@@ -22,6 +25,12 @@ pub(super) trait Session: Send {
     fn info(&mut self) -> io::Result<StudioProState>;
     fn firmware(&mut self) -> io::Result<String>;
     fn acknowledge(&mut self, setting: &Setting) -> io::Result<()>;
+    fn feature(&mut self, _: &Operation, _: &dyn Fn() -> bool) -> io::Result<ResultData> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "session does not implement feature operations",
+        ))
+    }
 }
 impl Session for Client<bluetooth::Connection> {
     fn info(&mut self) -> io::Result<StudioProState> {
@@ -29,6 +38,13 @@ impl Session for Client<bluetooth::Connection> {
     }
     fn firmware(&mut self) -> io::Result<String> {
         Client::firmware(self)
+    }
+    fn feature(
+        &mut self,
+        operation: &Operation,
+        cancelled: &dyn Fn() -> bool,
+    ) -> io::Result<ResultData> {
+        operation.execute(self, cancelled)
     }
     fn acknowledge(&mut self, setting: &Setting) -> io::Result<()> {
         if setting.expects_ack() {
@@ -40,11 +56,23 @@ impl Session for Client<bluetooth::Connection> {
     }
 }
 pub(super) trait Backend: Send + 'static {
+    fn capabilities(&self) -> crate::models::Capabilities {
+        crate::models::Model::StudioPro.capabilities()
+    }
+    fn reset_cleanup(&mut self, _: &BluetoothAddress) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "backend does not implement reset cleanup",
+        ))
+    }
     fn paired(&mut self) -> io::Result<Vec<HostHeadset>>;
     fn connect(&mut self, config: &Config, address: &str) -> io::Result<Box<dyn Session>>;
 }
 struct Native;
 impl Backend for Native {
+    fn reset_cleanup(&mut self, address: &BluetoothAddress) -> io::Result<()> {
+        crate::reset::cleanup(address)
+    }
     fn paired(&mut self) -> io::Result<Vec<HostHeadset>> {
         bluetooth::list_devices()
     }
@@ -64,6 +92,7 @@ pub(super) enum Action {
     Refresh,
     Disconnect,
     Set(Setting),
+    Feature(Operation),
     /// App-settings change; the new channel and timeout
     /// apply to the next connection, never to a live one.
     Configure {
@@ -73,7 +102,7 @@ pub(super) enum Action {
 }
 impl Action {
     pub fn is_write(&self) -> bool {
-        matches!(self, Self::Set(_))
+        matches!(self, Self::Set(_)) || matches!(self,Self::Feature(op) if op.is_write())
     }
 }
 #[derive(Debug)]
@@ -92,6 +121,7 @@ pub(super) enum Output {
         setting: Setting,
     },
     Configured,
+    Feature(ResultData),
 }
 pub(super) struct Request {
     pub id: u64,
@@ -214,6 +244,7 @@ impl<B: Backend> Engine<B> {
                     .map_err(|e| t.err_connect.replacen("{}", &e.to_string(), 1))?;
                 self.check(request)?;
                 self.session = Some(session);
+                self.config.address = Some(address.clone());
                 match self.snapshot(request) {
                     Ok(snapshot) => Ok(Output::Snapshot(snapshot)),
                     Err(error) => {
@@ -239,6 +270,57 @@ impl<B: Backend> Engine<B> {
                 self.config.channel = *channel;
                 self.config.timeout = Duration::from_secs(*timeout_seconds);
                 Ok(Output::Configured)
+            }
+            Action::Feature(operation) => {
+                // Both the UI and worker gate operations; queued input cannot
+                // bypass the model's capture evidence or uncertain-write lock.
+                operation
+                    .check(self.backend.capabilities())
+                    .map_err(|e| e.to_string())?;
+                if operation.is_write() && self.uncertain {
+                    return Err(t.err_uncertain_blocked.into());
+                }
+                if operation.is_write() {
+                    self.session()?
+                        .info()
+                        .map_err(|e| t.err_preflight.replacen("{}", &e.to_string(), 1))?;
+                }
+                self.check(request)?;
+                if operation.is_write() {
+                    self.uncertain = true;
+                }
+                let cancelled = request.cancelled.clone();
+                let shutdown = self.shutdown.clone();
+                let mut result = self
+                    .session()?
+                    .feature(operation, &|| {
+                        cancelled.load(Ordering::SeqCst) || shutdown.load(Ordering::SeqCst)
+                    })
+                    .map_err(|e| e.to_string())?;
+                if result.reset {
+                    // Reset has already happened; close first and complete
+                    // host cleanup even if the request was cancelled meanwhile.
+                    self.session = None;
+                    let address = BluetoothAddress::parse(
+                        self.config
+                            .address
+                            .as_deref()
+                            .ok_or("reset target unavailable")?,
+                    )
+                    .map_err(|e| e.to_string())?;
+                    self.backend
+                        .reset_cleanup(&address)
+                        .map_err(|e| e.to_string())?;
+                    result.text =
+                        "Reset acknowledged; host pairing and saved device removed".into();
+                    self.uncertain = false;
+                } else {
+                    self.check(request)?;
+                    if operation.is_write() && result.certain {
+                        self.uncertain = false;
+                    }
+                }
+                Ok(Output::Feature(result))
             }
             Action::Set(setting) => {
                 if self.uncertain {
