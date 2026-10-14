@@ -225,6 +225,7 @@ pub fn catalog() -> L {
     l.opt_lang = "인터페이스 언어: en, es, pt, de, fr, it, nl, ru, zh, ja, ko (기본 en)";
     l.opt_autoconnect = "시작 시 마지막 기기에 연결 (기본 켜짐)";
     l.opt_no_autoconnect = "시작 시 자동 연결 비활성화";
+    l.opt_json = "지원되는 읽기 전용 명령을 버전이 있는 JSON으로 출력";
     l.opt_dry_run = "Bluetooth 접근 없이 설정 패킷 출력";
     l.opt_help = "도움말 표시";
     l.opt_version = "버전 표시";
@@ -246,6 +247,186 @@ pub fn catalog() -> L {
     l.cmd_query = "캡처 보호 쿼리; 이 펌웨어에서 미검증";
     l.cmd_control = "캡처 보호 제어; --dry-run이 바이트 출력";
     l.cmd_find = "캡처 보호 찾음 음";
+    l.host_commands = [
+        "OS 오디오 전송 상태 보기",
+        "호스트 오디오 출력 목록",
+        "기능 검증 근거 보기",
+        "호스트 진단 읽기",
+        "호스트 Bluetooth 연결",
+        "호스트 Bluetooth 연결 해제",
+    ];
     l.cmd_audio_devices = "Windows 웨이브출력 장치 나열";
+    l.features_title = " 기능 ";
+    l.features_search = "검색: ";
+    l.features_all = "전체";
+    l.feature_categories = [
+        "오디오",
+        "연결",
+        "환경",
+        "피드백",
+        "기기 정보",
+        "멀티포인트",
+        "코덱",
+        "고급 오디오",
+        "제어",
+        "오디오 공유",
+        "찾기",
+        "기기 관리",
+        "진단",
+    ];
+    l.feature_names = [
+        "ANC",
+        "이퀄라이저",
+        "게임 모드",
+        "공간 오디오",
+        "이중 연결",
+        "바람 소음 저감",
+        "음성 안내",
+        "음량 올림 길게 누름 동작",
+        "음량 내림 길게 누름 동작",
+        "멀티포인트 기기",
+        "오디오 코덱",
+        "헤드폰 ID",
+        "헤드폰 색상",
+        "케이스 MAC",
+        "LDAC 제어",
+        "한 기기에 LDAC",
+        "고품질 디코딩",
+        "음량 명령",
+        "모노/스테레오 채널",
+        "버튼 매핑",
+        "AI 동작",
+        "AI 제어",
+        "오디오 공유 끄기",
+        "한 기기와 공유",
+        "선택한 기기와 공유",
+        "왼쪽 이어폰 찾기",
+        "오른쪽 이어폰 찾기",
+        "공장 초기화",
+        "캡처 디코더",
+        "캡처 분석",
+        "패킷 미리보기",
+    ];
+    l.feature_descriptions = [
+        "능동 소음 제거 깊이. 검증된 설정입니다. 설정 화면에서 편집하세요.",
+        "이퀄라이저 프리셋. 검증된 설정입니다. 설정 화면에서 편집하세요.",
+        "게임 모드 저지연 스위치. 검증된 설정입니다. 설정 화면에서 편집하세요.",
+        "공간 오디오 스위치. 검증된 설정입니다. 설정 화면에서 편집하세요.",
+        "두 기기 연결 스위치. 검증된 설정입니다. 설정 화면에서 편집하세요.",
+        "바람 소음 저감 스위치. 검증된 설정입니다. 설정 화면에서 편집하세요.",
+        "음성 안내 스타일. 검증된 설정입니다. 설정 화면에서 편집하세요.",
+        "음량 올림 길게 누름 동작. 검증된 설정입니다. 설정 화면에서 편집하세요.",
+        "음량 내림 길게 누름 동작. 검증된 설정입니다. 설정 화면에서 편집하세요.",
+        "연결된 멀티포인트 기기 목록을 읽습니다. 피어 프로토콜은 아직 하드웨어 검증이 필요합니다.",
+        "현재 Bluetooth 오디오 코덱을 읽습니다. 조회 형식은 아직 하드웨어 검증이 필요합니다.",
+        "헤드폰 하드웨어 ID를 읽습니다. 조회 형식은 아직 하드웨어 검증이 필요합니다.",
+        "헤드폰 색상을 읽습니다. 조회 형식은 아직 하드웨어 검증이 필요합니다.",
+        "충전 케이스 MAC 주소를 읽습니다. 조회 형식은 아직 하드웨어 검증이 필요합니다.",
+        "현재 연결에서 LDAC 인코딩을 전환합니다. 제어 형식은 아직 하드웨어 검증이 필요합니다.",
+        "페어링된 한 기기에서 LDAC 인코딩을 전환합니다. 제어 형식은 아직 하드웨어 검증이 필요합니다.",
+        "고품질 오디오 디코딩을 전환합니다. 제어 형식은 아직 하드웨어 검증이 필요합니다.",
+        "절대 음량 바이트를 보냅니다. 하드웨어 범위는 검증되지 않았습니다.",
+        "오디오 채널을 모노와 스테레오 사이로 전환합니다. 제어 형식은 아직 하드웨어 검증이 필요합니다.",
+        "여덟 개의 길게 누름 동작을 재지정합니다. 제어 형식은 아직 하드웨어 검증이 필요합니다.",
+        "AI가 실행하는 네 개의 동작을 재지정합니다. 제어 형식은 아직 하드웨어 검증이 필요합니다.",
+        "AI 오디오 제어를 전환합니다. 제어 형식은 아직 하드웨어 검증이 필요합니다.",
+        "오디오 공유를 끕니다. 제어 형식은 아직 하드웨어 검증이 필요합니다.",
+        "유일하게 연결된 기기와 오디오를 공유합니다. 제어 형식은 아직 하드웨어 검증이 필요합니다.",
+        "선택한 기기와 오디오를 공유합니다. 제어 형식은 아직 하드웨어 검증이 필요합니다.",
+        "호스트를 통해 왼쪽 이어폰에서 위치 확인음을 재생합니다. 찾기 프로토콜은 아직 하드웨어 검증이 필요합니다.",
+        "호스트를 통해 오른쪽 이어폰에서 위치 확인음을 재생합니다. 찾기 프로토콜은 아직 하드웨어 검증이 필요합니다.",
+        "페어링을 해제하고 공장 초기값으로 복원합니다. 파괴적입니다. 제어 형식은 아직 하드웨어 검증이 필요합니다.",
+        "캡처한 응답 바이트를 오프라인에서 디코딩합니다. Bluetooth 접근 없이 동작합니다.",
+        "완전한 캡처 스트림을 오프라인에서 해석합니다. Bluetooth 접근 없이 동작합니다.",
+        "제어가 보낼 정적 패킷을 출력합니다. 전송되지 않습니다.",
+    ];
+    l.feature_available = "사용 가능";
+    l.feature_pending = "검증 대기";
+    l.feature_pending_reason = "선로 형식은 공식 앱의 하드웨어 검증이 아직 필요합니다.";
+    l.feature_live_disabled = "기기에서 검증된 증거가 있을 때까지 라이브 실행이 비활성화됩니다.";
+    l.feature_offline_workflow = "오프라인 분석 전용입니다. 헤드폰에는 아무것도 전송하지 않습니다.";
+    l.feature_offline_hint = "실행: ugreen {}";
+    l.feature_kind_setting = "검증된 설정";
+    l.feature_kind_query = "기기 조회";
+    l.feature_kind_control = "기기 제어";
+    l.feature_kind_offline = "오프라인 분석";
+    l.feature_category_label = "분류: {}";
+    l.feature_current = "현재: {}";
+    l.feature_edit_in_settings = "설정에서 편집 (s)";
+    l.feature_run_query = "Enter: 조회 실행";
+    l.feature_configure = "Enter: 설정";
+    l.feature_back = "Esc: 뒤로";
+    l.feature_form_title = " {} 설정 ";
+    l.feature_err_required = "검토 전에 모든 필드를 설정하세요";
+    l.feature_field_unset = "설정되지 않음";
+    l.feature_form_hint = "위 아래 항목 / 좌우 선택 / Enter 확인 / Esc 뒤로";
+    l.feature_review_title = " {} 확인 ";
+    l.review_write_title = " 쓰기 확인 ";
+    l.feature_review_target = "대상: {}";
+    l.feature_review_previous = "현재: {}";
+    l.feature_review_proposed = "제안: {}";
+    l.feature_review_values = "값: {}";
+    l.feature_review_readback = "읽기: {}";
+    l.feature_readback_verified = "확인 응답과 일치하는 읽기로 검증됨";
+    l.feature_readback_noack = "일치하는 읽기로 검증됨(공간 오디오는 확인 응답을 보내지 않음)";
+    l.feature_readback_unconfirmed = "독립적으로 확인되지 않았습니다. 적용한 후 새로고침하세요.";
+    l.feature_readback_query = "읽기 전용 조회";
+    l.feature_confirm_apply = "Enter: 적용    Esc: 취소";
+    l.feature_confirm_reset = "파괴적: 호스트 페어링을 제거하고 공장 초기값으로 복원합니다.";
+    l.features_footer = [
+        [
+            ("위", "이동"),
+            ("아래", "이동"),
+            ("Tab", "분류"),
+            ("Enter", "열기"),
+            ("Esc", "뒤로"),
+            ("", ""),
+        ],
+        [
+            ("글자", "검색"),
+            ("백스페이스", "삭제"),
+            ("Ctrl+U", "지우기"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+        [
+            ("Esc", "닫기"),
+            ("?", "단축키"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+    ];
+    l.status_feature_running = "기능 작업을 실행하는 중...";
+    l.status_edit_in_settings = "{}는 검증된 설정입니다. 설정 화면에서 편집하세요 (s).";
+    l.codec_unverified = "조회 미검증";
+    l.arg_enabled = "활성화";
+    l.arg_side = "쪽";
+    l.arg_duration = "시간(초)";
+    l.arg_target = "대상";
+    l.arg_value = "값(0-255)";
+    l.arg_mode = "모드";
+    l.arg_peer = "페어링됨";
+    l.arg_actions = "동작";
+    l.arg_address = "페어링된 기기 MAC";
+    l.arg_hint_toggle = "on 또는 off";
+    l.arg_hint_side = "왼쪽 또는 오른쪽";
+    l.arg_hint_seconds = "1..30초";
+    l.arg_hint_byte = "0..255";
+    l.arg_hint_mac = "콜론으로 구분된 16진수 옥텟 6개";
+    l.arg_hint_peer = "1 또는 2";
+    l.arg_hint_actions = "콤마로 구분된 동작 값 {}개";
+    l.tui_no_tty = "이 화면은 대화형 stdin과 stdout 터미널을 필요로 합니다. CLI 명령은 ugreen --help를 실행하세요.";
+    l.tui_bad_channel = "화면 채널은 1-30이어야 하고 타임아웃은 0 초과 최대 60초여야 합니다.";
+    l.status_worker_busy = "이미 작업이 실행 중입니다. 대기하거나 Esc로 취소하세요.";
+    l.status_worker_sequence = "요청 시퀀스가 소진되었습니다. 화면을 다시 시작하세요.";
+    l.status_worker_stopped = "Bluetooth 워커가 중지되었습니다. 화면을 다시 시작하세요.";
+    l.status_worker_queue = "워커 큐가 가득 찼습니다. 잠시 후 다시 시도하세요.";
+    l.status_reset_unavailable = "초기화 대상을 사용할 수 없습니다";
+    l.status_reset_done = "초기화가 확인되었습니다. 호스트 페어링과 저장된 기기를 제거했습니다.";
+    l.status_inflight_write =
+        "진행 중인 쓰기가 완료되었을 수 있습니다. 다시 시작한 후 새로고침하세요.";
     l
 }

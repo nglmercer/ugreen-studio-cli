@@ -101,8 +101,16 @@ pub fn audio_devices(invocation: &Invocation) -> Result<(), String> {
     if invocation.options.dry_run {
         return Err("audio-devices reads host output devices; --dry-run is unsupported".into());
     }
-    for (id, name) in crate::finder::windows_output_devices().map_err(|e| e.to_string())? {
-        println!("{id} {}", terminal_text(&name));
+    #[cfg(target_os = "linux")]
+    let devices = crate::audio::output_devices().map_err(|e| e.to_string())?;
+    #[cfg(not(target_os = "linux"))]
+    let devices = crate::finder::windows_output_devices().map_err(|e| e.to_string())?;
+    for (id, name) in devices {
+        println!(
+            "{} {}",
+            terminal_text(&id.to_string()),
+            terminal_text(&name)
+        );
     }
     Ok(())
 }

@@ -223,6 +223,7 @@ pub fn catalog() -> L {
     l.opt_lang = "Oberflächensprache: en, es, pt, de, fr, it, nl, ru, zh, ja, ko (Standard en)";
     l.opt_autoconnect = "Beim Start mit dem letzten Gerät verbinden (Standard an)";
     l.opt_no_autoconnect = "Automatische Verbindung beim Start deaktivieren";
+    l.opt_json = "Versioniertes JSON für unterstützte Leseoperationen";
     l.opt_dry_run = "Einstellungs-Pakete ohne Bluetooth-Zugriff ausgeben";
     l.opt_help = "Hilfe anzeigen";
     l.opt_version = "Version anzeigen";
@@ -244,6 +245,193 @@ pub fn catalog() -> L {
     l.cmd_query = "Capture-geschützte Abfrage; auf dieser Firmware nicht verifiziert";
     l.cmd_control = "Capture-geschützte Steuerung; --dry-run gibt Bytes aus";
     l.cmd_find = "Capture-geschützter Suchton";
+    l.host_commands = [
+        "Audiotransport des Systems anzeigen",
+        "Audioausgänge des Hosts auflisten",
+        "Funktionsnachweise anzeigen",
+        "Hostdiagnose lesen",
+        "Bluetooth-Verbindung des Hosts herstellen",
+        "Bluetooth-Verbindung des Hosts trennen",
+    ];
     l.cmd_audio_devices = "Windows-Ausgabegeräte auflisten";
+    l.features_title = " Funktionen ";
+    l.features_search = "Suchen: ";
+    l.features_all = "Alle";
+    l.feature_categories = [
+        "Audio",
+        "Verbindung",
+        "Umgebung",
+        "Rückmeldung",
+        "Geräteinformation",
+        "Multipunkt",
+        "Codecs",
+        "Erweitertes Audio",
+        "Steuerung",
+        "Audiofreigabe",
+        "Suchen",
+        "Geräteverwaltung",
+        "Diagnose",
+    ];
+    l.feature_names = [
+        "ANC",
+        "Equalizer",
+        "Spielmodus",
+        "Räumlicher Klang",
+        "Doppelte Verbindung",
+        "Windreduzierung",
+        "Sprachansagen",
+        "Aktion Lautstärke hoch",
+        "Aktion Lautstärke runter",
+        "Multipunkt-Geräte",
+        "Audio-Codec",
+        "Kopfhörer-ID",
+        "Kopfhörerfarbe",
+        "Case-MAC",
+        "LDAC-Steuerung",
+        "LDAC für ein Gerät",
+        "Hochwertige Dekodierung",
+        "Lautstärkebefehl",
+        "Mono/Stereo-Kanal",
+        "Tastenbelegung",
+        "KI-Aktionen",
+        "KI-Steuerung",
+        "Audiofreigabe aus",
+        "Mit einem Gerät teilen",
+        "Mit gewähltem Gerät teilen",
+        "Linken Ohrhörer finden",
+        "Rechten Ohrhörer finden",
+        "Werkseinstellung",
+        "Capture-Dekodierer",
+        "Capture-Analyse",
+        "Paketvorschau",
+    ];
+    l.feature_descriptions = [
+        "Tiefe der aktiven Geräuschunterdrückung. Verifizierte Einstellung; bearbeiten im Einstellungsbildschirm.",
+        "Equalizer-Voreinstellung. Verifizierte Einstellung; bearbeiten im Einstellungsbildschirm.",
+        "Niedriglatenz-Schalter des Spielmodus. Verifizierte Einstellung; bearbeiten im Einstellungsbildschirm.",
+        "Schalter für räumlichen Klang. Verifizierte Einstellung; bearbeiten im Einstellungsbildschirm.",
+        "Schalter für Zwei-Geräte-Verbindung. Verifizierte Einstellung; bearbeiten im Einstellungsbildschirm.",
+        "Schalter für Windgeräuschreduzierung. Verifizierte Einstellung; bearbeiten im Einstellungsbildschirm.",
+        "Stil der Sprachansagen. Verifizierte Einstellung; bearbeiten im Einstellungsbildschirm.",
+        "Aktion bei gedrückter Lautstärke-hoch-Taste. Verifizierte Einstellung; bearbeiten im Einstellungsbildschirm.",
+        "Aktion bei gedrückter Lautstärke-runter-Taste. Verifizierte Einstellung; bearbeiten im Einstellungsbildschirm.",
+        "Liste der verbundenen Multipunkt-Geräte lesen. Das Peer-Protokoll erfordert noch Hardwareverifizierung.",
+        "Den aktiven Bluetooth-Audio-Codec lesen. Das Abfrageformat erfordert noch Hardwareverifizierung.",
+        "Die Hardware-ID des Kopfhörers lesen. Das Abfrageformat erfordert noch Hardwareverifizierung.",
+        "Die Farbe des Kopfhörers lesen. Das Abfrageformat erfordert noch Hardwareverifizierung.",
+        "Die MAC-Adresse der Ladehülle lesen. Das Abfrageformat erfordert noch Hardwareverifizierung.",
+        "LDAC-Kodierung auf der aktuellen Verbindung umschalten. Das Steuerformat erfordert noch Hardwareverifizierung.",
+        "LDAC-Kodierung für ein verbundenes Gerät umschalten. Das Steuerformat erfordert noch Hardwareverifizierung.",
+        "Hochwertige Audio-Dekodierung umschalten. Das Steuerformat erfordert noch Hardwareverifizierung.",
+        "Ein absolutes Lautstärke-Byte senden. Der Hardwarebereich ist nicht verifiziert.",
+        "Den Audiokanal zwischen Mono und Stereo wechseln. Das Steuerformat erfordert noch Hardwareverifizierung.",
+        "Die acht Halte-Aktionen neu zuordnen. Das Steuerformat erfordert noch Hardwareverifizierung.",
+        "Die vier KI-gesteuerten Aktionen neu zuordnen. Das Steuerformat erfordert noch Hardwareverifizierung.",
+        "KI-Audiosteuerung umschalten. Das Steuerformat erfordert noch Hardwareverifizierung.",
+        "Audiofreigabe deaktivieren. Das Steuerformat erfordert noch Hardwareverifizierung.",
+        "Audio mit dem einzigen verbundenen Gerät teilen. Das Steuerformat erfordert noch Hardwareverifizierung.",
+        "Audio mit einem gewählten Gerät teilen. Das Steuerformat erfordert noch Hardwareverifizierung.",
+        "Einen Ordnungston am linken Ohrhörer über den Host abspielen. Das Finder-Protokoll erfordert noch Hardwareverifizierung.",
+        "Einen Ordnungston am rechten Ohrhörer über den Host abspielen. Das Finder-Protokoll erfordert noch Hardwareverifizierung.",
+        "Kopplung entfernen und Werkseinstellungen wiederherstellen. Destruktiv; das Steuerformat erfordert noch Hardwareverifizierung.",
+        "Erfasste Antwort-Bytes offline dekodieren; kein Bluetooth-Zugriff.",
+        "Einen vollständigen Capture-Stream offline interpretieren; kein Bluetooth-Zugriff.",
+        "Das statische Paket ausgeben, das eine Steuerung senden würde; wird nie übertragen.",
+    ];
+    l.feature_available = "Verfügbar";
+    l.feature_pending = "Verifizierung ausstehend";
+    l.feature_pending_reason =
+        "Das Drahtformat erfordert noch eine Hardwareverifizierung mit der offiziellen App.";
+    l.feature_live_disabled =
+        "Live-Ausführung ist deaktiviert, bis verifizierte Geräteevidenz vorliegt.";
+    l.feature_offline_workflow = "Nur Offline-Analyse; es wird nichts an den Kopfhörer gesendet.";
+    l.feature_offline_hint = "Ausführen: ugreen {}";
+    l.feature_kind_setting = "Verifizierte Einstellung";
+    l.feature_kind_query = "Geräteabfrage";
+    l.feature_kind_control = "Gerätesteuerung";
+    l.feature_kind_offline = "Offline-Analyse";
+    l.feature_category_label = "Kategorie: {}";
+    l.feature_current = "Aktuell: {}";
+    l.feature_edit_in_settings = "In Einstellungen bearbeiten (s)";
+    l.feature_run_query = "Eingabe: Abfrage ausführen";
+    l.feature_configure = "Eingabe: konfigurieren";
+    l.feature_back = "Esc: zurück";
+    l.feature_form_title = " {} konfigurieren ";
+    l.feature_err_required = "Vor der Prüfung muss jedes Feld gesetzt sein";
+    l.feature_field_unset = "nicht gesetzt";
+    l.feature_form_hint = "Hoch Runter Feld / Links Rechts Wahl / Eingabe prüfen / Esc zurück";
+    l.feature_review_title = " {} prüfen ";
+    l.review_write_title = " Schreibvorgang prüfen ";
+    l.feature_review_target = "Ziel: {}";
+    l.feature_review_previous = "Aktuell: {}";
+    l.feature_review_proposed = "Vorgeschlagen: {}";
+    l.feature_review_values = "Werte: {}";
+    l.feature_review_readback = "Rücklesung: {}";
+    l.feature_readback_verified = "verifiziert durch Bestätigung und passende Rücklesung";
+    l.feature_readback_noack =
+        "verifiziert durch passende Rücklesung (räumlicher Klang sendet keine Bestätigung)";
+    l.feature_readback_unconfirmed = "nicht unabhängig bestätigt; nach dem Anwenden aktualisieren";
+    l.feature_readback_query = "schreibgeschützte Abfrage";
+    l.feature_confirm_apply = "Eingabe: anwenden    Esc: abbrechen";
+    l.feature_confirm_reset =
+        "Destruktiv: entfernt die Host-Kopplung und stellt Werkseinstellungen wieder her.";
+    l.features_footer = [
+        [
+            ("Hoch", "bewegen"),
+            ("Runter", "bewegen"),
+            ("Tab", "Kategorie"),
+            ("Eingabe", "öffnen"),
+            ("Esc", "zurück"),
+            ("", ""),
+        ],
+        [
+            ("Zeichen", "suchen"),
+            ("Rücktaste", "löschen"),
+            ("Ctrl+U", "leeren"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+        [
+            ("Esc", "schließen"),
+            ("?", "Tasten"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+    ];
+    l.status_feature_running = "Funktionsoperation wird ausgeführt...";
+    l.status_edit_in_settings =
+        "{} ist eine verifizierte Einstellung; bearbeiten im Einstellungsbildschirm (s).";
+    l.codec_unverified = "Abfrage nicht verifiziert";
+    l.arg_enabled = "Aktiviert";
+    l.arg_side = "Seite";
+    l.arg_duration = "Dauer (s)";
+    l.arg_target = "Ziel";
+    l.arg_value = "Wert (0-255)";
+    l.arg_mode = "Modus";
+    l.arg_peer = "Peer";
+    l.arg_actions = "Aktionen";
+    l.arg_address = "Peer-MAC";
+    l.arg_hint_toggle = "on oder off";
+    l.arg_hint_side = "links oder rechts";
+    l.arg_hint_seconds = "1..30 Sekunden";
+    l.arg_hint_byte = "0..255";
+    l.arg_hint_mac = "sechs hexadezimale Oktetts mit Doppelpunkten";
+    l.arg_hint_peer = "1 oder 2";
+    l.arg_hint_actions = "{} kommagetrennte Aktionsbytes";
+    l.tui_no_tty =
+        "Die Oberfläche benötigt interaktive stdin- und stdout-Terminals; führe ugreen --help für die CLI-Befehle aus.";
+    l.tui_bad_channel =
+        "Der Kanal der Oberfläche muss 1-30 sein und die Zeitüberschreitung größer als null und höchstens 60 Sekunden.";
+    l.status_worker_busy = "Es läuft bereits eine Operation; warten oder Esc zum Abbrechen.";
+    l.status_worker_sequence = "Anfrage-Folge erschöpft; starte die Oberfläche neu.";
+    l.status_worker_stopped = "Bluetooth-Worker gestoppt; starte die Oberfläche neu.";
+    l.status_worker_queue = "Worker-Warteschlange voll; warte, bevor du es erneut versuchst.";
+    l.status_reset_unavailable = "Zurücksetzziel nicht verfügbar";
+    l.status_reset_done = "Zurücksetzen bestätigt; Host-Pairing und gespeichertes Gerät entfernt.";
+    l.status_inflight_write =
+        "Eine laufende Schreibung wurde möglicherweise abgeschlossen; aktualisiere nach dem Neustart.";
     l
 }

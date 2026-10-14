@@ -17,6 +17,7 @@ pub struct Options {
     pub channel: Option<u8>,
     pub timeout: Option<Duration>,
     pub dry_run: bool,
+    pub json: bool,
     pub lang: Option<Lang>,
     pub autoconnect: Option<bool>,
 }

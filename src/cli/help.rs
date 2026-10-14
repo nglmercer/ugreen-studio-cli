@@ -25,6 +25,7 @@ const OPTIONS: &[HelpOption] = &[
     ("--lang en", |t| t.opt_lang),
     ("--autoconnect", |t| t.opt_autoconnect),
     ("--no-autoconnect", |t| t.opt_no_autoconnect),
+    ("--json", |t| t.opt_json),
     ("--dry-run", |t| t.opt_dry_run),
     ("--help, -h", |t| t.opt_help),
     ("--version, -V", |t| t.opt_version),

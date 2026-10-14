@@ -287,6 +287,7 @@ pub fn catalog() -> L {
         "Idioma de la interfaz: en, es, pt, de, fr, it, nl, ru, zh, ja, ko (por defecto en)";
     l.opt_autoconnect = "Conectar al último dispositivo al iniciar (por defecto activado)";
     l.opt_no_autoconnect = "Desactivar la conexión automática al iniciar";
+    l.opt_json = "JSON versionado para comandos de solo lectura compatibles";
     l.opt_dry_run = "Imprimir los paquetes de ajustes sin acceso Bluetooth";
     l.opt_help = "Mostrar ayuda";
     l.opt_version = "Mostrar versión";
@@ -308,6 +309,195 @@ pub fn catalog() -> L {
     l.cmd_query = "Consulta con puerta de enlace; sin verificar en este firmware";
     l.cmd_control = "Control con puerta de enlace; --dry-run imprime los bytes";
     l.cmd_find = "Tono de búsqueda con puerta de enlace";
+    l.host_commands = [
+        "Observar transporte de audio del sistema",
+        "Listar salidas de audio del host",
+        "Mostrar evidencia de funciones",
+        "Leer diagnóstico del host",
+        "Conectar enlace Bluetooth del host",
+        "Desconectar enlace Bluetooth del host",
+    ];
     l.cmd_audio_devices = "Listar salidas de audio de Windows";
+    l.features_title = " Funciones ";
+    l.features_search = "Buscar: ";
+    l.features_all = "Todo";
+    l.feature_categories = [
+        "Audio",
+        "Conexión",
+        "Entorno",
+        "Respuestas",
+        "Información del dispositivo",
+        "Multipunto",
+        "Códecs",
+        "Audio avanzado",
+        "Controles",
+        "Uso compartido de audio",
+        "Búsqueda",
+        "Gestión del dispositivo",
+        "Diagnóstico",
+    ];
+    l.feature_names = [
+        "ANC",
+        "Ecualizador",
+        "Modo juego",
+        "Audio espacial",
+        "Conexión dual",
+        "Reducción de viento",
+        "Avisos de voz",
+        "Acción subir volumen",
+        "Acción bajar volumen",
+        "Dispositivos multipunto",
+        "Códec de audio",
+        "ID del auricular",
+        "Color del auricular",
+        "MAC del estuche",
+        "Control LDAC",
+        "LDAC para un emparejado",
+        "Decodificación de alta calidad",
+        "Comando de volumen",
+        "Canal mono/stéreo",
+        "Asignación de botones",
+        "Acciones de IA",
+        "Control de IA",
+        "Desactivar uso compartido",
+        "Compartir con un emparejado",
+        "Compartir con un emparejado elegido",
+        "Buscar auricular izquierdo",
+        "Buscar auricular derecho",
+        "Restablecimiento de fábrica",
+        "Decodificador de capturas",
+        "Análisis de capturas",
+        "Vista previa de paquete",
+    ];
+    l.feature_descriptions = [
+        "Profundidad de cancelación activa de ruido. Ajuste verificado; edítalo en la pantalla de Ajustes.",
+        "Preajuste del ecualizador. Ajuste verificado; edítalo en la pantalla de Ajustes.",
+        "Alternador de baja latencia del modo juego. Ajuste verificado; edítalo en la pantalla de Ajustes.",
+        "Alternador de audio espacial. Ajuste verificado; edítalo en la pantalla de Ajustes.",
+        "Alternador de conexión a dos dispositivos. Ajuste verificado; edítalo en la pantalla de Ajustes.",
+        "Alternador de reducción de ruido de viento. Ajuste verificado; edítalo en la pantalla de Ajustes.",
+        "Estilo de los avisos de voz. Ajuste verificado; edítalo en la pantalla de Ajustes.",
+        "Acción de mantener subir volumen. Ajuste verificado; edítalo en la pantalla de Ajustes.",
+        "Acción de mantener bajar volumen. Ajuste verificado; edítalo en la pantalla de Ajustes.",
+        "Leer la lista de emparejados multipunto. El protocolo de emparejados aún requiere verificación en hardware.",
+        "Leer el códec de audio Bluetooth activo. El formato de consulta aún requiere verificación en hardware.",
+        "Leer el ID de hardware del auricular. El formato de consulta aún requiere verificación en hardware.",
+        "Leer el color del auricular. El formato de consulta aún requiere verificación en hardware.",
+        "Leer la MAC del estuche de carga. El formato de consulta aún requiere verificación en hardware.",
+        "Alternar la codificación LDAC en la conexión actual. El formato de control aún requiere verificación en hardware.",
+        "Alternar la codificación LDAC para un emparejado. El formato de control aún requiere verificación en hardware.",
+        "Alternar la decodificación de audio de alta calidad. El formato de control aún requiere verificación en hardware.",
+        "Enviar un byte de volumen absoluto. El rango de hardware no está verificado.",
+        "Cambiar el canal de audio entre mono y stéreo. El formato de control aún requiere verificación en hardware.",
+        "Reasignar las ocho acciones de mantener. El formato de control aún requiere verificación en hardware.",
+        "Reasignar las cuatro acciones activadas por IA. El formato de control aún requiere verificación en hardware.",
+        "Alternar el control de audio por IA. El formato de control aún requiere verificación en hardware.",
+        "Desactivar el uso compartido de audio. El formato de control aún requiere verificación en hardware.",
+        "Compartir audio con el único emparejado conectado. El formato de control aún requiere verificación en hardware.",
+        "Compartir audio con un emparejado elegido. El formato de control aún requiere verificación en hardware.",
+        "Reproducir un tono de localización en el auricular izquierdo desde el host. El protocolo de búsqueda aún requiere verificación en hardware.",
+        "Reproducir un tono de localización en el auricular derecho desde el host. El protocolo de búsqueda aún requiere verificación en hardware.",
+        "Quitar el emparejamiento y restaurar los valores de fábrica. Destructivo; el formato de control aún requiere verificación en hardware.",
+        "Decodificar bytes de respuesta capturados sin conexión; sin acceso Bluetooth.",
+        "Interpretar un flujo de captura completo sin conexión; sin acceso Bluetooth.",
+        "Imprimir el paquete estático que enviaría un control; nunca se transmite.",
+    ];
+    l.feature_available = "Disponible";
+    l.feature_pending = "Pendiente de verificación";
+    l.feature_pending_reason =
+        "El formato de cable aún requiere verificación en hardware con la app oficial.";
+    l.feature_live_disabled =
+        "La ejecución en vivo está desactivada hasta que exista evidencia verificada en el dispositivo.";
+    l.feature_offline_workflow = "Solo análisis sin conexión; nada se envía al auricular.";
+    l.feature_offline_hint = "Ejecutar: ugreen {}";
+    l.feature_kind_setting = "Ajuste verificado";
+    l.feature_kind_query = "Consulta de dispositivo";
+    l.feature_kind_control = "Control de dispositivo";
+    l.feature_kind_offline = "Análisis sin conexión";
+    l.feature_category_label = "Categoría: {}";
+    l.feature_current = "Actual: {}";
+    l.feature_edit_in_settings = "Editar en Ajustes (s)";
+    l.feature_run_query = "Enter: ejecutar consulta";
+    l.feature_configure = "Enter: configurar";
+    l.feature_back = "Esc: volver";
+    l.feature_form_title = " Configurar {} ";
+    l.feature_err_required = "Todos los campos deben completarse antes de revisar";
+    l.feature_field_unset = "sin definir";
+    l.feature_form_hint = "Arriba Abajo campo / Izq Der opción / Enter revisar / Esc volver";
+    l.feature_review_title = " Revisar {} ";
+    l.review_write_title = " Revisar escritura ";
+    l.feature_review_target = "Destino: {}";
+    l.feature_review_previous = "Actual: {}";
+    l.feature_review_proposed = "Propuesto: {}";
+    l.feature_review_values = "Valores: {}";
+    l.feature_review_readback = "Lectura: {}";
+    l.feature_readback_verified = "verificado por confirmación y lectura coincidente";
+    l.feature_readback_noack =
+        "verificado por lectura coincidente (el audio espacial no envía confirmación)";
+    l.feature_readback_unconfirmed =
+        "no confirmado de forma independiente; actualiza después de aplicar";
+    l.feature_readback_query = "consulta de solo lectura";
+    l.feature_confirm_apply = "Enter: aplicar    Esc: cancelar";
+    l.feature_confirm_reset =
+        "Destructivo: quita el emparejamiento del host y restaura los valores de fábrica.";
+    l.features_footer = [
+        [
+            ("Arriba", "mover"),
+            ("Abajo", "mover"),
+            ("Tab", "categoría"),
+            ("Enter", "abrir"),
+            ("Esc", "volver"),
+            ("", ""),
+        ],
+        [
+            ("letras", "buscar"),
+            ("Retroceso", "borrar"),
+            ("Ctrl+U", "limpiar"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+        [
+            ("Esc", "cerrar"),
+            ("?", "atajos"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+    ];
+    l.status_feature_running = "Ejecutando operación de funciones...";
+    l.status_edit_in_settings =
+        "{} es un ajuste verificado; edítalo en la pantalla de Ajustes (s).";
+    l.codec_unverified = "consulta no verificada";
+    l.arg_enabled = "Activado";
+    l.arg_side = "Lado";
+    l.arg_duration = "Duración (s)";
+    l.arg_target = "Objetivo";
+    l.arg_value = "Valor (0-255)";
+    l.arg_mode = "Modo";
+    l.arg_peer = "Emparejado";
+    l.arg_actions = "Acciones";
+    l.arg_address = "MAC del emparejado";
+    l.arg_hint_toggle = "on o off";
+    l.arg_hint_side = "izquierda o derecha";
+    l.arg_hint_seconds = "1..30 segundos";
+    l.arg_hint_byte = "0..255";
+    l.arg_hint_mac = "seis octetos hexadecimales separados por dos puntos";
+    l.arg_hint_peer = "1 o 2";
+    l.arg_hint_actions = "{} valores de acción separados por comas";
+    l.tui_no_tty =
+        "La interfaz requiere terminales interactivas de entrada y salida; ejecuta ugreen --help para los comandos de la CLI.";
+    l.tui_bad_channel =
+        "El canal de la interfaz debe ser 1-30 y la espera mayor que cero y como máximo 60 segundos.";
+    l.status_worker_busy = "Ya hay una operación en ejecución; espera o pulsa Esc para cancelar.";
+    l.status_worker_sequence = "Secuencia de solicitudes agotada; reinicia la interfaz.";
+    l.status_worker_stopped = "El trabajador de Bluetooth se detuvo; reinicia la interfaz.";
+    l.status_worker_queue = "La cola del trabajador está llena; espera antes de reintentar.";
+    l.status_reset_unavailable = "objetivo de restablecimiento no disponible";
+    l.status_reset_done =
+        "Restablecimiento confirmado; se quitaron el emparejamiento del host y el dispositivo guardado.";
+    l.status_inflight_write =
+        "Una escritura en curso puede haberse completado; actualiza después de reiniciar.";
     l
 }

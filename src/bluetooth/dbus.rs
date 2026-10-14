@@ -12,7 +12,7 @@
 //! Any failure propagates to the caller, which falls back to the
 //! bounded `bluetoothctl` path.
 
-use super::{BluetoothAddress, HostConnectionState, HostHeadset};
+use super::{BluetoothAddress, HostAdapter, HostConnectionState, HostHeadset, HostSnapshot};
 use std::io::{self, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::time::Duration;
@@ -28,6 +28,70 @@ const MESSAGE_ERROR: u8 = 3;
 
 const DEVICE_INTERFACE: &str = "org.bluez.Device1";
 
+pub(super) fn host_snapshot() -> io::Result<HostSnapshot> {
+    let mut bus = Bus::open()?;
+    snapshot_from_objects(bus.get_managed_objects()?)
+}
+fn snapshot_from_objects(objects: Vec<ManagedObject>) -> io::Result<HostSnapshot> {
+    let mut snapshot = HostSnapshot::default();
+    for object in &objects {
+        if object.is_adapter {
+            snapshot.adapters.push(HostAdapter {
+                path: object.path.clone(),
+                name: object.adapter_name.clone(),
+                address: object
+                    .adapter_address
+                    .as_deref()
+                    .and_then(|s| BluetoothAddress::parse(s).ok()),
+                powered: object.powered,
+                discovering: object.discovering,
+            });
+        }
+        if let Some(transport) = &object.transport {
+            let Some(device_path) = transport.device.as_deref() else {
+                continue;
+            };
+            let mut targets = objects
+                .iter()
+                .filter(|o| o.path == device_path && o.address.is_some());
+            let Some(target) = targets.next() else {
+                continue;
+            };
+            if targets.next().is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "ambiguous MediaTransport Device association",
+                ));
+            }
+            let Some(address) = target
+                .address
+                .as_deref()
+                .and_then(|s| BluetoothAddress::parse(s).ok())
+            else {
+                continue;
+            };
+            snapshot
+                .transports
+                .push(crate::audio::bluez::MediaTransport {
+                    path: object.path.clone(),
+                    address,
+                    profile_uuid: transport.uuid.clone(),
+                    codec_id: transport.codec,
+                    configuration: transport.configuration.clone(),
+                    state: transport.state.clone(),
+                });
+        }
+    }
+    snapshot.devices = objects
+        .into_iter()
+        .filter_map(ManagedObject::into_headset)
+        .collect();
+    super::normalize(&mut snapshot.devices);
+    snapshot.adapters.sort_by(|a, b| a.path.cmp(&b.path));
+    snapshot.transports.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(snapshot)
+}
+
 pub(super) fn list_devices() -> io::Result<Vec<HostHeadset>> {
     let mut bus = Bus::open()?;
     let objects = bus.get_managed_objects()?;
@@ -37,6 +101,27 @@ pub(super) fn list_devices() -> io::Result<Vec<HostHeadset>> {
         .collect();
     super::normalize(&mut devices);
     Ok(devices)
+}
+
+/// Explicit scoped host action. No discovery or implicit unpairing.
+pub(super) fn set_host_connection(address: &BluetoothAddress, connected: bool) -> io::Result<()> {
+    let mut bus = Bus::open()?;
+    let objects = bus.get_managed_objects()?;
+    let (_, path) = removal_target(&objects, address)?.ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "target absent from BlueZ; check adapter and pairing, then refresh",
+        )
+    })?;
+    bus.call(
+        &path,
+        "org.bluez.Device1",
+        if connected { "Connect" } else { "Disconnect" },
+        "org.bluez",
+        None,
+    )?;
+    bus.await_reply()?;
+    Ok(())
 }
 
 pub(super) fn unpair(address: &BluetoothAddress) -> io::Result<()> {
@@ -182,10 +267,14 @@ impl Bus {
                     return Ok(message);
                 }
                 MESSAGE_ERROR if message.reply_serial == Some(self.serial) => {
-                    return Err(io::Error::other(format!(
-                        "D-Bus error: {}",
-                        message.error_name.unwrap_or_else(|| "unknown".into())
-                    )));
+                    let name = message.error_name.unwrap_or_else(|| "unknown".into());
+                    let kind = if name.ends_with("AccessDenied") || name.ends_with("NotAuthorized")
+                    {
+                        io::ErrorKind::PermissionDenied
+                    } else {
+                        io::ErrorKind::Other
+                    };
+                    return Err(io::Error::new(kind,format!("D-Bus error: {name}; check adapter, permissions and refresh the target")));
                 }
                 // Signals and unrelated replies are irrelevant to a
                 // strictly sequential enumerator.
@@ -596,6 +685,20 @@ struct ManagedObject {
     alias: Option<String>,
     paired: Option<bool>,
     connected: Option<bool>,
+    is_adapter: bool,
+    adapter_address: Option<String>,
+    adapter_name: Option<String>,
+    powered: Option<bool>,
+    discovering: Option<bool>,
+    transport: Option<ParsedTransport>,
+}
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct ParsedTransport {
+    device: Option<String>,
+    uuid: Option<String>,
+    codec: Option<u8>,
+    configuration: Option<Vec<u8>>,
+    state: Option<String>,
 }
 
 impl ManagedObject {
@@ -688,6 +791,12 @@ fn parse_managed_objects(body: &[u8], little_endian: bool) -> io::Result<Vec<Man
         while reader.pos() < interfaces_end {
             reader.align(8)?;
             let interface = reader.string()?;
+            if interface == "org.bluez.Adapter1" {
+                object.is_adapter = true;
+            }
+            if interface == "org.bluez.MediaTransport1" {
+                object.transport = Some(ParsedTransport::default());
+            }
             reader.align(4)?;
             let properties_len = reader.u32()? as usize;
             reader.align(8)?;
@@ -702,10 +811,46 @@ fn parse_managed_objects(body: &[u8], little_endian: bool) -> io::Result<Vec<Man
                 let signature = reader.signature()?;
                 if interface == DEVICE_INTERFACE {
                     object.consume_prop(&key, &signature, &mut reader)?;
+                } else if interface == "org.bluez.Adapter1" {
+                    match (key.as_str(), signature.as_str()) {
+                        ("Address", "s") => object.adapter_address = Some(reader.string()?),
+                        ("Name" | "Alias", "s") => object.adapter_name = Some(reader.string()?),
+                        ("Powered", "b") => object.powered = Some(reader.boolean()?),
+                        ("Discovering", "b") => object.discovering = Some(reader.boolean()?),
+                        _ => reader.skip_one(&signature)?,
+                    }
+                } else if interface == "org.bluez.MediaTransport1" {
+                    let transport = object.transport.as_mut().expect("interface initialized");
+                    match (key.as_str(), signature.as_str()) {
+                        ("Device", "o") => transport.device = Some(reader.string()?),
+                        ("UUID", "s") => transport.uuid = Some(reader.string()?),
+                        ("Codec", "y") => transport.codec = Some(reader.u8()?),
+                        ("State", "s") => transport.state = Some(reader.string()?),
+                        ("Configuration", "ay") => {
+                            let size = reader.u32()? as usize;
+                            if size > 1024 {
+                                return Err(io::Error::new(
+                                    io::ErrorKind::InvalidData,
+                                    "MediaTransport configuration exceeds 1 KiB",
+                                ));
+                            }
+                            transport.configuration = Some(reader.take(size)?.to_vec());
+                        }
+                        _ => reader.skip_one(&signature)?,
+                    }
                 } else {
                     reader.skip_one(&signature)?;
                 }
+                if reader.pos() > properties_end {
+                    return Err(truncated());
+                }
             }
+            if reader.pos() > interfaces_end {
+                return Err(truncated());
+            }
+        }
+        if reader.pos() > end {
+            return Err(truncated());
         }
         objects.push(object);
     }
@@ -873,6 +1018,106 @@ mod tests {
             });
         });
         w.finish()
+    }
+
+    fn media_transport_fixture(le: bool, device: &str, configuration: &[u8]) -> Vec<u8> {
+        let mut w = Writer {
+            bytes: managed_objects_fixture(le),
+            le,
+        };
+        w.dict_entry(|w| {
+            w.string("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/sep1/fd0");
+            w.array(8, |w| {
+                w.dict_entry(|w| {
+                    w.string("org.bluez.MediaTransport1");
+                    w.array(8, |w| {
+                        w.dict_entry(|w| {
+                            w.string("Device");
+                            w.signature("o");
+                            w.string(device);
+                        });
+                        w.dict_entry(|w| {
+                            w.string("UUID");
+                            w.variant_string("0000110b-0000-1000-8000-00805f9b34fb");
+                        });
+                        w.dict_entry(|w| {
+                            w.string("Codec");
+                            w.signature("y");
+                            w.bytes.push(0xff);
+                        });
+                        w.dict_entry(|w| {
+                            w.string("State");
+                            w.variant_string("active");
+                        });
+                        w.dict_entry(|w| {
+                            w.string("Configuration");
+                            w.signature("ay");
+                            w.array(1, |w| w.bytes.extend_from_slice(configuration));
+                        });
+                    });
+                })
+            });
+        });
+        let length = (w.bytes.len() - 8) as u32;
+        w.bytes[..4].copy_from_slice(&if le {
+            length.to_le_bytes()
+        } else {
+            length.to_be_bytes()
+        });
+        w.finish()
+    }
+    #[test]
+    fn media_transport_association_and_vendor_endianness_are_exact() {
+        for le in [true, false] {
+            let body = media_transport_fixture(
+                le,
+                "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                &[0x2d, 1, 0, 0, 0xaa, 0],
+            );
+            let snapshot =
+                snapshot_from_objects(parse_managed_objects(&body, le).unwrap()).unwrap();
+            assert_eq!(snapshot.adapters.len(), 1);
+            assert_eq!(snapshot.adapters[0].powered, None);
+            assert_eq!(snapshot.devices.len(), 1);
+            assert_eq!(snapshot.transports.len(), 1);
+            let transport = &snapshot.transports[0];
+            assert_eq!(transport.address.as_str(), "AA:BB:CC:DD:EE:FF");
+            assert_eq!(
+                transport.observe(std::time::SystemTime::UNIX_EPOCH).codec,
+                Some(crate::audio::Codec::Ldac)
+            );
+        }
+        let body = media_transport_fixture(
+            true,
+            "/org/bluez/hci1/dev_AA_BB_CC_DD_EE_FF",
+            &[0x2d, 1, 0, 0, 0xaa, 0],
+        );
+        assert!(
+            snapshot_from_objects(parse_managed_objects(&body, true).unwrap())
+                .unwrap()
+                .transports
+                .is_empty()
+        );
+    }
+    #[test]
+    fn media_transport_bounds_and_ambiguous_association_are_rejected() {
+        let body = media_transport_fixture(
+            true,
+            "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+            &vec![0; 1025],
+        );
+        assert_eq!(
+            parse_managed_objects(&body, true).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        let mut body =
+            media_transport_fixture(true, "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", &[0; 6]);
+        body.pop();
+        assert!(parse_managed_objects(&body, true).is_err());
+        let body = media_transport_fixture(true, "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF", &[0; 6]);
+        let mut objects = parse_managed_objects(&body, true).unwrap();
+        objects.push(objects[0].clone());
+        assert!(snapshot_from_objects(objects).is_err());
     }
 
     #[test]

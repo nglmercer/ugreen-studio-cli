@@ -346,3 +346,22 @@ SIGTERM and Windows Ctrl+C/Ctrl+Break. The TUI feature panel and worker
 now integrate queries, controls, cancellable finder playback and reset
 cleanup. Official-app captures remain pending. Windows runtime playback/interrupt behavior is
 unverified. No live capability is promoted by mock or source checks.
+
+## October 14 implementation boundary
+
+The shared feature registry, forms and JSON evidence report do not promote APK
+hypotheses. Codec, peer, sharing, Finder and reset live bits remain unset. OS
+PipeWire transport observations are independent of instruction 0x0F and candidate
+device-info offset 7. No official-app capture or headset packet was fabricated.
+Historical retail evidence stays limited to HP206 firmware 0.2.5; see the
+[feature matrix](feature-matrix.md). No candidate fixture has been relabeled as a
+model/firmware-specific physical recording.
+
+### Host codec observation references
+
+The read-only Linux fallback follows the [BlueZ MediaTransport API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.MediaTransport.rst)
+and [Adapter API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.Adapter.rst).
+Vendor company/codec pairs follow [BlueZ A2DP codec definitions](https://github.com/bluez/bluez/blob/master/profiles/audio/a2dp-codecs.h).
+These references and synthetic D-Bus fixtures provide protocol-layout evidence,
+not HP206 runtime evidence. Linux debugfs socket parsing follows the
+[Linux RFCOMM socket implementation](https://github.com/torvalds/linux/blob/master/net/bluetooth/rfcomm/sock.c).

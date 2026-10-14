@@ -18,7 +18,9 @@ mod address;
 mod device;
 
 pub use address::BluetoothAddress;
-pub use device::{sort_devices, HostConnectionState, HostHeadset};
+pub use device::{
+    sort_devices, ControlSessionState, HostAdapter, HostConnectionState, HostHeadset, HostSnapshot,
+};
 
 #[cfg(target_os = "linux")]
 #[path = "linux.rs"]
@@ -191,6 +193,37 @@ fn remaining(deadline: Instant) -> io::Result<Duration> {
         .checked_duration_since(Instant::now())
         .filter(|d| !d.is_zero())
         .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "RFCOMM operation timed out"))
+}
+
+/// Explicit OS host-link action, independent of closing an RFCOMM socket.
+pub fn set_host_connection(address: &BluetoothAddress, connected: bool) -> io::Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        dbus::set_host_connection(address, connected)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (address, connected);
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "host connect/disconnect unavailable on this platform; use the OS Bluetooth settings",
+        ))
+    }
+}
+
+/// Read-only host adapter/device/transport snapshot. Never scans or connects.
+pub fn host_snapshot() -> io::Result<HostSnapshot> {
+    #[cfg(target_os = "linux")]
+    {
+        dbus::host_snapshot()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "adapter and media transport diagnostics unavailable on this platform",
+        ))
+    }
 }
 
 #[cfg(test)]

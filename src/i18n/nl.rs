@@ -229,6 +229,7 @@ pub fn catalog() -> L {
     l.opt_lang = "Interface-taal: en, es, pt, de, fr, it, nl, ru, zh, ja, ko (standaard en)";
     l.opt_autoconnect = "Verbind met het laatst gebruikte apparaat bij opstarten (standaard aan)";
     l.opt_no_autoconnect = "Automatische verbinding bij opstarten uitschakelen";
+    l.opt_json = "JSON met versie voor ondersteunde leesopdrachten";
     l.opt_dry_run = "Instelingspakketten afdrukken zonder Bluetooth-toegang";
     l.opt_help = "Hulp tonen";
     l.opt_version = "Versie tonen";
@@ -250,6 +251,195 @@ pub fn catalog() -> L {
     l.cmd_query = "Capture-beveiligde opvraging; niet geverifieerd op deze firmware";
     l.cmd_control = "Capture-beveiligde besturing; --dry-run drukt bytes af";
     l.cmd_find = "Capture-beveiligde zoontoon";
+    l.host_commands = [
+        "Systeemaudiotransport bekijken",
+        "Audio-uitgangen van de host tonen",
+        "Functiebewijs tonen",
+        "Hostdiagnose lezen",
+        "Bluetooth-verbinding van host openen",
+        "Bluetooth-verbinding van host verbreken",
+    ];
     l.cmd_audio_devices = "Windows-uitvoerapparaten oplijsten";
+    l.features_title = " Functies ";
+    l.features_search = "Zoeken: ";
+    l.features_all = "Alles";
+    l.feature_categories = [
+        "Audio",
+        "Verbinding",
+        "Omgeving",
+        "Terugkoppeling",
+        "Apparaatinformatie",
+        "Multipunt",
+        "Codecs",
+        "Geavanceerd audio",
+        "Besturing",
+        "Audio delen",
+        "Zoeken",
+        "Apparaatbeheer",
+        "Diagnose",
+    ];
+    l.feature_names = [
+        "ANC",
+        "Equalizer",
+        "Spelmodus",
+        "Ruimtelijk geluid",
+        "Dubbele verbinding",
+        "Windreductie",
+        "Spraakberichten",
+        "Actie volume omhoog",
+        "Actie volume omlaag",
+        "Multipunt-apparaten",
+        "Audio-codec",
+        "Koptelefoon-ID",
+        "Koptelefoonkleur",
+        "Case-MAC",
+        "LDAC-besturing",
+        "LDAC voor een apparaat",
+        "Hoogwaardige decodering",
+        "Volumebevel",
+        "Mono/stereo-kanaal",
+        "Toetsenindeling",
+        "AI-acties",
+        "AI-besturing",
+        "Audio delen uit",
+        "Delen met een apparaat",
+        "Delen met een gekozen apparaat",
+        "Linker oortje vinden",
+        "Rechter oortje vinden",
+        "Fabrieksinstelling",
+        "Capture-decoder",
+        "Capture-analyse",
+        "Pakketvoorbeeld",
+    ];
+    l.feature_descriptions = [
+        "Diepte van actieve geluidsonderdrukking. Geverifieerde instelling; bewerk in het Instellingen-scherm.",
+        "Equalizer-voorinstelling. Geverifieerde instelling; bewerk in het Instellingen-scherm.",
+        "Lage latentie-schakelaar van spelmodus. Geverifieerde instelling; bewerk in het Instellingen-scherm.",
+        "Schakelaar voor ruimtelijk geluid. Geverifieerde instelling; bewerk in het Instellingen-scherm.",
+        "Schakelaar voor verbinding met twee apparaten. Geverifieerde instelling; bewerk in het Instellingen-scherm.",
+        "Schakelaar voor windgeluidreductie. Geverifieerde instelling; bewerk in het Instellingen-scherm.",
+        "Stijl van de spraakberichten. Geverifieerde instelling; bewerk in het Instellingen-scherm.",
+        "Actie bij ingedrukt houden volume omhoog. Geverifieerde instelling; bewerk in het Instellingen-scherm.",
+        "Actie bij ingedrukt houden volume omlaag. Geverifieerde instelling; bewerk in het Instellingen-scherm.",
+        "De lijst van verbonden multipunt-apparaten lezen. Het peer-protocol vereist nog hardwareverificatie.",
+        "De actieve Bluetooth-audio-codec lezen. Het queryformaat vereist nog hardwareverificatie.",
+        "De hardware-ID van de koptelefoon lezen. Het queryformaat vereist nog hardwareverificatie.",
+        "De kleur van de koptelefoon lezen. Het queryformaat vereist nog hardwareverificatie.",
+        "Het MAC-adres van de oplaadhoes lezen. Het queryformaat vereist nog hardwareverificatie.",
+        "LDAC-codering op de huidige verbinding omschakelen. Het besturingsformaat vereist nog hardwareverificatie.",
+        "LDAC-codering voor een gekoppeld apparaat omschakelen. Het besturingsformaat vereist nog hardwareverificatie.",
+        "Hoogwaardige audio-decodering omschakelen. Het besturingsformaat vereist nog hardwareverificatie.",
+        "Een absoluut volume-byte verzenden. Het hardwarebereik is niet geverifieerd.",
+        "Het audio-kanaal wisselen tussen mono en stereo. Het besturingsformaat vereist nog hardwareverificatie.",
+        "De acht langdrukacties opnieuw toewijzen. Het besturingsformaat vereist nog hardwareverificatie.",
+        "De vier door AI geactiveerde acties opnieuw toewijzen. Het besturingsformaat vereist nog hardwareverificatie.",
+        "AI-audiobesturing omschakelen. Het besturingsformaat vereist nog hardwareverificatie.",
+        "Audio delen uitschakelen. Het besturingsformaat vereist nog hardwareverificatie.",
+        "Audio delen met het enige verbonden apparaat. Het besturingsformaat vereist nog hardwareverificatie.",
+        "Audio delen met een gekozen apparaat. Het besturingsformaat vereist nog hardwareverificatie.",
+        "Een locatingtoon op het linker oortje afspelen via de host. Het finder-protocol vereist nog hardwareverificatie.",
+        "Een locatingtoon op het rechter oortje afspelen via de host. Het finder-protocol vereist nog hardwareverificatie.",
+        "De koppeling verwijderen en fabrieksinstellingen herstellen. Destructief; het besturingsformaat vereist nog hardwareverificatie.",
+        "Opgevangen antwoord-bytes offline decoderen; geen Bluetooth-toegang.",
+        "Een complete capture-stream offline interpreteren; geen Bluetooth-toegang.",
+        "Het statische pakket afdrukken dat een besturing zou verzenden; het wordt nooit verzonden.",
+    ];
+    l.feature_available = "Beschikbaar";
+    l.feature_pending = "Verificatie in behandeling";
+    l.feature_pending_reason =
+        "Het bedraad formaat vereist nog hardwareverificatie met de officiële app.";
+    l.feature_live_disabled =
+        "Live-uitvoering is uitgeschakeld tot er geverifieerde apparaatbewijzen zijn.";
+    l.feature_offline_workflow =
+        "Alleen offline analyse; er wordt niets naar de koptelefoon verzonden.";
+    l.feature_offline_hint = "Uitvoeren: ugreen {}";
+    l.feature_kind_setting = "Geverifieerde instelling";
+    l.feature_kind_query = "Apparaatquery";
+    l.feature_kind_control = "Apparaatbesturing";
+    l.feature_kind_offline = "Offline-analyse";
+    l.feature_category_label = "Categorie: {}";
+    l.feature_current = "Huidig: {}";
+    l.feature_edit_in_settings = "Bewerken in Instellingen (s)";
+    l.feature_run_query = "Enter: query uitvoeren";
+    l.feature_configure = "Enter: configureren";
+    l.feature_back = "Esc: terug";
+    l.feature_form_title = " {} configureren ";
+    l.feature_err_required = "Vul elk veld in voordat u controleert";
+    l.feature_field_unset = "niet ingesteld";
+    l.feature_form_hint = "Omhoog Omlaag veld / Links Rechts keuze / Enter controleren / Esc terug";
+    l.feature_review_title = " {} controleren ";
+    l.review_write_title = " Schrijfactie controleren ";
+    l.feature_review_target = "Bestemming: {}";
+    l.feature_review_previous = "Huidig: {}";
+    l.feature_review_proposed = "Voorgesteld: {}";
+    l.feature_review_values = "Waarden: {}";
+    l.feature_review_readback = "Teruglezing: {}";
+    l.feature_readback_verified = "geverifieerd door bevestiging en passende teruglezing";
+    l.feature_readback_noack =
+        "geverifieerd door passende teruglezing (ruimtelijk geluid stuurt geen bevestiging)";
+    l.feature_readback_unconfirmed = "niet onafhankelijk bevestigd; ververs na toepassing";
+    l.feature_readback_query = "query zonder schrijven";
+    l.feature_confirm_apply = "Enter: toepassen    Esc: annuleren";
+    l.feature_confirm_reset =
+        "Destructief: verwijdert de host-koppeling en herstelt fabrieksinstellingen.";
+    l.features_footer = [
+        [
+            ("Omhoog", "verplaatsen"),
+            ("Omlaag", "verplaatsen"),
+            ("Tab", "categorie"),
+            ("Enter", "openen"),
+            ("Esc", "terug"),
+            ("", ""),
+        ],
+        [
+            ("letters", "zoeken"),
+            ("Backspace", "wissen"),
+            ("Ctrl+U", "legen"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+        [
+            ("Esc", "sluiten"),
+            ("?", "sneltoetsen"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+    ];
+    l.status_feature_running = "Functiebewerking wordt uitgevoerd...";
+    l.status_edit_in_settings =
+        "{} is een geverifieerde instelling; bewerk in het Instellingen-scherm (s).";
+    l.codec_unverified = "query niet geverifieerd";
+    l.arg_enabled = "Ingeschakeld";
+    l.arg_side = "Kant";
+    l.arg_duration = "Duur (s)";
+    l.arg_target = "Bestemming";
+    l.arg_value = "Waarde (0-255)";
+    l.arg_mode = "Modus";
+    l.arg_peer = "Gekoppeld";
+    l.arg_actions = "Acties";
+    l.arg_address = "MAC van het gekoppelde apparaat";
+    l.arg_hint_toggle = "on of off";
+    l.arg_hint_side = "links of rechts";
+    l.arg_hint_seconds = "1..30 seconden";
+    l.arg_hint_byte = "0..255";
+    l.arg_hint_mac = "zes hexadecimale octetten met dubbele punten";
+    l.arg_hint_peer = "1 of 2";
+    l.arg_hint_actions = "{} kommagescheiden actiewaarden";
+    l.tui_no_tty =
+        "De interface vereist interactieve stdin- en stdout-terminals; voer ugreen --help uit voor de CLI-opdrachten.";
+    l.tui_bad_channel =
+        "Het kanaal van de interface moet 1-30 zijn en de time-out groter dan nul en ten hoogste 60 seconden.";
+    l.status_worker_busy = "Er is al een bewerking bezig; wacht of druk Esc om te annuleren.";
+    l.status_worker_sequence = "Aanvraagreeks uitgeput; herstart de interface.";
+    l.status_worker_stopped = "Bluetooth-worker gestopt; herstart de interface.";
+    l.status_worker_queue = "Worker-wachtrij vol; wacht voordat je het opnieuw probeert.";
+    l.status_reset_unavailable = "terugzetdoel niet beschikbaar";
+    l.status_reset_done =
+        "Terugzetten bevestigd; host-koppeling en opgeslagen apparaat verwijderd.";
+    l.status_inflight_write =
+        "Een lopende schrijfbewerking is mogelijk voltooid; ververs na herstart.";
     l
 }

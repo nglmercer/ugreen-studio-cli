@@ -225,6 +225,7 @@ pub fn catalog() -> L {
     l.opt_lang = "Idioma da interface: en, es, pt, de, fr, it, nl, ru, zh, ja, ko (padrão en)";
     l.opt_autoconnect = "Conectar ao último dispositivo ao iniciar (padrão ativo)";
     l.opt_no_autoconnect = "Desativar a conexão automática ao iniciar";
+    l.opt_json = "JSON versionado para comandos de leitura compatíveis";
     l.opt_dry_run = "Imprimir os pacotes de configurações sem acesso Bluetooth";
     l.opt_help = "Mostrar ajuda";
     l.opt_version = "Mostrar versão";
@@ -246,6 +247,194 @@ pub fn catalog() -> L {
     l.cmd_query = "Consulta com porta; não verificada neste firmware";
     l.cmd_control = "Controle com porta; --dry-run imprime os bytes";
     l.cmd_find = "Tom de busca com porta";
+    l.host_commands = [
+        "Observar transporte de áudio do sistema",
+        "Listar saídas de áudio do host",
+        "Mostrar evidências das funções",
+        "Ler diagnóstico do host",
+        "Conectar ligação Bluetooth do host",
+        "Desconectar ligação Bluetooth do host",
+    ];
     l.cmd_audio_devices = "Listar saídas de áudio do Windows";
+    l.features_title = " Recursos ";
+    l.features_search = "Buscar: ";
+    l.features_all = "Tudo";
+    l.feature_categories = [
+        "Áudio",
+        "Conexão",
+        "Ambiente",
+        "Respostas",
+        "Informação do dispositivo",
+        "Multiponto",
+        "Códecs",
+        "Áudio avançado",
+        "Controles",
+        "Compartilhamento de áudio",
+        "Localizar",
+        "Gerenciamento do dispositivo",
+        "Diagnóstico",
+    ];
+    l.feature_names = [
+        "ANC",
+        "Equalizador",
+        "Modo de jogo",
+        "Áudio espacial",
+        "Conexão dupla",
+        "Redução de vento",
+        "Avisos de voz",
+        "Ação subir volume",
+        "Ação descer volume",
+        "Dispositivos multiponto",
+        "Códec de áudio",
+        "ID do fone",
+        "Cor do fone",
+        "MAC do estojo",
+        "Controle LDAC",
+        "LDAC para um emparelhado",
+        "Decodificação de alta qualidade",
+        "Comando de volume",
+        "Canal mono/stéreo",
+        "Mapeamento de botões",
+        "Ações de IA",
+        "Controle de IA",
+        "Desativar compartilhamento",
+        "Compartilhar com um emparelhado",
+        "Compartilhar com um emparelhado escolhido",
+        "Localizar fone esquerdo",
+        "Localizar fone direito",
+        "Restauração de fábrica",
+        "Decodificador de capturas",
+        "Análise de capturas",
+        "Prévia de pacote",
+    ];
+    l.feature_descriptions = [
+        "Profundidade de cancelamento ativo de ruído. Ajuste verificado; edite na tela de Ajustes.",
+        "Predefinição do equalizador. Ajuste verificado; edite na tela de Ajustes.",
+        "Alternador de baixa latência do modo de jogo. Ajuste verificado; edite na tela de Ajustes.",
+        "Alternador de áudio espacial. Ajuste verificado; edite na tela de Ajustes.",
+        "Alternador de conexão com dois dispositivos. Ajuste verificado; edite na tela de Ajustes.",
+        "Alternador de redução de ruído de vento. Ajuste verificado; edite na tela de Ajustes.",
+        "Estilo dos avisos de voz. Ajuste verificado; edite na tela de Ajustes.",
+        "Ação de segurar subir volume. Ajuste verificado; edite na tela de Ajustes.",
+        "Ação de segurar descer volume. Ajuste verificado; edite na tela de Ajustes.",
+        "Ler a lista de emparelhados multiponto. O protocolo de emparelhados ainda requer verificação em hardware.",
+        "Ler o códec de áudio Bluetooth ativo. O formato de consulta ainda requer verificação em hardware.",
+        "Ler o ID de hardware do fone. O formato de consulta ainda requer verificação em hardware.",
+        "Ler a cor do fone. O formato de consulta ainda requer verificação em hardware.",
+        "Ler o MAC do estojo de carga. O formato de consulta ainda requer verificação em hardware.",
+        "Alternar a codificação LDAC na conexão atual. O formato de controle ainda requer verificação em hardware.",
+        "Alternar a codificação LDAC para um emparelhado. O formato de controle ainda requer verificação em hardware.",
+        "Alternar a decodificação de áudio de alta qualidade. O formato de controle ainda requer verificação em hardware.",
+        "Enviar um byte de volume absoluto. A faixa de hardware não está verificada.",
+        "Trocar o canal de áudio entre mono e stéreo. O formato de controle ainda requer verificação em hardware.",
+        "Remapear as oito ações de segurar. O formato de controle ainda requer verificação em hardware.",
+        "Remapear as quatro ações acionadas por IA. O formato de controle ainda requer verificação em hardware.",
+        "Alternar o controle de áudio por IA. O formato de controle ainda requer verificação em hardware.",
+        "Desativar o compartilhamento de áudio. O formato de controle ainda requer verificação em hardware.",
+        "Compartilhar áudio com o único emparelhado conectado. O formato de controle ainda requer verificação em hardware.",
+        "Compartilhar áudio com um emparelhado escolhido. O formato de controle ainda requer verificação em hardware.",
+        "Reproduzir um tom de localização no fone esquerdo pelo host. O protocolo de localização ainda requer verificação em hardware.",
+        "Reproduzir um tom de localização no fone direito pelo host. O protocolo de localização ainda requer verificação em hardware.",
+        "Remover o emparelhamento e restaurar os padrões de fábrica. Destrutivo; o formato de controle ainda requer verificação em hardware.",
+        "Decodificar bytes de resposta capturados offline; sem acesso Bluetooth.",
+        "Interpretar um fluxo de captura completo offline; sem acesso Bluetooth.",
+        "Imprimir o pacote estático que um controle enviaria; nunca é transmitido.",
+    ];
+    l.feature_available = "Disponível";
+    l.feature_pending = "Pendente de verificação";
+    l.feature_pending_reason =
+        "O formato de cabo ainda requer verificação em hardware com o app oficial.";
+    l.feature_live_disabled =
+        "A execução ao vivo está desativada até haver evidência verificada no dispositivo.";
+    l.feature_offline_workflow = "Apenas análise offline; nada é enviado ao fone.";
+    l.feature_offline_hint = "Executar: ugreen {}";
+    l.feature_kind_setting = "Ajuste verificado";
+    l.feature_kind_query = "Consulta de dispositivo";
+    l.feature_kind_control = "Controle de dispositivo";
+    l.feature_kind_offline = "Análise offline";
+    l.feature_category_label = "Categoria: {}";
+    l.feature_current = "Atual: {}";
+    l.feature_edit_in_settings = "Editar em Ajustes (s)";
+    l.feature_run_query = "Enter: executar consulta";
+    l.feature_configure = "Enter: configurar";
+    l.feature_back = "Esc: voltar";
+    l.feature_form_title = " Configurar {} ";
+    l.feature_err_required = "Preencha todos os campos antes de revisar";
+    l.feature_field_unset = "não definido";
+    l.feature_form_hint = "Acima Abaixo campo / Esq Dir opção / Enter revisar / Esc voltar";
+    l.feature_review_title = " Revisar {} ";
+    l.review_write_title = " Revisar escrita ";
+    l.feature_review_target = "Destino: {}";
+    l.feature_review_previous = "Atual: {}";
+    l.feature_review_proposed = "Proposto: {}";
+    l.feature_review_values = "Valores: {}";
+    l.feature_review_readback = "Leitura: {}";
+    l.feature_readback_verified = "verificado por confirmação e leitura correspondente";
+    l.feature_readback_noack =
+        "verificado por leitura correspondente (áudio espacial não envia confirmação)";
+    l.feature_readback_unconfirmed = "não confirmado de forma independente; atualize após aplicar";
+    l.feature_readback_query = "consulta somente leitura";
+    l.feature_confirm_apply = "Enter: aplicar    Esc: cancelar";
+    l.feature_confirm_reset =
+        "Destrutivo: remove o emparelhamento do host e restaura os padrões de fábrica.";
+    l.features_footer = [
+        [
+            ("Acima", "mover"),
+            ("Abaixo", "mover"),
+            ("Tab", "categoria"),
+            ("Enter", "abrir"),
+            ("Esc", "voltar"),
+            ("", ""),
+        ],
+        [
+            ("letras", "buscar"),
+            ("Backspace", "apagar"),
+            ("Ctrl+U", "limpar"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+        [
+            ("Esc", "fechar"),
+            ("?", "atalhos"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+    ];
+    l.status_feature_running = "Executando operação de recursos...";
+    l.status_edit_in_settings = "{} é um ajuste verificado; edite na tela de Ajustes (s).";
+    l.codec_unverified = "consulta não verificada";
+    l.arg_enabled = "Ativado";
+    l.arg_side = "Lado";
+    l.arg_duration = "Duração (s)";
+    l.arg_target = "Alvo";
+    l.arg_value = "Valor (0-255)";
+    l.arg_mode = "Modo";
+    l.arg_peer = "Emparelhado";
+    l.arg_actions = "Ações";
+    l.arg_address = "MAC do emparelhado";
+    l.arg_hint_toggle = "on ou off";
+    l.arg_hint_side = "esquerda ou direita";
+    l.arg_hint_seconds = "1..30 segundos";
+    l.arg_hint_byte = "0..255";
+    l.arg_hint_mac = "seis octetos hexadecimais separados por dois pontos";
+    l.arg_hint_peer = "1 ou 2";
+    l.arg_hint_actions = "{} valores de ação separados por vírgulas";
+    l.tui_no_tty =
+        "A interface exige terminais interativas de entrada e saída; execute ugreen --help para os comandos da CLI.";
+    l.tui_bad_channel =
+        "O canal da interface deve ser 1-30 e o tempo de espera maior que zero e no máximo 60 segundos.";
+    l.status_worker_busy =
+        "Já há uma operação em execução; aguarde ou pressione Esc para cancelar.";
+    l.status_worker_sequence = "Sequência de solicitações esgotada; reinicie a interface.";
+    l.status_worker_stopped = "O worker Bluetooth parou; reinicie a interface.";
+    l.status_worker_queue = "A fila do worker está cheia; aguarde antes de tentar novamente.";
+    l.status_reset_unavailable = "alvo de restauração indisponível";
+    l.status_reset_done =
+        "Restauração confirmada; emparelhamento do host e dispositivo salvo removidos.";
+    l.status_inflight_write =
+        "Uma gravação em andamento pode ter sido concluída; atualize após reiniciar.";
     l
 }

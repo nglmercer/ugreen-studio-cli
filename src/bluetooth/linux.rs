@@ -4,11 +4,12 @@
 //! <https://github.com/bluez/bluez/blob/master/doc/bluetoothctl.rst>
 
 use super::{remaining, BluetoothAddress, HostConnectionState, HostHeadset};
+use crate::process::collect_output;
 use std::ffi::{c_int, c_short, c_ulong, c_void};
-use std::io::{self, Read};
+use std::io;
 use std::mem::size_of;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
-use std::process::{Child, Command, Stdio};
+use std::process::Command;
 use std::time::{Duration, Instant};
 
 const AF_BLUETOOTH: c_int = 31;
@@ -23,8 +24,6 @@ const MSG_NOSIGNAL: c_int = 0x4000;
 const POLLIN: c_short = 1;
 const POLLOUT: c_short = 4;
 const POLLNVAL: c_short = 0x20;
-const F_GETFL: c_int = 3;
-const F_SETFL: c_int = 4;
 
 #[repr(C)]
 struct SockAddrRc {
@@ -55,7 +54,6 @@ unsafe extern "C" {
     fn poll(fds: *mut PollFd, count: c_ulong, timeout_ms: c_int) -> c_int;
     fn recv(fd: c_int, buffer: *mut c_void, length: usize, flags: c_int) -> isize;
     fn send(fd: c_int, buffer: *const c_void, length: usize, flags: c_int) -> isize;
-    fn fcntl(fd: c_int, command: c_int, ...) -> c_int;
 }
 
 // These Linux architectures share the constants above. Do not silently apply
@@ -247,53 +245,6 @@ fn socket_error(fd: RawFd) -> io::Result<()> {
     Ok(())
 }
 
-fn nonblocking(fd: RawFd) -> io::Result<()> {
-    // SAFETY: F_GETFL takes no variadic argument and does not change ownership.
-    let flags = unsafe { fcntl(fd, F_GETFL) };
-    if flags < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: F_SETFL takes one c_int argument; fd remains owned by its pipe.
-    if unsafe { fcntl(fd, F_SETFL, flags | SOCK_NONBLOCK) } < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    Ok(())
-}
-
-/// Always kill/reap a child if an early error interrupts output collection.
-struct ChildGuard(Child);
-impl Drop for ChildGuard {
-    fn drop(&mut self) {
-        if !matches!(self.0.try_wait(), Ok(Some(_))) {
-            let _ = self.0.kill();
-            let _ = self.0.wait();
-        }
-    }
-}
-
-const MAX_COMMAND_OUTPUT: usize = 1024 * 1024;
-
-fn drain_pipe(reader: &mut impl Read, output: &mut Vec<u8>) -> io::Result<bool> {
-    let mut buffer = [0; 4096];
-    loop {
-        match reader.read(&mut buffer) {
-            Ok(0) => return Ok(true),
-            Ok(count) => {
-                if output.len() + count > MAX_COMMAND_OUTPUT {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "bluetoothctl output exceeded 1 MiB",
-                    ));
-                }
-                output.extend_from_slice(&buffer[..count]);
-            }
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(false),
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-            Err(error) => return Err(error),
-        }
-    }
-}
-
 /// List the OS's cached paired and connected devices.
 ///
 /// The BlueZ D-Bus API is preferred because it returns typed properties
@@ -360,73 +311,6 @@ fn bluetoothctl_query(filter: &str) -> io::Result<Vec<(BluetoothAddress, String)
     parse_device_lines(&output)
 }
 
-fn collect_output(mut command: Command, timeout: Duration) -> io::Result<String> {
-    let child = command
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| {
-            io::Error::new(
-                error.kind(),
-                format!(
-                    "could not run bluetoothctl (install your distribution's BlueZ tools): {error}"
-                ),
-            )
-        })?;
-    let mut child = ChildGuard(child);
-    let mut stdout = child
-        .0
-        .stdout
-        .take()
-        .ok_or_else(|| io::Error::other("missing bluetoothctl stdout"))?;
-    let mut stderr = child
-        .0
-        .stderr
-        .take()
-        .ok_or_else(|| io::Error::other("missing bluetoothctl stderr"))?;
-    nonblocking(stdout.as_raw_fd())?;
-    nonblocking(stderr.as_raw_fd())?;
-    let deadline = Instant::now() + timeout;
-    let mut out = Vec::new();
-    let mut err = Vec::new();
-    let mut exit = None;
-    loop {
-        let out_done = drain_pipe(&mut stdout, &mut out)?;
-        let err_done = drain_pipe(&mut stderr, &mut err)?;
-        if exit.is_none() {
-            exit = child.0.try_wait()?;
-        }
-        if let Some(status) = exit {
-            if out_done && err_done {
-                let stdout = String::from_utf8_lossy(&out);
-                let stderr = String::from_utf8_lossy(&err);
-                if !status.success() {
-                    return Err(io::Error::other(format!(
-                        "bluetoothctl failed ({status}): {} {}",
-                        stderr.trim(),
-                        stdout.trim()
-                    )));
-                }
-                if !stderr.trim().is_empty() {
-                    return Err(io::Error::other(format!(
-                        "bluetoothctl reported: {}",
-                        stderr.trim()
-                    )));
-                }
-                return Ok(stdout.into_owned());
-            }
-        }
-        if Instant::now() >= deadline {
-            return Err(io::Error::new(
-                io::ErrorKind::TimedOut,
-                "bluetoothctl timed out; check that the BlueZ service is running",
-            ));
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    }
-}
-
 fn strip_ansi(line: &str) -> String {
     let mut result = String::new();
     let mut chars = line.chars().peekable();
@@ -484,7 +368,7 @@ pub(super) fn unpair(address: &super::BluetoothAddress) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
+    use std::io::{Read, Write};
     use std::os::unix::net::UnixStream;
 
     fn local_pair() -> (Connection, UnixStream) {

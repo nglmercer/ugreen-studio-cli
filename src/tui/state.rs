@@ -5,6 +5,7 @@ use super::{
 use crate::{
     bluetooth::{BluetoothAddress, HostConnectionState, HostHeadset},
     device::registry::DeviceRegistry,
+    features::{self, lookup, FeatureId, FeatureKind, FeatureSpec, Operation},
     i18n::{Lang, L},
     models::Model,
     settings::{self, Setting, StudioProState},
@@ -12,23 +13,10 @@ use crate::{
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent};
 use std::{collections::VecDeque, time::Instant};
 
-pub(super) fn choices(index: usize) -> &'static [&'static str] {
-    match index {
-        0 => &["off", "ultra", "general", "gentle", "adaptive", "ambient"],
-        1 => &[
-            "classic",
-            "jazz",
-            "electronic",
-            "pop",
-            "classical",
-            "rock",
-            "bass",
-            "treble",
-        ],
-        2..=5 => &["off", "on"],
-        6 => &["voice", "beeps"],
-        _ => &["none", "next", "previous"],
-    }
+/// Value choices for one setting, derived from its
+/// declarative spec instead of a hand-maintained list.
+pub(super) fn choices(index: usize) -> &'static [(&'static str, u8)] {
+    settings::spec(index).map(|spec| spec.values).unwrap_or(&[])
 }
 pub(super) enum Intent {
     None,
@@ -38,7 +26,18 @@ pub(super) enum Intent {
 }
 /// Setting categories, as absolute indices into
 /// `settings::KEYS`: Audio, Connection, Environment, Feedback.
-pub(super) const CATEGORIES: [&[usize]; 4] = [&[0, 1, 2, 3], &[4], &[5], &[6, 7, 8]];
+/// Derived from the shared setting specs.
+pub(super) fn categories() -> &'static [Vec<usize>] {
+    static CACHED: std::sync::OnceLock<Vec<Vec<usize>>> = std::sync::OnceLock::new();
+    CACHED.get_or_init(settings::category_groups)
+}
+/// Feature workspace tabs: "All" plus one tab per
+/// feature category.
+pub(super) fn feature_tab_labels(t: &L) -> Vec<&'static str> {
+    let mut labels = vec![t.features_all];
+    labels.extend(t.feature_categories.iter().copied());
+    labels
+}
 /// App-settings rows: language, channel, timeout, target.
 const OPTIONS: usize = 4;
 fn fill(template: &str, args: &[&dyn std::fmt::Display]) -> String {
@@ -52,21 +51,55 @@ fn fill(template: &str, args: &[&dyn std::fmt::Display]) -> String {
     }
     out
 }
+/// Typed drafts for one registry feature. Nothing is
+/// defaulted: every field must be set explicitly before
+/// the review screen can build the operation.
+#[derive(Clone)]
+pub(super) struct FeatureForm {
+    pub id: FeatureId,
+    pub drafts: Vec<Option<String>>,
+    pub field: usize,
+}
+impl FeatureForm {
+    fn new(id: FeatureId) -> Self {
+        let spec = lookup(id).expect("registry entry");
+        Self {
+            id,
+            drafts: vec![None; spec.arguments.len()],
+            field: 0,
+        }
+    }
+}
+/// A pending write, committed only through the review
+/// modal: a settings proposal or a typed feature request.
+pub(super) enum Review {
+    Setting { value: String },
+    Feature { form: FeatureForm },
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ObservationView {
+    Audio,
+    Diagnostics,
+}
 pub(super) struct App {
+    pub view_picker: Option<usize>,
+    pub observation_view: Option<ObservationView>,
+    pub observation_scroll: u16,
+    pub diagnostics: Option<crate::diagnostics::DoctorReport>,
+    pub feature_pending_only: bool,
     pub lang: Lang,
     pub address: String,
     pub model_confirmed: bool,
     pub channel: u8,
     pub timeout_seconds: u64,
-    /// The application's RFCOMM control session. While it is open the
-    /// Bluetooth line must read Connected; closing it never rewrites
-    /// `host_connection`.
-    pub control_connected: bool,
-    /// OS Bluetooth link state of the current target: from paired
-    /// enumerations, and held at Connected while a session is open.
+    /// Application RFCOMM state, independent of the last OS observation.
+    pub control_state: crate::bluetooth::ControlSessionState,
+    /// OS Bluetooth link state of the current target, from host enumeration.
     pub host_connection: HostConnectionState,
+    pub host_observed_at: Option<Instant>,
     pub info: Option<StudioProState>,
     pub firmware: Option<String>,
+    pub audio: Option<Vec<crate::audio::AudioStatus>>,
     pub codecs: Option<[(u8, crate::protocol::static_analysis::Codec); 2]>,
     pub observed_at: Option<Instant>,
     pub stale: bool,
@@ -83,8 +116,25 @@ pub(super) struct App {
     pub model_confirmation: bool,
     pub quit_confirmation: bool,
     pub help: bool,
-    pub feature_input: Option<String>,
-    pub feature_confirmation: bool,
+    /// Feature workspace: open flag, selected category
+    /// tab (0 is "All"), tab-bar scroll offset, selected
+    /// feature row, list scroll offset, search filter,
+    /// narrow-layout details view, typed form and the
+    /// pending write review.
+    pub features: bool,
+    pub feature_tab: usize,
+    pub feature_tab_scroll: usize,
+    pub feature_index: usize,
+    pub feature_list_scroll: usize,
+    pub feature_search: String,
+    pub feature_details: bool,
+    pub feature_form: Option<FeatureForm>,
+    pub review: Option<Review>,
+    /// Terminal size of the last rendered frame; the
+    /// workspace layout and its scroll windows derive
+    /// from it.
+    pub width: u16,
+    pub height: u16,
     pub help_scroll: u16,
     pub options: bool,
     pub options_index: usize,
@@ -104,15 +154,22 @@ impl App {
     pub fn new(config: &Config) -> Self {
         let t = crate::i18n::txt(config.lang);
         Self {
+            view_picker: None,
+            observation_view: None,
+            observation_scroll: 0,
+            diagnostics: None,
+            feature_pending_only: false,
             lang: config.lang,
             address: config.address.clone().unwrap_or_default(),
             model_confirmed: config.model_confirmed,
             channel: config.channel,
             timeout_seconds: config.timeout.as_secs(),
-            control_connected: false,
+            control_state: crate::bluetooth::ControlSessionState::Disconnected,
             host_connection: HostConnectionState::Unknown,
+            host_observed_at: None,
             info: None,
             firmware: None,
+            audio: None,
             codecs: None,
             observed_at: None,
             stale: false,
@@ -129,8 +186,17 @@ impl App {
             model_confirmation: false,
             quit_confirmation: false,
             help: false,
-            feature_input: None,
-            feature_confirmation: false,
+            features: false,
+            feature_tab: 0,
+            feature_tab_scroll: 0,
+            feature_index: 0,
+            feature_list_scroll: 0,
+            feature_search: String::new(),
+            feature_details: false,
+            feature_form: None,
+            review: None,
+            width: 80,
+            height: 24,
             help_scroll: 0,
             options: false,
             options_index: 0,
@@ -173,6 +239,56 @@ impl App {
         self.options = true;
         self.options_index = 0;
         self.lang_picker = false;
+    }
+    /// Open the feature workspace. Every other screen
+    /// closes first; the workspace derives its contents
+    /// from the shared feature registry.
+    pub fn open_features(&mut self) {
+        if self.features {
+            return;
+        }
+        self.help = false;
+        self.log_open = false;
+        self.address_edit = None;
+        self.model_confirmation = false;
+        self.paired = None;
+        self.picker = None;
+        self.options = false;
+        self.lang_picker = false;
+        self.proposals = Default::default();
+        self.review = None;
+        self.feature_form = None;
+        self.feature_details = false;
+        self.feature_search.clear();
+        self.feature_tab = 0;
+        self.feature_tab_scroll = 0;
+        self.feature_index = 0;
+        self.feature_list_scroll = 0;
+        self.feature_pending_only = false;
+        self.features = true;
+    }
+    /// The registry entries shown by the active category
+    /// tab and search filter, in listing order.
+    pub(super) fn feature_list(&self) -> Vec<&'static FeatureSpec> {
+        let t = self.t();
+        let search = self.feature_search.to_lowercase();
+        features::FEATURES
+            .iter()
+            .filter(|spec| {
+                let in_category =
+                    self.feature_tab == 0 || spec.category.index() + 1 == self.feature_tab;
+                let matches = search.is_empty()
+                    || spec.name(t).to_lowercase().contains(&search)
+                    || spec.description(t).to_lowercase().contains(&search);
+                in_category
+                    && matches
+                    && (!self.feature_pending_only
+                        || !spec.verified(Model::StudioPro.capabilities()))
+            })
+            .collect()
+    }
+    pub(super) fn selected_feature(&self) -> Option<&'static FeatureSpec> {
+        self.feature_list().get(self.feature_index).copied()
     }
     /// Select one language directly and remember the choice
     /// in the target cache.
@@ -221,13 +337,22 @@ impl App {
         }
     }
     pub fn accepted(&mut self, id: u64, action: Action) {
+        if matches!(action, Action::Connect { .. }) {
+            self.control_state = crate::bluetooth::ControlSessionState::Connecting;
+        }
         let t = self.t();
         self.status = match &action {
+            Action::Doctor { .. } => t.host_commands[3].into(),
+            Action::HostConnection { connected, .. } => {
+                t.host_commands[if *connected { 4 } else { 5 }].into()
+            }
+            Action::HostRefresh { .. } => self.status.clone(),
+            Action::Audio { .. } => t.host_commands[0].into(),
             Action::Paired => t.status_loading.into(),
             Action::Connect { .. } => t.status_connecting.into(),
             Action::Refresh => t.status_refreshing.into(),
             Action::Disconnect => t.status_disconnecting.into(),
-            Action::Feature(_) => "Running headset feature operation".into(),
+            Action::Feature(_) => t.status_feature_running.into(),
             Action::Set(setting) => {
                 let noack = !setting.expects_ack();
                 let template = if noack {
@@ -266,10 +391,65 @@ impl App {
             return None;
         }
         let (_, action) = self.busy.take().expect("matching request exists");
-        self.control_connected = reply.connected;
+        self.control_state = if reply.connected {
+            crate::bluetooth::ControlSessionState::Connected
+        } else if reply.result.is_err() && matches!(action, Action::Connect { .. }) {
+            crate::bluetooth::ControlSessionState::Error
+        } else {
+            crate::bluetooth::ControlSessionState::Disconnected
+        };
         self.writes_blocked = reply.writes_blocked;
         let t = self.t();
         match reply.result {
+            Ok(Output::Doctor(report)) => {
+                if report
+                    .address
+                    .as_ref()
+                    .is_none_or(|a| self.address.eq_ignore_ascii_case(a.as_str()))
+                {
+                    self.diagnostics = Some(report);
+                }
+                self.status = t.host_commands[3].into();
+            }
+            Ok(Output::HostChanged { address, connected }) => {
+                if self.address.eq_ignore_ascii_case(address.as_str()) {
+                    self.host_connection = HostConnectionState::Unknown;
+                    self.host_observed_at = None;
+                    if !connected {
+                        self.clear_snapshot();
+                    }
+                }
+                self.status = t.host_commands[if connected { 4 } else { 5 }].into();
+                return Some(Action::HostRefresh {
+                    address: self.address.clone(),
+                });
+            }
+            Ok(Output::HostSnapshot {
+                address,
+                mut devices,
+            }) => {
+                if self.address.eq_ignore_ascii_case(address.as_str()) {
+                    self.host_connection = devices
+                        .iter()
+                        .find(|d| d.address == address)
+                        .map_or(HostConnectionState::Unknown, |d| d.connected);
+                    self.host_observed_at = Some(Instant::now());
+                    if self.paired.is_some() {
+                        crate::bluetooth::sort_devices(&mut devices, Some(&address));
+                        self.host_observed_at = Some(Instant::now());
+                        self.paired = Some(devices);
+                    }
+                }
+            }
+            Ok(Output::Audio {
+                address,
+                observations,
+            }) => {
+                if self.address.eq_ignore_ascii_case(address.as_str()) {
+                    self.audio = Some(observations);
+                }
+                self.status = t.host_commands[0].into();
+            }
             Ok(Output::Paired(mut devices)) => {
                 // Fresh enumeration in deterministic order: the current
                 // target first, then connected, disconnected, unknown.
@@ -277,9 +457,7 @@ impl App {
                 crate::bluetooth::sort_devices(&mut devices, selected.as_ref());
                 // The Bluetooth link state comes from the OS list;
                 // a target the list no longer knows is Unknown, never
-                // a guessed Disconnected. An open control session
-                // forces Connected after the match below, so a stale
-                // list cannot downgrade a live session.
+                // a guessed Disconnected. This does not alter RFCOMM.
                 self.host_connection = devices
                     .iter()
                     .find(|device| device.address.as_str().eq_ignore_ascii_case(&self.address))
@@ -289,6 +467,7 @@ impl App {
                 } else {
                     t.status_paired_pick.into()
                 };
+                self.host_observed_at = Some(Instant::now());
                 self.paired = Some(devices);
                 self.paired_index = 0;
             }
@@ -330,7 +509,9 @@ impl App {
                 self.status = result.text;
             }
             Ok(Output::Disconnected) => {
+                let audio = self.audio.take();
                 self.clear_snapshot();
+                self.audio = audio;
                 self.status = t.status_disconnected.into();
             }
             // The status was set when the change was
@@ -340,29 +521,24 @@ impl App {
                 if !matches!(action, Action::Paired) {
                     self.stale = self.info.is_some();
                 }
-                if !self.control_connected {
+                if !self.control_state.is_connected() {
                     self.clear_snapshot();
                 }
                 self.status = error;
             }
         }
-        // RFCOMM cannot be open without the Bluetooth link, so an open
-        // session settles the header's Bluetooth line (the OS list can
-        // be stale while the session is live). A reply with no session
-        // leaves the enumerated value untouched.
-        if self.control_connected {
-            self.host_connection = HostConnectionState::Connected;
-        }
         if self.disconnect_after {
             self.disconnect_after = false;
             self.paired = None;
-            if self.control_connected {
+            if self.control_state.is_connected() {
                 return Some(Action::Disconnect);
             }
         }
         None
     }
     fn clear_snapshot(&mut self) {
+        self.diagnostics = None;
+        self.audio = None;
         self.info = None;
         self.firmware = None;
         self.codecs = None;
@@ -375,24 +551,54 @@ impl App {
             return;
         }
         self.worker_alive = false;
+        let t = self.t();
         if self
             .busy
             .as_ref()
             .is_some_and(|(_, action)| action.is_write())
         {
             self.writes_blocked = true;
-            self.status =
-                format!("{error} An in-flight write may have completed; refresh after restarting.");
+            self.status = format!("{error} {}", t.status_inflight_write);
         } else {
             self.status = error;
         }
         self.busy = None;
-        self.control_connected = false;
+        self.control_state = crate::bluetooth::ControlSessionState::Disconnected;
         self.stale = true;
+    }
+    /// Keep the selected feature row and the active
+    /// category tab inside their scrolled windows.
+    pub(super) fn reconcile_scroll(&mut self) {
+        let list_height = self.height.saturating_sub(16).max(2) as usize;
+        let visible = list_height.saturating_sub(2).max(1);
+        if self.feature_index < self.feature_list_scroll {
+            self.feature_list_scroll = self.feature_index;
+        } else if self.feature_index >= self.feature_list_scroll + visible {
+            self.feature_list_scroll = self.feature_index + 1 - visible;
+        }
+        let labels = feature_tab_labels(self.t());
+        let limit = self.width as usize;
+        let mut reachable = false;
+        let mut x = 0usize;
+        for (index, label) in labels.iter().enumerate().skip(self.feature_tab_scroll) {
+            let tab_width = 2 + label.chars().count();
+            if index == self.feature_tab {
+                reachable = x + tab_width <= limit;
+                break;
+            }
+            x += tab_width;
+            if x > limit {
+                break;
+            }
+        }
+        if !reachable {
+            self.feature_tab_scroll = self.feature_tab;
+        }
     }
     /// Mouse: click selects settings/devices/footer buttons; second click on
     /// the same setting advances its proposal; wheel scrolls; right-click is Esc.
-    /// Coordinates are 0-based terminal columns/rows.
+    /// Coordinates are 0-based terminal columns/rows. Every hitbox comes from
+    /// the same computed rectangles the renderer uses.
     pub fn mouse(&mut self, event: MouseEvent, width: u16, height: u16) -> Intent {
         use crossterm::event::{MouseButton, MouseEventKind};
         match event.kind {
@@ -412,15 +618,33 @@ impl App {
         if width < super::view::MIN_WIDTH || height < super::view::MIN_HEIGHT {
             return Intent::None;
         }
-        if self.feature_input.is_some() {
+        let area = ratatui::layout::Rect::new(0, 0, width, height);
+        let regions = super::view::regions(area, self.features);
+        if self.observation_view.is_some() {
             return Intent::None;
         }
-        // Value list: clicking a row applies that value at once.
+        if self.view_picker.is_some() {
+            let rect = super::view::pages_rect(area);
+            if x > rect.x
+                && x < rect.right().saturating_sub(1)
+                && y >= rect.y + 2
+                && y < rect.y + 8
+                && y < rect.bottom().saturating_sub(1)
+            {
+                return self.open_page((y - rect.y - 2) as usize);
+            }
+            return Intent::None;
+        }
+        // The write review modal, the typed feature form
+        // and the narrow-layout details view consume
+        // every click.
+        if self.review.is_some() || self.feature_form.is_some() || self.feature_details {
+            return Intent::None;
+        }
+        // Value list: clicking a row drafts a proposal;
+        // the write review modal commits it.
         if self.picker.is_some() {
-            let rect = super::view::picker_rect(
-                ratatui::layout::Rect::new(0, 0, width, height),
-                choices(self.selected).len(),
-            );
+            let rect = super::view::picker_rect(area, choices(self.selected).len());
             let row = y.saturating_sub(rect.y) as usize;
             if y >= rect.y
                 && y < rect.y + rect.height
@@ -430,7 +654,9 @@ impl App {
             {
                 let values = choices(self.selected);
                 if row - 2 < values.len() {
-                    return self.apply_value(self.selected, values[row - 2]);
+                    self.picker = None;
+                    self.proposals[self.selected] = Some(values[row - 2].0.into());
+                    self.status = self.t().status_proposed.into();
                 }
             }
             return Intent::None;
@@ -439,10 +665,7 @@ impl App {
         // language row opens the language list, and a
         // language in that list applies at once.
         if self.lang_picker {
-            let rect = super::view::options_rect(
-                ratatui::layout::Rect::new(0, 0, width, height),
-                1 + Lang::ALL.len(),
-            );
+            let rect = super::view::options_rect(area, 1 + Lang::ALL.len());
             let row = y.saturating_sub(rect.y) as usize;
             if y >= rect.y
                 && y < rect.y + rect.height
@@ -460,10 +683,7 @@ impl App {
             return Intent::None;
         }
         if self.options {
-            let rect = super::view::options_rect(
-                ratatui::layout::Rect::new(0, 0, width, height),
-                1 + OPTIONS,
-            );
+            let rect = super::view::options_rect(area, 1 + OPTIONS);
             let row = y.saturating_sub(rect.y) as usize;
             if y >= rect.y
                 && y < rect.y + rect.height
@@ -483,39 +703,34 @@ impl App {
             }
             return Intent::None;
         }
-        // Footer: 3 rows at the bottom; each row holds 6 shortcut slots.
-        let footer_top = height.saturating_sub(3);
-        if y >= footer_top {
-            let row = (y - footer_top) as usize;
-            let slot = (x / width.max(1).saturating_div(6).max(1)) as usize;
-            let key = self
-                .t()
-                .footer
-                .get(row)
-                .and_then(|r| r.get(slot.min(5)))
-                .map(|(k, _)| *k)
-                .unwrap_or("");
-            if key.is_empty() {
-                return Intent::None;
+        // Footer: 3 rows at the bottom; hitboxes come
+        // from the same slot rectangles the renderer
+        // lays out.
+        let rows = if self.features {
+            self.t().features_footer
+        } else {
+            super::view::footer_rows(self.t())
+        };
+        for (key, rect) in super::view::footer_slots(area, &rows) {
+            if x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height {
+                return match super::view::footer_key(key) {
+                    Some(event) => self.key(event),
+                    None => Intent::None,
+                };
             }
-            let code = match key {
-                "Enter" => KeyCode::Enter,
-                "Esc" => KeyCode::Esc,
-                "Tab" => KeyCode::Tab,
-                "<" => KeyCode::Left,
-                ">" => KeyCode::Right,
-                c => KeyCode::Char(c.chars().next().unwrap_or('?')),
-            };
-            return self.key(KeyEvent::new(code, KeyModifiers::NONE));
         }
-        // Paired-device dialog rows start at the dialog's list area; map by
-        // relative index when the dialog is open.
+        // Paired-device dialog rows map through the
+        // centered dialog rectangle the renderer uses.
         if self.paired.is_some() {
             let count = self.paired.as_ref().map(Vec::len).unwrap_or(0);
-            // Dialog is centered; approximate list start from height.
-            let list_top = height.saturating_sub(count as u16).saturating_sub(4) / 2 + 2;
-            if y >= list_top {
-                let idx = (y - list_top) as usize;
+            let rect = super::view::centered(
+                area,
+                width.saturating_sub(4).min(100),
+                height.saturating_sub(4),
+            );
+            if y > rect.y && y < rect.y + rect.height - 1 && x >= rect.x && x < rect.x + rect.width
+            {
+                let idx = (y - rect.y - 1) as usize;
                 if idx < count {
                     self.paired_index = idx;
                     return self.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -529,12 +744,65 @@ impl App {
         if self.help || self.log_open {
             return Intent::None;
         }
-        // Settings list: 7 header rows, 1 tab row, 1 panel
-        // border; visible row i selects the category's i-th
-        // setting. A second click proposes the next value.
-        if y >= 9 {
-            let visible = CATEGORIES[self.tab];
-            let index = (y - 9) as usize;
+        if self.features {
+            // Category tabs: a click switches the filter.
+            let labels = feature_tab_labels(self.t());
+            for (position, rect) in
+                super::view::tab_rects(regions.tabs, &labels, self.feature_tab_scroll)
+                    .iter()
+                    .enumerate()
+            {
+                let index = position + self.feature_tab_scroll;
+                if x >= rect.x
+                    && x < rect.x + rect.width
+                    && y >= rect.y
+                    && y < rect.y + rect.height
+                    && self.feature_tab != index
+                {
+                    self.feature_tab = index;
+                    self.feature_index = 0;
+                    self.feature_list_scroll = 0;
+                    return Intent::None;
+                }
+            }
+            // Feature rows: the first click selects, the
+            // second activates the feature.
+            let list = self.feature_list();
+            if y > regions.list.y && y < regions.list.y + regions.list.height - 1 {
+                let index = (y - regions.list.y - 1) as usize + self.feature_list_scroll;
+                if index < list.len() {
+                    if self.feature_index == index {
+                        return self.feature_activate();
+                    }
+                    self.feature_index = index;
+                }
+            }
+            return Intent::None;
+        }
+        // Settings category tabs.
+        if y >= regions.tabs.y && y <= regions.tabs.y + regions.tabs.height {
+            for (index, rect) in super::view::tab_rects(regions.tabs, &self.t().categories, 0)
+                .iter()
+                .enumerate()
+            {
+                if x >= rect.x
+                    && x < rect.x + rect.width
+                    && y >= rect.y
+                    && y < rect.y + rect.height
+                    && self.tab != index
+                {
+                    self.switch_tab(index);
+                    return Intent::None;
+                }
+            }
+            return Intent::None;
+        }
+        // Settings list rows: 7 header rows, 1 tab row, 1
+        // panel border; visible row i selects the category's
+        // i-th setting. A second click proposes the next value.
+        if y > regions.list.y && y < regions.list.y + regions.list.height - 1 {
+            let visible = &categories()[self.tab];
+            let index = (y - regions.list.y - 1) as usize;
             if index < visible.len() {
                 let absolute = visible[index];
                 if self.selected == absolute && self.busy.is_none() {
@@ -545,45 +813,232 @@ impl App {
         }
         Intent::None
     }
-    pub(super) fn prepare_feature(&mut self, caps: crate::models::Capabilities) -> Intent {
-        let operation = match super::features::Operation::parse(
-            self.feature_input.as_deref().unwrap_or_default(),
-        ) {
-            Ok(operation) => operation,
-            Err(error) => {
-                self.status = error;
-                return Intent::None;
-            }
+    /// Activate the selected feature. Pending features only
+    /// explain their state; verified settings hand editing
+    /// back to the settings screen; queries and typed
+    /// controls go through the worker's guards.
+    fn feature_activate(&mut self) -> Intent {
+        let Some(spec) = self.selected_feature() else {
+            return Intent::None;
         };
-        if let Err(error) = operation.check(caps) {
+        let t = self.t();
+        if !spec.verified(Model::StudioPro.capabilities()) {
+            // Pending verification never opens a live
+            // operation; the explanation says so.
+            self.status = format!("{} - {}", t.feature_pending, t.feature_pending_reason);
+            if self.width < super::view::WIDE_WIDTH {
+                self.feature_details = true;
+            }
+            return Intent::None;
+        }
+        match spec.kind {
+            FeatureKind::OfflineAnalysis => {
+                let command = spec.offline_command().unwrap_or_default();
+                self.status = fill(t.feature_offline_hint, &[&command]);
+                Intent::None
+            }
+            FeatureKind::VerifiedSetting => {
+                let key = spec.setting.unwrap_or_default();
+                self.select_setting_by_key(key);
+                self.features = false;
+                self.feature_details = false;
+                self.feature_search.clear();
+                self.status = fill(t.status_edit_in_settings, &[&spec.name(t)]);
+                Intent::None
+            }
+            FeatureKind::DeviceQuery => match spec.operation(&[]) {
+                Ok(operation) => self.submit_feature(operation),
+                Err(error) => {
+                    self.status = error;
+                    Intent::None
+                }
+            },
+            FeatureKind::DeviceControl => {
+                if spec.arguments.is_empty() {
+                    self.review = Some(Review::Feature {
+                        form: FeatureForm::new(spec.id),
+                    });
+                } else {
+                    self.feature_form = Some(FeatureForm::new(spec.id));
+                }
+                Intent::None
+            }
+        }
+    }
+    /// Select the settings-screen row that edits a
+    /// verified setting key.
+    fn select_setting_by_key(&mut self, key: &str) {
+        if let Some(index) = settings::KEYS
+            .iter()
+            .position(|candidate| *candidate == key)
+        {
+            self.selected = index;
+            let groups = categories();
+            if let Some((tab, _)) = groups
+                .iter()
+                .enumerate()
+                .find(|(_, group)| group.contains(&index))
+            {
+                self.tab = tab;
+            }
+        }
+    }
+    /// Submit a typed feature operation through the same
+    /// guards the settings screen uses: capability, model
+    /// confirmation, connection, busy and write lockout.
+    fn submit_feature(&mut self, operation: Operation) -> Intent {
+        let t = self.t();
+        if let Err(error) = operation.check(Model::StudioPro.capabilities()) {
             self.status = error.to_string();
             return Intent::None;
         }
-        if !self.control_connected || !self.model_confirmed {
-            self.status = self.t().status_must_connect.into();
+        if !self.control_state.is_connected() || !self.model_confirmed {
+            self.status = t.status_must_connect.into();
             return Intent::None;
         }
         if self.busy.is_some() || !self.worker_alive {
             return Intent::None;
         }
         if operation.is_write() && self.writes_blocked {
-            self.status = self.t().status_blocked_note.into();
+            self.status = t.status_blocked_note.into();
             return Intent::None;
         }
-        if operation.is_write() && !self.feature_confirmation {
-            self.feature_confirmation = true;
-            self.status = if operation.is_reset() {
-                "Factory reset removes host pairing and saved device. Enter to confirm; Esc to cancel.".into()
-            } else {
-                format!(
-                    "Apply feature to {}? Enter to confirm; Esc to cancel.",
-                    self.address
-                )
-            };
-            return Intent::None;
-        }
-        self.feature_confirmation = false;
         Intent::Request(Action::Feature(operation))
+    }
+    /// Cycle a toggle, choice or peer-index field to its
+    /// next value; the draft is set, never left empty.
+    fn cycle_argument(&mut self, forward: bool) {
+        let Some(form) = self.feature_form.as_mut() else {
+            return;
+        };
+        let Some(spec) = lookup(form.id) else {
+            return;
+        };
+        let Some(argument) = spec.arguments.get(form.field) else {
+            return;
+        };
+        let draft = &mut form.drafts[form.field];
+        match argument.kind {
+            features::ArgumentKind::Toggle => {
+                let on = draft.as_deref() == Some("on");
+                *draft = Some(if on { "off" } else { "on" }.into());
+            }
+            features::ArgumentKind::PeerIndex => {
+                let next = if draft.as_deref() == Some("1") {
+                    "2"
+                } else {
+                    "1"
+                };
+                *draft = Some(next.into());
+            }
+            features::ArgumentKind::Choice(options) => {
+                let position = draft
+                    .as_deref()
+                    .and_then(|value| options.iter().position(|(name, _)| *name == value));
+                let next = match position {
+                    Some(position) => {
+                        let len = options.len();
+                        if forward {
+                            (position + 1) % len
+                        } else {
+                            (position + len - 1) % len
+                        }
+                    }
+                    None => 0,
+                };
+                *draft = Some(options[next].0.into());
+            }
+            features::ArgumentKind::Side
+            | features::ArgumentKind::Seconds
+            | features::ArgumentKind::Byte
+            | features::ArgumentKind::Mac
+            | features::ArgumentKind::Actions(_) => {}
+        }
+    }
+    /// Type into the selected form field, accepting only
+    /// the characters its argument kind allows.
+    fn feature_form_char(&mut self, c: char) {
+        let Some(form) = self.feature_form.as_mut() else {
+            return;
+        };
+        let Some(spec) = lookup(form.id) else {
+            return;
+        };
+        let Some(argument) = spec.arguments.get(form.field) else {
+            return;
+        };
+        let draft = form.drafts[form.field].get_or_insert_with(String::new);
+        match argument.kind {
+            features::ArgumentKind::Toggle
+            | features::ArgumentKind::Side
+            | features::ArgumentKind::Choice(_)
+            | features::ArgumentKind::PeerIndex => {}
+            features::ArgumentKind::Seconds => {
+                if c.is_ascii_digit() && draft.chars().count() < 2 {
+                    draft.push(c);
+                }
+            }
+            features::ArgumentKind::Byte => {
+                if c.is_ascii_digit() && draft.chars().count() < 3 {
+                    draft.push(c);
+                }
+            }
+            features::ArgumentKind::Mac => {
+                if (c.is_ascii_hexdigit() || c == ':') && draft.chars().count() < 17 {
+                    draft.push(c.to_ascii_uppercase());
+                }
+            }
+            features::ArgumentKind::Actions(_) => {
+                if (c.is_ascii_digit() || c == ',') && draft.chars().count() < 30 {
+                    draft.push(c);
+                }
+            }
+        }
+    }
+    pub(super) fn open_page(&mut self, index: usize) -> Intent {
+        if self.busy.is_some() || !self.worker_alive {
+            return Intent::None;
+        }
+        self.view_picker = None;
+        self.observation_view = None;
+        self.observation_scroll = 0;
+        self.features = false;
+        self.feature_details = false;
+        self.feature_form = None;
+        self.review = None;
+        self.paired = None;
+        self.help = false;
+        self.log_open = false;
+        self.options = false;
+        self.lang_picker = false;
+        match index {
+            0 => Intent::Request(Action::Paired),
+            1 => {
+                self.observation_view = Some(ObservationView::Audio);
+                Intent::Request(Action::Audio {
+                    address: self.address.clone(),
+                })
+            }
+            2 => Intent::None,
+            3 => {
+                self.open_features();
+                self.feature_tab = features::FeatureCategory::Multipoint.index() + 1;
+                Intent::None
+            }
+            4 => {
+                self.open_features();
+                self.feature_pending_only = true;
+                Intent::None
+            }
+            5 => {
+                self.observation_view = Some(ObservationView::Diagnostics);
+                Intent::Request(Action::Doctor {
+                    address: (!self.address.is_empty()).then(|| self.address.clone()),
+                    model: self.model_confirmed.then_some(Model::StudioPro),
+                })
+            }
+            _ => Intent::None,
+        }
     }
     pub fn key(&mut self, key: KeyEvent) -> Intent {
         if key.kind != KeyEventKind::Press {
@@ -592,11 +1047,12 @@ impl App {
         let t = self.t();
         let quit = key.code == KeyCode::Char('q')
             || (key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL));
-        // Address entry uses q as text, but Ctrl-C remains a quit action.
-        if quit
-            && ((self.address_edit.is_none() && self.feature_input.is_none())
-                || key.modifiers.contains(KeyModifiers::CONTROL))
-        {
+        // Text entry screens use q as text, but Ctrl-C
+        // remains a quit action. The feature workspace
+        // search and the typed feature form are text
+        // entry too.
+        let typing = self.address_edit.is_some() || self.feature_form.is_some() || self.features;
+        if quit && (!typing || key.modifiers.contains(KeyModifiers::CONTROL)) {
             // A lone paired-cache read cannot corrupt device state, so quitting
             // through it needs no confirmation; anything else in flight might
             // still complete a write.
@@ -621,43 +1077,187 @@ impl App {
                 _ => Intent::None,
             };
         }
-        if self.feature_input.is_some() {
-            if self.busy.is_some() {
-                return if key.code == KeyCode::Esc {
-                    Intent::Cancel
-                } else {
-                    Intent::None
-                };
+        if let Some(index) = self.view_picker {
+            match key.code {
+                KeyCode::Esc => self.view_picker = None,
+                KeyCode::Up => self.view_picker = Some(index.saturating_sub(1)),
+                KeyCode::Down => self.view_picker = Some((index + 1).min(5)),
+                KeyCode::Enter => return self.open_page(index),
+                _ => {}
             }
+            return Intent::None;
+        }
+        if let Some(view) = self.observation_view {
             match key.code {
                 KeyCode::Esc => {
-                    if self.feature_confirmation {
-                        self.feature_confirmation = false;
-                    } else {
-                        self.feature_input = None;
+                    if self.busy.is_some() {
+                        return Intent::Cancel;
+                    }
+                    self.observation_view = None;
+                }
+                KeyCode::Up => self.observation_scroll = self.observation_scroll.saturating_sub(1),
+                KeyCode::Down => {
+                    self.observation_scroll = self.observation_scroll.saturating_add(1).min(4096)
+                }
+                KeyCode::Home => self.observation_scroll = 0,
+                KeyCode::Char('r') => {
+                    return self.open_page(if view == ObservationView::Audio { 1 } else { 5 })
+                }
+                _ => {}
+            }
+            return Intent::None;
+        }
+        // Write review: a settings proposal or a typed
+        // feature request commits only through this
+        // modal, which shows target, current value,
+        // proposed value and readback expectations.
+        if self.review.is_some() {
+            match key.code {
+                KeyCode::Enter => {
+                    let review = self.review.take().expect("review is open");
+                    match review {
+                        Review::Setting { value } => {
+                            return self.apply_value(self.selected, &value);
+                        }
+                        Review::Feature { form } => {
+                            let spec = lookup(form.id).expect("registry entry");
+                            match spec.operation(&form.drafts) {
+                                Ok(operation) => return self.submit_feature(operation),
+                                Err(error) => self.status = error,
+                            }
+                        }
+                    }
+                }
+                KeyCode::Esc => {
+                    // A feature review returns to its form
+                    // so the values stay editable.
+                    if let Some(Review::Feature { form }) = self.review.take() {
+                        self.feature_form = Some(form);
+                    }
+                }
+                _ => {}
+            }
+            return Intent::None;
+        }
+        // Typed feature form: fill every field, then
+        // review before anything is sent.
+        if self.feature_form.is_some() {
+            match key.code {
+                KeyCode::Esc => self.feature_form = None,
+                KeyCode::Up => {
+                    if let Some(form) = self.feature_form.as_mut() {
+                        form.field = form.field.saturating_sub(1);
+                    }
+                }
+                KeyCode::Down => {
+                    if let Some(form) = self.feature_form.as_mut() {
+                        let last = form.drafts.len().saturating_sub(1);
+                        form.field = (form.field + 1).min(last);
+                    }
+                }
+                KeyCode::Left => self.cycle_argument(false),
+                KeyCode::Right => self.cycle_argument(true),
+                KeyCode::Backspace => {
+                    if let Some(form) = self.feature_form.as_mut() {
+                        form.drafts[form.field] = None;
+                    }
+                }
+                KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    if let Some(form) = self.feature_form.as_mut() {
+                        form.drafts[form.field] = None;
                     }
                 }
                 KeyCode::Enter => {
-                    return self.prepare_feature(Model::StudioPro.capabilities());
+                    let Some(form) = self.feature_form.clone() else {
+                        return Intent::None;
+                    };
+                    let spec = lookup(form.id).expect("registry entry");
+                    if let Some(label) = spec
+                        .arguments
+                        .iter()
+                        .zip(form.drafts.iter())
+                        .find(|(_, draft)| draft.is_none())
+                        .map(|(argument, _)| (argument.label)(t))
+                    {
+                        self.status = fill(t.feature_err_required, &[&label]);
+                        return Intent::None;
+                    }
+                    match spec.operation(&form.drafts) {
+                        Ok(_) => self.review = Some(Review::Feature { form }),
+                        Err(error) => self.status = error,
+                    }
                 }
+                KeyCode::Char(c) => self.feature_form_char(c),
+                _ => {}
+            }
+            return Intent::None;
+        }
+        // Narrow-layout feature details: a separate view
+        // that lists, explains and activates features.
+        if self.feature_details {
+            match key.code {
+                KeyCode::Esc => self.feature_details = false,
+                KeyCode::Up => self.feature_move(false),
+                KeyCode::Down => self.feature_move(true),
+                KeyCode::Tab => self.feature_tab_cycle(true),
+                KeyCode::BackTab => self.feature_tab_cycle(false),
+                KeyCode::Enter => return self.feature_activate(),
+                _ => {}
+            }
+            return Intent::None;
+        }
+        // Feature workspace: category tabs, searchable
+        // registry listing and details.
+        if self.features {
+            if self.busy.is_some() || !self.worker_alive {
+                // While an operation is in flight the
+                // workspace locks like the settings
+                // screen: Esc cancels.
+                if key.code == KeyCode::Esc {
+                    self.status = self.t().status_cancel_busy.into();
+                    return Intent::Cancel;
+                }
+                return Intent::None;
+            }
+            match key.code {
+                KeyCode::Esc => {
+                    self.features = false;
+                    self.feature_details = false;
+                    self.feature_form = None;
+                    self.review = None;
+                }
+                KeyCode::Up => self.feature_move(false),
+                KeyCode::Down => self.feature_move(true),
+                KeyCode::Tab => self.feature_tab_cycle(true),
+                KeyCode::BackTab => self.feature_tab_cycle(false),
+                KeyCode::Left => self.feature_tab_cycle(false),
+                KeyCode::Right => self.feature_tab_cycle(true),
                 KeyCode::Backspace => {
-                    self.feature_confirmation = false;
-                    self.feature_input.as_mut().unwrap().pop();
+                    self.feature_search.pop();
+                    self.feature_index = 0;
+                    self.feature_list_scroll = 0;
                 }
                 KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    self.feature_confirmation = false;
-                    self.feature_input.as_mut().unwrap().clear();
+                    self.feature_search.clear();
+                    self.feature_index = 0;
+                    self.feature_list_scroll = 0;
                 }
-                KeyCode::Char(c)
-                    if c.is_ascii()
-                        && !c.is_ascii_control()
-                        && !key.modifiers.contains(KeyModifiers::CONTROL) =>
-                {
-                    self.feature_confirmation = false;
-                    let input = self.feature_input.as_mut().unwrap();
-                    if input.len() < 256 {
-                        input.push(c);
+                KeyCode::Char(c) if c.is_ascii_graphic() => {
+                    if self.feature_search.chars().count() < 64 {
+                        self.feature_search.push(c);
+                        self.feature_index = 0;
+                        self.feature_list_scroll = 0;
                     }
+                }
+                KeyCode::Enter => {
+                    // On wide terminals the details panel is
+                    // always visible, so Enter activates at
+                    // once; narrow terminals open the details
+                    // view first.
+                    if self.width >= super::view::WIDE_WIDTH {
+                        return self.feature_activate();
+                    }
+                    self.feature_details = true;
                 }
                 _ => {}
             }
@@ -665,7 +1265,9 @@ impl App {
         }
         if let Some(index) = self.picker {
             // Value list: pick directly instead of stepping
-            // through values with Left/Right.
+            // through values with Left/Right. Selecting a
+            // value drafts a proposal; the write review
+            // modal commits it.
             let values = choices(self.selected);
             let count = values.len();
             match key.code {
@@ -675,7 +1277,9 @@ impl App {
                 KeyCode::Home => self.picker = Some(0),
                 KeyCode::End => self.picker = Some(count.saturating_sub(1)),
                 KeyCode::Enter => {
-                    return self.apply_value(self.selected, values[index]);
+                    self.proposals[self.selected] = Some(values[index].0.into());
+                    self.picker = None;
+                    self.status = t.status_proposed.into();
                 }
                 _ => {}
             }
@@ -848,6 +1452,17 @@ impl App {
                 KeyCode::Down => {
                     self.paired_index = (self.paired_index + 1).min(devices.len().saturating_sub(1))
                 }
+                KeyCode::Char('h' | 'H') if self.busy.is_none() && self.worker_alive => {
+                    if let Some(device) = devices.get(self.paired_index) {
+                        return Intent::Request(Action::HostConnection {
+                            address: device.address.to_string(),
+                            connected: key.code == KeyCode::Char('h'),
+                        });
+                    }
+                }
+                KeyCode::Enter if self.control_state.is_connected() || self.busy.is_some() => {
+                    self.status = self.t().status_must_disconnect.into();
+                }
                 KeyCode::Enter => {
                     if let Some(device) = devices.get(self.paired_index) {
                         // The listed address is typed and canonical by
@@ -894,8 +1509,7 @@ impl App {
             return Intent::None;
         }
         if key.code == KeyCode::Char('F') {
-            self.feature_input = Some(String::new());
-            self.feature_confirmation = false;
+            self.open_features();
             return Intent::None;
         }
         if key.code == KeyCode::Char('l') {
@@ -923,7 +1537,7 @@ impl App {
                 self.status = self.t().status_cancel_then_disconnect.into();
                 return Intent::Cancel;
             }
-            if self.control_connected {
+            if self.control_state.is_connected() {
                 return Intent::Request(Action::Disconnect);
             }
         }
@@ -931,14 +1545,20 @@ impl App {
             return Intent::None;
         }
         match key.code {
-            KeyCode::Char('a') if !self.control_connected => {
+            KeyCode::Char('a') if !self.control_state.is_connected() => {
                 self.address_edit = Some(self.address.clone())
             }
-            KeyCode::Char('p') if !self.control_connected => {
-                return Intent::Request(Action::Paired)
+            KeyCode::Char('v') => {
+                self.view_picker = Some(0);
+                return Intent::None;
             }
-            KeyCode::Char('m') if !self.control_connected => self.model_confirmation = true,
-            KeyCode::Char('c') if !self.control_connected => {
+            KeyCode::Char('A') => return self.open_page(1),
+            KeyCode::Char('D') => return self.open_page(5),
+            KeyCode::Char('p') => return Intent::Request(Action::Paired),
+            KeyCode::Char('m') if !self.control_state.is_connected() => {
+                self.model_confirmation = true
+            }
+            KeyCode::Char('c') if !self.control_state.is_connected() => {
                 if worker::validate_address(&self.address).is_err() {
                     self.status = self.t().status_bad_address.into();
                 } else if !self.model_confirmed {
@@ -950,19 +1570,19 @@ impl App {
                     });
                 }
             }
-            KeyCode::Char('r') if self.control_connected => {
+            KeyCode::Char('r') if self.control_state.is_connected() => {
                 return Intent::Request(Action::Refresh)
             }
-            KeyCode::Char('a' | 'p' | 'm') if self.control_connected => {
+            KeyCode::Char('a' | 'm') if self.control_state.is_connected() => {
                 self.status = self.t().status_must_disconnect.into()
             }
             KeyCode::Char('r') => self.status = self.t().status_must_connect.into(),
-            KeyCode::Tab => self.switch_tab((self.tab + 1) % CATEGORIES.len()),
+            KeyCode::Tab => self.switch_tab((self.tab + 1) % categories().len()),
             KeyCode::BackTab => {
-                self.switch_tab((self.tab + CATEGORIES.len() - 1) % CATEGORIES.len())
+                self.switch_tab((self.tab + categories().len() - 1) % categories().len())
             }
             KeyCode::Char(c) if c.is_ascii_digit() && c != '0' => {
-                let visible = CATEGORIES[self.tab];
+                let visible = &categories()[self.tab];
                 let index = usize::from(c as u8 - b'0');
                 if index <= visible.len() {
                     self.selected = visible[index - 1];
@@ -976,13 +1596,13 @@ impl App {
                     .clone()
                     .or_else(|| self.info.as_ref()?.value(settings::KEYS[self.selected]));
                 if let Some(current) = current {
-                    if let Some(index) = values.iter().position(|value| *value == current) {
+                    if let Some(index) = values.iter().position(|(name, _)| *name == current) {
                         let next = if key.code == KeyCode::Right {
                             (index + 1) % values.len()
                         } else {
                             (index + values.len() - 1) % values.len()
                         };
-                        self.proposals[self.selected] = Some(values[next].into());
+                        self.proposals[self.selected] = Some(values[next].0.into());
                         self.status = self.t().status_proposed.into();
                     }
                 } else {
@@ -991,9 +1611,12 @@ impl App {
             }
             KeyCode::Enter if self.can_write() => {
                 if let Some(value) = self.proposals[self.selected].clone() {
-                    // A proposal applies directly; the write itself is
-                    // preflight-checked, sent and readback-verified.
-                    return self.apply_value(self.selected, &value);
+                    // A proposal is a draft: the write review
+                    // modal shows the target, the current
+                    // value, the proposed value and the
+                    // readback expectation before committing.
+                    self.review = Some(Review::Setting { value });
+                    return Intent::None;
                 }
                 // No proposal yet: open the value list so a value can
                 // be selected directly instead of stepping with arrows.
@@ -1006,7 +1629,7 @@ impl App {
                     Some(current) => {
                         let index = values
                             .iter()
-                            .position(|value| *value == current)
+                            .position(|(name, _)| *name == current)
                             .unwrap_or(0);
                         self.picker = Some(index);
                     }
@@ -1021,8 +1644,11 @@ impl App {
         Intent::None
     }
     fn can_write(&self) -> bool {
-        self.control_connected
+        self.control_state.is_connected()
             && self.model_confirmed
+            && crate::models::capabilities_for(Some(Model::StudioPro), self.firmware.as_deref())
+                .bits()
+                != 0
             && self.info.is_some()
             && !self.stale
             && !self.writes_blocked
@@ -1031,14 +1657,14 @@ impl App {
     }
     /// Switch the setting category and select its first setting.
     fn switch_tab(&mut self, tab: usize) {
-        self.tab = tab % CATEGORIES.len();
-        self.selected = CATEGORIES[self.tab][0];
+        self.tab = tab % categories().len();
+        self.selected = categories()[self.tab][0];
         self.status = fill(self.t().status_category, &[&self.t().categories[self.tab]]);
     }
     /// Move within the active category; at a boundary, cross
     /// into the adjacent category instead of wrapping around.
     fn move_selection(&mut self, forward: bool) {
-        let visible = CATEGORIES[self.tab];
+        let visible = &categories()[self.tab];
         match visible.iter().position(|&index| index == self.selected) {
             Some(position) => {
                 let next = if forward {
@@ -1055,8 +1681,8 @@ impl App {
                 } else {
                     self.tab.wrapping_sub(1)
                 };
-                if target < CATEGORIES.len() {
-                    let items = CATEGORIES[target];
+                if target < categories().len() {
+                    let items = &categories()[target];
                     self.tab = target;
                     self.selected = if forward {
                         items[0]
@@ -1077,11 +1703,36 @@ impl App {
             }
         }
     }
+    fn feature_move(&mut self, forward: bool) {
+        let count = self.feature_list().len();
+        if count == 0 {
+            return;
+        }
+        self.feature_index = if forward {
+            (self.feature_index + 1) % count
+        } else {
+            (self.feature_index + count - 1) % count
+        };
+    }
+    fn feature_tab_cycle(&mut self, forward: bool) {
+        let count = 1 + features::FeatureCategory::ALL.len();
+        self.feature_tab = if forward {
+            (self.feature_tab + 1) % count
+        } else {
+            (self.feature_tab + count - 1) % count
+        };
+        self.feature_index = 0;
+        self.feature_list_scroll = 0;
+    }
     /// Send one value as a write. Writing the value the device
     /// already reports is a no-op; anything else goes through
     /// the worker's preflight, acknowledgement and readback.
     fn apply_value(&mut self, absolute: usize, value: &str) -> Intent {
         self.picker = None;
+        if !self.can_write() {
+            self.status = self.t().status_blocked_note.into();
+            return Intent::None;
+        }
         if self
             .info
             .as_ref()

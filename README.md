@@ -40,15 +40,15 @@ ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status
 
 The default `tui` Cargo feature uses Ratatui 0.30.2 and Crossterm 0.29.0. `ugreen tui` opens the interface explicitly. Running with no arguments opens it only when both stdin and stdout are terminals; otherwise it prints help. Explicit CLI commands stay scriptable.
 
-- `a`: edit address; `p`: load paired-device cache; `m`, then `y`: confirm model protocol
+- `v`: page selector; `A`: Audio; `D`: Diagnostics; `F`: feature workspace; `a`: edit address; `p`: load host devices (also during a session); `m`, then `y`: confirm model protocol
 - `c`: connect; `r`: refresh status; `d`: disconnect
 - Up/Down: select a setting; Left/Right: change its proposed value
-- Enter: review a change; `y`: confirm it; Esc: cancel a dialog
+- Enter: review a change; Enter again: confirm it; Esc: cancel a dialog
 - `l`: session log; `?`: help; `q`: quit
 
-A proposed value is not a device value. A change is verified only after a valid acknowledgement and matching readback. Battery comes from device-info bytes; unavailable values remain unknown. Codec status/control is unavailable. See [Usage](docs/usage.md) for the full workflow and failure behavior.
+A proposed value is not a device value. A change is verified only after a valid acknowledgement and matching readback. Battery comes from device-info bytes; unavailable values remain unknown. Linux OS codec observations are available through `audio status` or TUI `A` when PipeWire reports an address-matched transport. The vendor codec query and codec controls remain gated. See [Usage](docs/usage.md) for the full workflow and failure behavior.
 
-To omit the TUI dependencies and keep the standard-library-only CLI:
+To omit the TUI dependencies and keep the CLI without terminal dependencies:
 
 ```sh
 cargo build --release --locked --no-default-features
@@ -88,7 +88,7 @@ Profiles are UTF-8 `key=value` text, at most 16 KiB, with mandatory `model=studi
 - Hardware requests need an explicit address and Studio Pro protocol selection. Model selection is not device-identity detection
 - `discover` reads cached paired devices. There is no active scan, pairing, or automatic target choice; the TUI only ever reconnects to your last confirmed device (on by default, `--no-autoconnect` opts out) and never picks an unknown device
 - Multipoint peer management (list, disconnect, reconnect, switch) is refused before any byte is sent until a verified Studio Pro capture exists; the dual toggle is a separate verified setting
-- A valid device-info preflight precedes setting writes; matching readback is required to report success
+- Actual firmware `0.2.5` and a valid device-info preflight are required before CLI/TUI setting writes; matching readback is required to report success
 - Writes are not automatically retried. A timeout may mean a setting changed but its acknowledgement was lost; query status before trying again
 - No firmware updates, factory reset, raw-transmit command, find-headphones sound, actual volume changes, or ANC-button remapping
 - No telemetry, network service, account, or stored credentials; local Bluetooth control only
@@ -123,3 +123,27 @@ Linux and Windows have native RFCOMM backends. The [CI workflow](.github/workflo
 ## License and attribution
 
 [MIT](LICENSE). Protocol port and captured fixture adapted from [sanild/ugreen-studio-controller-macos](https://github.com/sanild/ugreen-studio-controller-macos). Framing/CRC research was cross-checked against [tzy3454u/ugreen-headphone-control](https://github.com/tzy3454u/ugreen-headphone-control). Original MIT notices are retained in [third-party](third-party/); keep them when redistributing. Terminal dependencies have their own licenses; see the [Rust dependency inventory](third-party/RUST-DEPENDENCIES.md). Product names and trademarks belong to their respective owners.
+
+## Host diagnostics and evidence
+
+```sh
+ugreen --json devices
+ugreen --json --model studio-pro capabilities
+ugreen --address AA:BB:CC:DD:EE:FF --json audio status
+ugreen audio devices
+ugreen --address AA:BB:CC:DD:EE:FF --json doctor
+ugreen --address AA:BB:CC:DD:EE:FF host connect
+ugreen --address AA:BB:CC:DD:EE:FF host disconnect
+```
+
+Options precede commands. JSON uses `schema_version: 1` and is limited to
+read-only operations. Linux host actions affect the OS Bluetooth link; Windows
+returns unsupported and directs you to OS settings. In the TUI device list,
+`h` requests host connect and `H` host disconnect. Target changes require closing
+the control session; host refresh never overwrites RFCOMM state. Idle host
+observations refresh every five seconds through the worker.
+
+Audio observations include source and time, remain distinct from the gated
+vendor codec, and never infer a codec from advertised support. Missing transport
+properties remain unknown. [The feature matrix](docs/feature-matrix.md) records
+implemented parts, missing work and physical-validation limits.

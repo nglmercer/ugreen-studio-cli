@@ -1,9 +1,7 @@
 //! The worker is the only owner of the Bluetooth client. A single request is
 //! admitted at a time; neither rendering nor key handling performs I/O.
-use super::{
-    features::{Operation, ResultData},
-    Config,
-};
+use super::Config;
+use crate::features::{Operation, ResultData};
 use crate::{
     bluetooth::{self, BluetoothAddress, HostHeadset},
     client::Client,
@@ -25,6 +23,9 @@ pub(super) trait Session: Send {
     fn info(&mut self) -> io::Result<StudioProState>;
     fn firmware(&mut self) -> io::Result<String>;
     fn acknowledge(&mut self, setting: &Setting) -> io::Result<()>;
+    fn authorize_setting(&mut self) -> io::Result<()> {
+        Ok(())
+    }
     fn feature(&mut self, _: &Operation, _: &dyn Fn() -> bool) -> io::Result<ResultData> {
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
@@ -46,6 +47,13 @@ impl Session for Client<bluetooth::Connection> {
     ) -> io::Result<ResultData> {
         operation.execute(self, cancelled)
     }
+    fn authorize_setting(&mut self) -> io::Result<()> {
+        let firmware = Client::firmware(self)?;
+        crate::models::require_verified_firmware(
+            Some(crate::models::Model::StudioPro),
+            Some(&firmware),
+        )
+    }
     fn acknowledge(&mut self, setting: &Setting) -> io::Result<()> {
         if setting.expects_ack() {
             self.request(setting.instruction, &setting.payload)
@@ -65,11 +73,32 @@ pub(super) trait Backend: Send + 'static {
             "backend does not implement reset cleanup",
         ))
     }
+    fn host_connection(&mut self, _: &BluetoothAddress, _: bool) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "backend does not implement host link actions",
+        ))
+    }
+    fn audio(&mut self, address: &BluetoothAddress) -> io::Result<Vec<crate::audio::AudioStatus>> {
+        use crate::audio::AudioStatusProvider;
+        crate::audio::OsAudio.observe(address)
+    }
+    fn doctor(
+        &mut self,
+        address: Option<&BluetoothAddress>,
+        channel: u8,
+        model: Option<crate::models::Model>,
+    ) -> crate::diagnostics::DoctorReport {
+        crate::diagnostics::collect(address, channel, model)
+    }
     fn paired(&mut self) -> io::Result<Vec<HostHeadset>>;
     fn connect(&mut self, config: &Config, address: &str) -> io::Result<Box<dyn Session>>;
 }
 struct Native;
 impl Backend for Native {
+    fn host_connection(&mut self, address: &BluetoothAddress, connected: bool) -> io::Result<()> {
+        bluetooth::set_host_connection(address, connected)
+    }
     fn reset_cleanup(&mut self, address: &BluetoothAddress) -> io::Result<()> {
         crate::reset::cleanup(address)
     }
@@ -85,6 +114,20 @@ impl Backend for Native {
 #[derive(Clone, Debug)]
 pub(super) enum Action {
     Paired,
+    Doctor {
+        address: Option<String>,
+        model: Option<crate::models::Model>,
+    },
+    Audio {
+        address: String,
+    },
+    HostConnection {
+        address: String,
+        connected: bool,
+    },
+    HostRefresh {
+        address: String,
+    },
     Connect {
         address: String,
         model_confirmed: bool,
@@ -102,7 +145,8 @@ pub(super) enum Action {
 }
 impl Action {
     pub fn is_write(&self) -> bool {
-        matches!(self, Self::Set(_)) || matches!(self,Self::Feature(op) if op.is_write())
+        matches!(self, Self::Set(_) | Self::HostConnection { .. })
+            || matches!(self,Self::Feature(op) if op.is_write())
     }
 }
 #[derive(Debug)]
@@ -114,6 +158,19 @@ pub(super) struct Snapshot {
 #[derive(Debug)]
 pub(super) enum Output {
     Paired(Vec<HostHeadset>),
+    Doctor(crate::diagnostics::DoctorReport),
+    Audio {
+        address: BluetoothAddress,
+        observations: Vec<crate::audio::AudioStatus>,
+    },
+    HostChanged {
+        address: BluetoothAddress,
+        connected: bool,
+    },
+    HostSnapshot {
+        address: BluetoothAddress,
+        devices: Vec<HostHeadset>,
+    },
     Snapshot(Snapshot),
     Disconnected,
     Verified {
@@ -216,6 +273,53 @@ impl<B: Backend> Engine<B> {
         let t = self.t();
         self.check(request)?;
         match &request.action {
+            Action::Doctor { address, model } => {
+                let address = address
+                    .as_deref()
+                    .map(BluetoothAddress::parse)
+                    .transpose()
+                    .map_err(|e| e.to_string())?;
+                let report = self
+                    .backend
+                    .doctor(address.as_ref(), self.config.channel, *model);
+                self.check(request)?;
+                Ok(Output::Doctor(report))
+            }
+            Action::HostConnection { address, connected } => {
+                let address = BluetoothAddress::parse(address).map_err(|e| e.to_string())?;
+                self.backend
+                    .host_connection(&address, *connected)
+                    .map_err(|e| e.to_string())?;
+                if !connected
+                    && self
+                        .config
+                        .address
+                        .as_deref()
+                        .is_some_and(|a| a.eq_ignore_ascii_case(address.as_str()))
+                {
+                    self.session = None;
+                }
+                Ok(Output::HostChanged {
+                    address,
+                    connected: *connected,
+                })
+            }
+            Action::HostRefresh { address } => {
+                let address = BluetoothAddress::parse(address).map_err(|e| e.to_string())?;
+                let mut devices = self.backend.paired().map_err(|e| e.to_string())?;
+                self.check(request)?;
+                crate::device::DeviceRegistry::load().annotate(&mut devices);
+                Ok(Output::HostSnapshot { address, devices })
+            }
+            Action::Audio { address } => {
+                let address = BluetoothAddress::parse(address).map_err(|e| e.to_string())?;
+                let observations = self.backend.audio(&address).map_err(|e| e.to_string())?;
+                self.check(request)?;
+                Ok(Output::Audio {
+                    address,
+                    observations,
+                })
+            }
             Action::Paired => {
                 let mut devices = self
                     .backend
@@ -326,6 +430,10 @@ impl<B: Backend> Engine<B> {
                 if self.uncertain {
                     return Err(t.err_uncertain_blocked.into());
                 }
+                self.check(request)?;
+                self.session()?
+                    .authorize_setting()
+                    .map_err(|e| e.to_string())?;
                 self.check(request)?;
                 let before = self
                     .session()?

@@ -210,6 +210,7 @@ pub fn catalog() -> L {
     l.opt_lang = "界面语言：en, es, pt, de, fr, it, nl, ru, zh, ja, ko（默认 en）";
     l.opt_autoconnect = "启动时连接到最后使用的设备（默认开启）";
     l.opt_no_autoconnect = "禁用启动时自动连接";
+    l.opt_json = "为支持的只读命令输出带版本的 JSON";
     l.opt_dry_run = "打印设置数据包而不访问蓝牙";
     l.opt_help = "显示帮助";
     l.opt_version = "显示版本";
@@ -231,6 +232,185 @@ pub fn catalog() -> L {
     l.cmd_query = "捕获门控查询；在本固件上未验证";
     l.cmd_control = "捕获门控控制；--dry-run 打印字节";
     l.cmd_find = "捕获门控查找音";
+    l.host_commands = [
+        "查看系统音频传输",
+        "列出主机音频输出",
+        "显示功能验证依据",
+        "读取主机诊断",
+        "连接主机蓝牙链路",
+        "断开主机蓝牙链路",
+    ];
     l.cmd_audio_devices = "列出 Windows 波形输出设备";
+    l.features_title = " 功能 ";
+    l.features_search = "搜索：";
+    l.features_all = "全部";
+    l.feature_categories = [
+        "音频",
+        "连接",
+        "环境",
+        "反馈",
+        "设备信息",
+        "多点",
+        "编解码器",
+        "高级音频",
+        "控制",
+        "音频共享",
+        "查找",
+        "设备管理",
+        "诊断",
+    ];
+    l.feature_names = [
+        "降噪",
+        "均衡器",
+        "游戏模式",
+        "空间音频",
+        "双设备连接",
+        "抗风噪",
+        "语音提示",
+        "音量加长按动作",
+        "音量减长按动作",
+        "多点设备",
+        "音频编解码器",
+        "耳机 ID",
+        "耳机颜色",
+        "充电盒 MAC",
+        "LDAC 控制",
+        "对单个设备 LDAC",
+        "高质量解码",
+        "音量命令",
+        "单/立体声通道",
+        "按键映射",
+        "AI 动作",
+        "AI 控制",
+        "关闭音频共享",
+        "与一个设备共享",
+        "与所选设备共享",
+        "查找左耳塞",
+        "查找右耳塞",
+        "恢复出厂设置",
+        "捕获解码器",
+        "捕获分析",
+        "数据包预览",
+    ];
+    l.feature_descriptions = [
+        "主动降噪深度。已验证设置；请在“设置”屏幕中编辑。",
+        "均衡器预设。已验证设置；请在“设置”屏幕中编辑。",
+        "游戏模式低延迟开关。已验证设置；请在“设置”屏幕中编辑。",
+        "空间音频开关。已验证设置；请在“设置”屏幕中编辑。",
+        "双设备连接开关。已验证设置；请在“设置”屏幕中编辑。",
+        "风噪抑制开关。已验证设置；请在“设置”屏幕中编辑。",
+        "语音提示样式。已验证设置；请在“设置”屏幕中编辑。",
+        "音量加长按动作。已验证设置；请在“设置”屏幕中编辑。",
+        "音量减长按动作。已验证设置；请在“设置”屏幕中编辑。",
+        "读取已连接的多点设备列表。对等协议仍需硬件验证。",
+        "读取当前蓝牙音频编解码器。查询格式仍需硬件验证。",
+        "读取耳机硬件 ID。查询格式仍需硬件验证。",
+        "读取耳机颜色。查询格式仍需硬件验证。",
+        "读取充电盒 MAC 地址。查询格式仍需硬件验证。",
+        "在当前连接上切换 LDAC 编码。控制格式仍需硬件验证。",
+        "为已配对设备切换 LDAC 编码。控制格式仍需硬件验证。",
+        "切换高质量音频解码。控制格式仍需硬件验证。",
+        "发送绝对音量字节。硬件范围未验证。",
+        "在单声道与立体声之间切换音频通道。控制格式仍需硬件验证。",
+        "重映射八个长按动作。控制格式仍需硬件验证。",
+        "重映射四个 AI 触发动作。控制格式仍需硬件验证。",
+        "切换 AI 音频控制。控制格式仍需硬件验证。",
+        "关闭音频共享。控制格式仍需硬件验证。",
+        "与唯一已连接设备共享音频。控制格式仍需硬件验证。",
+        "与所选设备共享音频。控制格式仍需硬件验证。",
+        "通过主机在左耳塞上播放定位音。查找协议仍需硬件验证。",
+        "通过主机在右耳塞上播放定位音。查找协议仍需硬件验证。",
+        "取消配对并恢复出厂默认值。破坏性操作；控制格式仍需硬件验证。",
+        "离线解码捕获的响应字节；不访问蓝牙。",
+        "离线解读完整的捕获流；不访问蓝牙。",
+        "打印控制将发送的静态数据包；从不传输。",
+    ];
+    l.feature_available = "可用";
+    l.feature_pending = "待验证";
+    l.feature_pending_reason = "线路格式仍需官方应用的硬件验证。";
+    l.feature_live_disabled = "在获得设备上的已验证证据之前，实时执行处于禁用状态。";
+    l.feature_offline_workflow = "仅离线分析；不向耳机发送任何内容。";
+    l.feature_offline_hint = "运行：ugreen {}";
+    l.feature_kind_setting = "已验证设置";
+    l.feature_kind_query = "设备查询";
+    l.feature_kind_control = "设备控制";
+    l.feature_kind_offline = "离线分析";
+    l.feature_category_label = "分类：{}";
+    l.feature_current = "当前：{}";
+    l.feature_edit_in_settings = "在设置中编辑 (s)";
+    l.feature_run_query = "回车：执行查询";
+    l.feature_configure = "回车：配置";
+    l.feature_back = "Esc：返回";
+    l.feature_form_title = " 配置 {} ";
+    l.feature_err_required = "检查前必须填写所有字段";
+    l.feature_field_unset = "未设置";
+    l.feature_form_hint = "上 下 字段 / 左 右 选项 / 回车 审查 / Esc 返回";
+    l.feature_review_title = " 审查 {} ";
+    l.review_write_title = " 审查写入 ";
+    l.feature_review_target = "目标：{}";
+    l.feature_review_previous = "当前：{}";
+    l.feature_review_proposed = "建议：{}";
+    l.feature_review_values = "值：{}";
+    l.feature_review_readback = "回读：{}";
+    l.feature_readback_verified = "经确认且回读匹配验证";
+    l.feature_readback_noack = "经回读匹配验证（空间音频不发送确认）";
+    l.feature_readback_unconfirmed = "未独立确认；应用后请刷新";
+    l.feature_readback_query = "只读查询";
+    l.feature_confirm_apply = "回车：应用    Esc：取消";
+    l.feature_confirm_reset = "破坏性操作：移除主机配对并恢复出厂设置。";
+    l.features_footer = [
+        [
+            ("上", "移动"),
+            ("下", "移动"),
+            ("Tab", "分类"),
+            ("回车", "打开"),
+            ("Esc", "返回"),
+            ("", ""),
+        ],
+        [
+            ("字母", "搜索"),
+            ("退格", "删除"),
+            ("Ctrl+U", "清空"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+        [
+            ("Esc", "关闭"),
+            ("?", "快捷键"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+    ];
+    l.status_feature_running = "正在执行功能操作...";
+    l.status_edit_in_settings = "{} 是已验证设置；请在“设置”屏幕中编辑 (s)。";
+    l.codec_unverified = "查询未验证";
+    l.arg_enabled = "启用";
+    l.arg_side = "侧";
+    l.arg_duration = "时长（秒）";
+    l.arg_target = "目标";
+    l.arg_value = "值（0-255）";
+    l.arg_mode = "模式";
+    l.arg_peer = "已配对";
+    l.arg_actions = "动作";
+    l.arg_address = "已配对设备 MAC";
+    l.arg_hint_toggle = "on 或 off";
+    l.arg_hint_side = "左或右";
+    l.arg_hint_seconds = "1..30 秒";
+    l.arg_hint_byte = "0..255";
+    l.arg_hint_mac = "六个以冒号分隔的十六进制八位组";
+    l.arg_hint_peer = "1 或 2";
+    l.arg_hint_actions = "{} 个以逗号分隔的动作值";
+    l.tui_no_tty = "此界面需要交互式 stdin 和 stdout 终端；请运行 ugreen --help 查看 CLI 命令。";
+    l.tui_bad_channel = "界面通道必须为 1-30，超时必须大于零且最多 60 秒。";
+    l.status_worker_busy = "已有操作正在运行；请等待或按 Esc 取消。";
+    l.status_worker_sequence = "请求序列已耗尽；请重启界面。";
+    l.status_worker_stopped = "Bluetooth 工作线程已停止；请重启界面。";
+    l.status_worker_queue = "工作线程队列已满；请稍候再试。";
+    l.status_reset_unavailable = "重置目标不可用";
+    l.status_reset_done = "重置已确认；主机配对和已保存设备已移除。";
+    l.status_inflight_write = "进行中的写入可能已完成；重启后请刷新。";
     l
 }

@@ -50,6 +50,7 @@ pub fn parse(args: Vec<String>) -> Result<Invocation, String> {
             }
             "--autoconnect" => options.autoconnect = Some(true),
             "--no-autoconnect" => options.autoconnect = Some(false),
+            "--json" => options.json = true,
             "--dry-run" => options.dry_run = true,
             "--help" | "-h" => {
                 return command_invocation(
@@ -162,6 +163,16 @@ fn command_invocation(
     args: Vec<String>,
 ) -> Result<Invocation, String> {
     check_model(options)?;
+    if options.json
+        && !matches!(
+            command.name,
+            "status" | "discover" | "capabilities" | "doctor"
+        )
+    {
+        return Err(
+            "--json is supported for status, devices, audio status, capabilities and doctor".into(),
+        );
+    }
     Ok(Invocation {
         options: options.clone(),
         command,

@@ -51,6 +51,15 @@ impl Capabilities {
     pub const FIND_LEFT: u32 = 1 << 25;
     pub const FIND_RIGHT: u32 = 1 << 26;
 
+    /// Verified setting capability bits: the four
+    /// settings above the dual-device toggle have
+    /// equivalent metadata only since their protocols
+    /// were verified; they gate no extra operations.
+    pub const WIND_REDUCTION: u32 = 1 << 27;
+    pub const PROMPTS: u32 = 1 << 28;
+    pub const VOLUME_UP_ACTION: u32 = 1 << 29;
+    pub const VOLUME_DOWN_ACTION: u32 = 1 << 30;
+
     pub const fn new() -> Self {
         Self(0)
     }
@@ -135,5 +144,70 @@ mod tests {
         assert!(!caps.contains(Capabilities::PEER_RECONNECT));
         assert!(!caps.contains(Capabilities::PEER_SWITCH));
         assert!(!caps.peer_management_verified());
+    }
+}
+
+/// Evidence status is independent of whether an implementation has tests.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EvidenceStatus {
+    Verified,
+    ExperimentalRead,
+    StaticCandidate,
+    Unsupported,
+}
+impl EvidenceStatus {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Verified => "verified",
+            Self::ExperimentalRead => "experimental_read",
+            Self::StaticCandidate => "static_candidate",
+            Self::Unsupported => "unsupported",
+        }
+    }
+}
+/// Exact model/firmware lookup. Unknown and absent evidence grant no writes.
+/// `Model::capabilities` remains the historical model metadata, not a firmware proof.
+pub fn capabilities_for(model: Option<Model>, firmware: Option<&str>) -> Capabilities {
+    match (model, firmware) {
+        (Some(Model::StudioPro), Some("0.2.5")) => studio_pro::capabilities(),
+        _ => Capabilities::new(),
+    }
+}
+pub fn require_verified_firmware(
+    model: Option<Model>,
+    firmware: Option<&str>,
+) -> std::io::Result<()> {
+    if capabilities_for(model, firmware).bits() == 0 {
+        Err(std::io::Error::new(std::io::ErrorKind::Unsupported,
+            "setting writes require confirmed Studio Pro firmware 0.2.5; unknown firmware has no write evidence"))
+    } else {
+        Ok(())
+    }
+}
+#[cfg(test)]
+mod firmware_evidence_tests {
+    use super::*;
+    #[test]
+    fn unknown_model_firmware_and_absent_evidence_never_grant_writes() {
+        for model in [None, Some(Model::StudioPro)] {
+            for firmware in [
+                None,
+                Some(""),
+                Some("0.2.4"),
+                Some("0.2.6"),
+                Some("unknown"),
+            ] {
+                assert_eq!(capabilities_for(model, firmware).bits(), 0);
+                assert!(require_verified_firmware(model, firmware).is_err());
+            }
+        }
+        assert_eq!(capabilities_for(None, Some("0.2.5")).bits(), 0);
+        assert_eq!(
+            capabilities_for(Some(Model::StudioPro), Some("0.2.5")),
+            Model::StudioPro.capabilities()
+        );
+        assert!(
+            !capabilities_for(Some(Model::StudioPro), Some("0.2.5")).contains(Capabilities::LDAC)
+        );
     }
 }

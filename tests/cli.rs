@@ -346,3 +346,53 @@ fn finder_refuses_unverified_packets_before_audio_or_connection() {
         assert!(!run(&args).status.success());
     }
 }
+
+#[test]
+fn capability_json_contract_is_offline_and_does_not_authorize_writes() {
+    let output = run(&["--json", "--model", "studio-pro", "capabilities"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["schema_version"], 1);
+    assert_eq!(report["kind"], "capabilities");
+    assert!(report["observed_firmware"].is_null());
+    let features = report["features"].as_array().unwrap();
+    assert_eq!(features.len(), ugreen_cli::features::FEATURES.len());
+    for feature in features {
+        assert_eq!(feature["operation_authorized"], false);
+        assert!(["verified", "static_candidate", "unsupported"]
+            .contains(&feature["evidence_status"].as_str().unwrap()));
+    }
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("Connecting"));
+}
+
+#[test]
+fn json_rejects_mutations_and_audio_validates_address_before_host_access() {
+    let output = run(&["--json", "set", "game", "on"]);
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    let output = run(&["--address", "invalid", "--json", "audio", "status"]);
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Bluetooth address"));
+    let output = run(&["--address", "invalid", "host", "disconnect"]);
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+}
+
+#[test]
+fn new_command_paths_are_registered_without_removing_old_names() {
+    for args in [
+        &["audio", "--help"][..],
+        &["host", "--help"][..],
+        &["devices", "--help"][..],
+        &["doctor", "--help"][..],
+    ] {
+        let output = run(args);
+        assert!(output.status.success(), "{args:?}");
+    }
+}

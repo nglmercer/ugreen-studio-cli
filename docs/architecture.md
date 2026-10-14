@@ -98,3 +98,22 @@ refresh. Codec header values are labelled as last-query data and cleared
 on writes. Cancellable finder execution uses the worker's request/shutdown
 flags. An acknowledged reset closes the session before cleanup of the
 actual connected address, even if cancellation arrives after the reset.
+
+## October 14 evidence and OS observations
+
+`src/features.rs` contains the shared feature registry and typed operations.
+`src/audio/mod.rs` exposes `AudioStatusProvider` and address-matched PipeWire
+transport observations. `src/process.rs` bounds Linux subprocess streams, uses
+nonblocking pipes, deadlines and kill/reap cleanup. Audio observations and vendor
+codec results remain separate. The worker owns RFCOMM, audio refresh, explicit
+host actions and periodic host snapshots; request IDs and exact target matching
+reject stale observations. Host Device1 methods reuse the existing D-Bus encoder
+for argument-free calls without introducing new complex signatures.
+
+`ControlSessionState` models disconnected/connecting/connected/error. An OS
+snapshot never alters that state. One request is admitted at a time, target
+selection is blocked during a session or work, and uncertain setting writes
+require a successful explicit refresh. CLI/TUI production setting authorization
+requires actual firmware 0.2.5. The low-level public transport APIs remain
+caller-managed for compatibility. See [feature matrix](feature-matrix.md) for
+unimplemented signal listeners, fallback providers and SDK limitations.

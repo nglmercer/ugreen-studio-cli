@@ -1,5 +1,4 @@
 //! Optional, explicitly operated terminal interface. Startup is entirely offline.
-mod features;
 mod state;
 mod view;
 mod worker;
@@ -108,17 +107,31 @@ fn event_loop(
     app: &mut App,
     worker: &mut Worker,
 ) -> io::Result<()> {
+    let mut last_host_refresh = std::time::Instant::now();
     loop {
+        if last_host_refresh.elapsed() >= Duration::from_secs(5)
+            && app.busy.is_none()
+            && !app.address.is_empty()
+        {
+            last_host_refresh = std::time::Instant::now();
+            dispatch(
+                app,
+                worker,
+                Intent::Request(worker::Action::HostRefresh {
+                    address: app.address.clone(),
+                }),
+            );
+        }
         match worker.poll() {
             Ok(Some(reply)) => {
-                let was_connected = app.control_connected;
+                let was_connected = app.control_state.is_connected();
                 if let Some(action) = app.receive(reply) {
                     dispatch(app, worker, Intent::Request(action));
                 }
                 // Remember the target that answered, so the next start
                 // can offer it and auto-connect when enabled. The model
                 // is confirmed because this device just talked back.
-                if !was_connected && app.control_connected {
+                if !was_connected && app.control_state.is_connected() {
                     let mut registry = DeviceRegistry::load();
                     if let Ok(address) = crate::bluetooth::BluetoothAddress::parse(&app.address) {
                         registry.set_selected(&address);
@@ -137,6 +150,10 @@ fn event_loop(
                 return Err(io::Error::other(app.status.clone()));
             }
         }
+        let size = terminal.size()?;
+        app.width = size.width;
+        app.height = size.height;
+        app.reconcile_scroll();
         app.record_status();
         terminal.draw(|frame| view::render(frame, app))?;
         if event::poll(Duration::from_millis(50))? {

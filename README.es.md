@@ -43,12 +43,12 @@ La característica `tui` está activada por defecto y usa Ratatui 0.30.2 y Cross
 - `a`: editar dirección; `p`: cargar dispositivos emparejados; `m` y después `y`: confirmar protocolo
 - `c`: conectar; `r`: actualizar estado; `d`: desconectar
 - Arriba/Abajo: seleccionar ajuste; Izquierda/Derecha: cambiar el valor propuesto
-- Intro: revisar el cambio; `y`: confirmarlo; Esc: cancelar un diálogo
+- Intro: revisar el cambio; Intro otra vez: confirmarlo; Esc: cancelar un diálogo
 - `l`: registro de la sesión; `?`: ayuda; `q`: salir
 
-Un valor propuesto no es un valor leído del dispositivo. Solo se considera verificado después de recibir una confirmación válida y comprobar que la lectura posterior coincide. La batería procede de la respuesta de información del dispositivo; los datos ausentes permanecen como desconocidos. No se informa del códec ni se permite seleccionarlo. Consulta el [manual de uso](docs/usage.md) para ver el flujo completo y el tratamiento de errores.
+Un valor propuesto no es un valor leído del dispositivo. Solo se considera verificado después de recibir una confirmación válida y comprobar que la lectura posterior coincide. La batería procede de la respuesta de información del dispositivo; los datos ausentes permanecen como desconocidos. Linux permite observar el códec del transporte del sistema mediante `audio status` o `A` en la TUI cuando PipeWire ofrece los datos; la consulta y la selección del auricular siguen bloqueadas. Consulta el [manual de uso](docs/usage.md) para ver el flujo completo y el tratamiento de errores.
 
-Para conservar solo la CLI, que usa la biblioteca estándar, sin compilar las dependencias de la TUI:
+Para conservar solo la CLI sin compilar las dependencias de terminal:
 
 ```sh
 cargo build --release --locked --no-default-features
@@ -123,3 +123,26 @@ Linux y Windows tienen implementaciones nativas de RFCOMM. El [flujo de CI](.git
 ## Licencia y atribución
 
 [MIT](LICENSE). El protocolo portado y la captura de prueba se adaptaron de [sanild/ugreen-studio-controller-macos](https://github.com/sanild/ugreen-studio-controller-macos). La investigación sobre tramas y CRC se contrastó con [tzy3454u/ugreen-headphone-control](https://github.com/tzy3454u/ugreen-headphone-control). Los avisos MIT originales se conservan en [third-party](third-party/); mantenlos al redistribuir. Las dependencias de terminal tienen sus propias licencias, recogidas en el [inventario de dependencias Rust](third-party/RUST-DEPENDENCIES.md). Los nombres de productos y las marcas pertenecen a sus respectivos propietarios.
+
+## Diagnóstico del host y evidencia
+
+`devices` es un alias de `discover`. `--json` antes del comando genera el esquema
+v1 para `status`, `devices`, `audio status`, `capabilities` y `doctor`.
+`audio devices` lista salidas de audio; `audio status` necesita `--address` y
+observa el transporte de PipeWire en Linux. No deduce el códec desde una lista de
+formatos compatibles. El códec del sistema y la consulta del auricular son datos
+separados; la consulta y los controles del auricular siguen bloqueados.
+
+`host connect` y `host disconnect`, con `--address`, solicitan acciones explícitas
+a BlueZ en Linux. Windows devuelve no compatible y remite a los ajustes del
+sistema. En la TUI, `v` selecciona una vista, `A` abre Audio, `D` abre Diagnóstico, `F` abre las funciones, `p` muestra los
+dispositivos, `h` conecta el enlace del host y `H` lo desconecta. El estado de
+Bluetooth observado no sustituye al estado RFCOMM. El worker actualiza el host
+cada cinco segundos cuando está libre. Cambiar destino exige cerrar la sesión.
+Enter revisa un cambio y otro Enter lo confirma.
+
+Las escrituras de ajustes en CLI/TUI requieren una respuesta de firmware
+**0.2.5**; un firmware desconocido no obtiene autorización. No se realizaron
+pruebas físicas nuevas ni pruebas nativas de Windows. Consulta la
+[matriz de funciones](docs/feature-matrix.md) para las tareas implementadas,
+las pendientes y los límites de evidencia.

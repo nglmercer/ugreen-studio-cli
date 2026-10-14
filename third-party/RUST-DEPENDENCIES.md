@@ -1,6 +1,6 @@
 # Rust dependency notices
 
-This inventory covers all third-party packages in Cargo.lock, including target-specific and build dependencies. The Linux CLI-only feature set uses libc 0.2.189 for native signal handling; other platforms have no active third-party dependencies in that feature set. License texts are copied verbatim from the downloaded crates.io packages; identical texts are stored once.
+This inventory covers all third-party packages in Cargo.lock, including target-specific and build dependencies. The CLI-only feature set uses serde_json and its transitive dependencies for bounded OS audio parsing and JSON output; Linux additionally uses libc 0.2.189 for native signal handling and nonblocking subprocess pipes. License texts are copied verbatim from the downloaded crates.io packages; identical texts are stored once.
 
 | Package | Declared license | Original notices |
 |---|---|---|
@@ -43,6 +43,7 @@ This inventory covers all third-party packages in Cargo.lock, including target-s
 | `lock_api 0.4.14` | MIT OR Apache-2.0 | [LICENSE-APACHE](cargo/a60eea817514531668d7.txt), [LICENSE-MIT](cargo/c9a75f18b9ab2927829a.txt) |
 | `log 0.4.34` | MIT OR Apache-2.0 | [LICENSE-APACHE](cargo/a60eea817514531668d7.txt), [LICENSE-MIT](cargo/6485b8ed310d3f0340bf.txt) |
 | `lru 0.18.5` | MIT | [LICENSE](cargo/061dc50af2cd9340703d.txt) |
+| `memchr 2.8.3` | Unlicense OR MIT | [LICENSE-MIT](cargo/0f96a83840e146e43c0e.txt), [UNLICENSE](cargo/7e12e5df4bae12cb2158.txt) |
 | `mio 1.2.3` | MIT | [LICENSE](cargo/07919255c7e04793d8ea.txt) |
 | `num-conv 0.2.2` | MIT OR Apache-2.0 | [LICENSE-Apache](cargo/0d542e0c8804e39aa7f3.txt), [LICENSE-MIT](cargo/e2e245f2b566d0bfafb0.txt) |
 | `num-traits 0.2.19` | MIT OR Apache-2.0 | [LICENSE-APACHE](cargo/a60eea817514531668d7.txt), [LICENSE-MIT](cargo/6485b8ed310d3f0340bf.txt) |
@@ -70,6 +71,7 @@ This inventory covers all third-party packages in Cargo.lock, including target-s
 | `serde 1.0.229` | MIT OR Apache-2.0 | [LICENSE-APACHE](cargo/62c7a1e35f56406896d7.txt), [LICENSE-MIT](cargo/23f18e03dc49df91622f.txt) |
 | `serde_core 1.0.229` | MIT OR Apache-2.0 | [LICENSE-APACHE](cargo/62c7a1e35f56406896d7.txt), [LICENSE-MIT](cargo/23f18e03dc49df91622f.txt) |
 | `serde_derive 1.0.229` | MIT OR Apache-2.0 | [LICENSE-APACHE](cargo/62c7a1e35f56406896d7.txt), [LICENSE-MIT](cargo/23f18e03dc49df91622f.txt) |
+| `serde_json 1.0.154` | MIT OR Apache-2.0 | [LICENSE-APACHE](cargo/62c7a1e35f56406896d7.txt), [LICENSE-MIT](cargo/23f18e03dc49df91622f.txt) |
 | `signal-hook 0.3.18` | Apache-2.0/MIT | [LICENSE-APACHE](cargo/a60eea817514531668d7.txt), [LICENSE-MIT](cargo/503558bfefe66ca15e4e.txt) |
 | `signal-hook-mio 0.2.5` | MIT OR Apache-2.0 | [LICENSE-APACHE](cargo/a60eea817514531668d7.txt), [LICENSE-MIT](cargo/503558bfefe66ca15e4e.txt) |
 | `signal-hook-registry 1.4.8` | MIT OR Apache-2.0 | [LICENSE-APACHE](cargo/a60eea817514531668d7.txt), [LICENSE-MIT](cargo/503558bfefe66ca15e4e.txt) |
@@ -94,5 +96,6 @@ This inventory covers all third-party packages in Cargo.lock, including target-s
 | `winapi-x86_64-pc-windows-gnu 0.4.0` | MIT/Apache-2.0 | [LICENSE-APACHE](cargo/b40930bbcf80744c86c4.txt), [LICENSE-MIT](cargo/ce7bc3499fee93d5022e.txt) (shared repository notices) |
 | `windows-link 0.2.1` | MIT OR Apache-2.0 | [license-apache-2.0](cargo/c16f8dcf1a368b83be78.txt), [license-mit](cargo/c2cfccb812fe482101a8.txt) |
 | `windows-sys 0.61.2` | MIT OR Apache-2.0 | [license-apache-2.0](cargo/c16f8dcf1a368b83be78.txt), [license-mit](cargo/c2cfccb812fe482101a8.txt) |
+| `zmij 1.0.23` | MIT | [LICENSE-MIT](cargo/23f18e03dc49df91622f.txt) |
 
 The two `winapi-*-pc-windows-gnu` import-library packages omit separate license files. Their manifests declare MIT/Apache-2.0 and the same [winapi-rs repository](https://github.com/retep998/winapi-rs/tree/0.3.9); the shared repository notices above are included from `winapi 0.3.9`.

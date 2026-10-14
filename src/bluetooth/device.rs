@@ -103,6 +103,37 @@ pub fn sort_devices(devices: &mut [HostHeadset], selected: Option<&BluetoothAddr
     });
 }
 
+/// Application control lifecycle, independent of the host's link observation.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ControlSessionState {
+    #[default]
+    Disconnected,
+    Connecting,
+    Connected,
+    Error,
+}
+impl ControlSessionState {
+    pub fn is_connected(self) -> bool {
+        self == Self::Connected
+    }
+}
+
+/// Read-only adapter facts from BlueZ; absent properties remain unknown.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HostAdapter {
+    pub path: String,
+    pub name: Option<String>,
+    pub address: Option<BluetoothAddress>,
+    pub powered: Option<bool>,
+    pub discovering: Option<bool>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct HostSnapshot {
+    pub adapters: Vec<HostAdapter>,
+    pub devices: Vec<HostHeadset>,
+    pub transports: Vec<crate::audio::bluez::MediaTransport>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

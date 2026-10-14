@@ -91,6 +91,33 @@ impl<T: Read + Write> Client<T> {
             )
         })
     }
+    /// Evidence-aware setting API. Unknown model is rejected before I/O;
+    /// unsupported firmware permits the read-only firmware query only.
+    /// Each setting uses preflight and the existing ack/readback path.
+    pub fn set_for_model(
+        &mut self,
+        model: Option<crate::models::Model>,
+        setting: &Setting,
+    ) -> io::Result<StudioProState> {
+        let model = model.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::Unsupported,
+                "setting requires an explicitly confirmed model",
+            )
+        })?;
+        let firmware = self.firmware()?;
+        crate::models::require_verified_firmware(Some(model), Some(&firmware))?;
+        let info = self.info()?;
+        if info.value(&setting.key).is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "setting field missing from preflight",
+            ));
+        }
+        self.set(setting)
+    }
+    /// Low-level compatibility API: caller must establish model and firmware evidence.
+    /// Prefer [`Self::set_for_model`] for automatic evidence preflight.
     /// Only report success after a CRC-valid device-info readback matches.
     /// A failed acknowledgement is never silently retried, because writes may have taken effect.
     /// Spatial audio is the exception: retail firmware applies the write but
@@ -376,6 +403,38 @@ mod tests {
         b.extend_from_slice(payload);
         b.extend_from_slice(&protocol::crc_ccitt(&b[3..]).to_le_bytes());
         b
+    }
+    #[test]
+    fn evidence_aware_setting_queries_unknown_firmware_but_never_sends_setting() {
+        let mut client = Client::new(
+            Mock {
+                read: vec![response(protocol::FIRMWARE, 1, &[0, 2, 6])].into(),
+                ..Default::default()
+            },
+            Duration::from_secs(1),
+        );
+        let setting = Setting::parse("game", "on").unwrap();
+        assert_eq!(
+            client
+                .set_for_model(Some(crate::models::Model::StudioPro), &setting)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::Unsupported
+        );
+        assert_eq!(
+            client.into_inner().written,
+            protocol::request(protocol::FIRMWARE, &[0]).unwrap()
+        );
+    }
+    #[test]
+    fn evidence_aware_setting_rejects_unknown_model_before_io() {
+        let mut client = Client::new(Mock::default(), Duration::from_secs(1));
+        let setting = Setting::parse("game", "on").unwrap();
+        assert_eq!(
+            client.set_for_model(None, &setting).unwrap_err().kind(),
+            io::ErrorKind::Unsupported
+        );
+        assert!(client.into_inner().written.is_empty());
     }
     #[test]
     fn partial_write_and_fragmented_response() {

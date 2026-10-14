@@ -4,7 +4,62 @@
 
 Verification date: 2026-10-01 UTC. This report separates current source/build checks from untested platform and hardware behavior. The optional earlier Serena pilot is historical and is documented separately.
 
-## Current checks
+## Current workspace checks — 2026-10-14
+
+Linux x86-64, Rust/Cargo **1.99.0**. `HEAD` and fetched `origin/main` were
+`b15bef554b29543b2f3e905149daaa9aa0e151f0`. The initial working tree already
+contained uncommitted feature workspace and translation work. It failed formatting
+and test compilation; those scaffolding failures were repaired without discarding
+that work. The historical packaged checks below describe an earlier build.
+
+Final local checks for this working tree:
+
+- `cargo fmt --all -- --check`: passed.
+- `cargo clippy --all-targets --all-features -- -D warnings`: passed.
+- `cargo clippy --all-targets --no-default-features -- -D warnings`: passed.
+- `cargo test --all-features`: **284 passed**, one ignored live BlueZ test
+  (246 library, 11 capture fixtures, 25 CLI contracts, two Linux interrupt tests).
+- `cargo test --no-default-features`: **185 passed**, one ignored live BlueZ test
+  (147 library, 11 capture fixtures, 25 CLI contracts, two interrupt tests).
+- `cargo build --release --locked`: passed; `target/release/ugreen`.
+- CLI-only locked release build: passed, separate output directory
+  `/tmp/ugreen-cli-only-build/release/ugreen`.
+- Windows MSVC **all-target source checks**, all-features and CLI-only: passed.
+  No Windows executable or native Windows runtime verification is claimed.
+- Six offline Linux PTY scenarios passed against the release executable,
+  restoring terminal attributes and alternate-screen state.
+- Documentation links: **262 local links across 13 Markdown files**, passed.
+- `git diff --check`: passed.
+- Linux `pw-dump` subprocess smoke succeeded; `audio status` for a dummy Bluetooth
+  address returned a valid schema-v1 object with an empty observation list.
+  This checks daemon/process integration only, not a negotiated Bluetooth codec.
+
+New offline checks cover exact-address PipeWire matching, standard/unknown codecs,
+missing transport properties, malformed/oversized JSON, conflicting observations,
+subprocess timeout/limit and kill/reap, JSON stdout contracts, changed-target host
+replies, independent host/control/audio states, session-safe device browsing,
+unknown firmware UI lockout, and evidence-aware SDK setting refusal before writes.
+No new headset packet, live host connect/disconnect, audio playback, physical
+capture, retail write, unpair or reset was performed. No remote CI outcome is
+claimed. All static candidate live bits remain unset; no feature was promoted by
+these tests. MediaTransport/adapter parsing, optional socket inventory and dedicated
+view navigation were tested offline. Signal subscription and other remaining work are listed in the
+[feature matrix](feature-matrix.md#milestone-delivery-and-remaining-work).
+
+Release SHA-256:
+
+```text
+0e487d5368a7d084388c9bcd822be547829a9bc701c9a71ea0eae7a6140473cc  target/release/ugreen
+2e6f8c27d5fa6aa78b10bdc154468aa97f2c6bce08ffac66073f09913dab29d9  /tmp/ugreen-cli-only-build/release/ugreen
+```
+
+The binaries remain local build outputs, not a published release bundle. Current
+ELF inspection shows strong GLIBC symbol requirements up to **2.34** and weak
+2.39 references; this does not establish runtime compatibility on older systems.
+Rebuild on the intended distribution. The earlier packaged binary descriptions
+and hashes below remain historical.
+
+## Historical packaged baseline checks
 
 The current verification environment is Linux x86-64 with Rust/Cargo 1.98.1. The package's declared Rust minimum is 1.88; a separate 1.88 toolchain test has not been established.
 

@@ -233,6 +233,7 @@ pub fn catalog() -> L {
         "Langue de l'interface : en, es, pt, de, fr, it, nl, ru, zh, ja, ko (par défaut en)";
     l.opt_autoconnect = "Se connecter au dernier appareil au démarrage (par défaut oui)";
     l.opt_no_autoconnect = "Désactiver la connexion automatique au démarrage";
+    l.opt_json = "JSON versionné pour les commandes de lecture compatibles";
     l.opt_dry_run = "Imprimer les paquets de réglages sans accès Bluetooth";
     l.opt_help = "Afficher l'aide";
     l.opt_version = "Afficher la version";
@@ -254,6 +255,195 @@ pub fn catalog() -> L {
     l.cmd_query = "Requête à porte ; non vérifiée sur ce firmware";
     l.cmd_control = "Contrôle à porte ; --dry-run imprime les octets";
     l.cmd_find = "Ton de recherche à porte";
+    l.host_commands = [
+        "Observer le transport audio du système",
+        "Lister les sorties audio locales",
+        "Afficher les preuves des fonctions",
+        "Lire le diagnostic local",
+        "Connecter la liaison Bluetooth locale",
+        "Déconnecter la liaison Bluetooth locale",
+    ];
     l.cmd_audio_devices = "Lister les sorties audio Windows";
+    l.features_title = " Fonctionnalités ";
+    l.features_search = "Rechercher : ";
+    l.features_all = "Tout";
+    l.feature_categories = [
+        "Audio",
+        "Connexion",
+        "Environnement",
+        "Retour",
+        "Informations de l'appareil",
+        "Multipoint",
+        "Codecs",
+        "Audio avancé",
+        "Contrôles",
+        "Partage audio",
+        "Recherche",
+        "Gestion de l'appareil",
+        "Diagnostic",
+    ];
+    l.feature_names = [
+        "ANC",
+        "Égaliseur",
+        "Mode jeu",
+        "Audio spatial",
+        "Double connexion",
+        "Réduction du vent",
+        "Annonces vocales",
+        "Action volume +",
+        "Action volume -",
+        "Appareils multipoint",
+        "Codec audio",
+        "ID du casque",
+        "Couleur du casque",
+        "MAC du boîtier",
+        "Contrôle LDAC",
+        "LDAC pour un appareil",
+        "Décodage haute qualité",
+        "Commande de volume",
+        "Canal mono/stéréo",
+        "Mappage des boutons",
+        "Actions IA",
+        "Contrôle IA",
+        "Désactiver le partage",
+        "Partager avec un appareil",
+        "Partager avec un appareil choisi",
+        "Trouver l'écouteur gauche",
+        "Trouver l'écouteur droit",
+        "Réinitialisation d'usine",
+        "Décodeur de capture",
+        "Analyse de capture",
+        "Aperçu de paquet",
+    ];
+    l.feature_descriptions = [
+        "Profondeur de réduction active du bruit. Réglage vérifié ; modifiez-le dans les Réglages.",
+        "Préréglage de l'égaliseur. Réglage vérifié ; modifiez-le dans les Réglages.",
+        "Interrupteur de faible latence du mode jeu. Réglage vérifié ; modifiez-le dans les Réglages.",
+        "Interrupteur audio spatial. Réglage vérifié ; modifiez-le dans les Réglages.",
+        "Interrupteur de connexion à deux appareils. Réglage vérifié ; modifiez-le dans les Réglages.",
+        "Interrupteur de réduction du bruit de vent. Réglage vérifié ; modifiez-le dans les Réglages.",
+        "Style des annonces vocales. Réglage vérifié ; modifiez-le dans les Réglages.",
+        "Action volume plus maintenue. Réglage vérifié ; modifiez-le dans les Réglages.",
+        "Action volume moins maintenue. Réglage vérifié ; modifiez-le dans les Réglages.",
+        "Lire la liste des appareils multipoint connectés. Le protocole d'appairage requiert encore une vérification matérielle.",
+        "Lire le codec audio Bluetooth actif. Le format de requête requiert encore une vérification matérielle.",
+        "Lire l'ID matériel du casque. Le format de requête requiert encore une vérification matérielle.",
+        "Lire la couleur du casque. Le format de requête requiert encore une vérification matérielle.",
+        "Lire l'adresse MAC du boîtier de charge. Le format de requête requiert encore une vérification matérielle.",
+        "Basculer le codage LDAC sur la connexion actuelle. Le format de contrôle requiert encore une vérification matérielle.",
+        "Basculer le codage LDAC pour un appareil appairé. Le format de contrôle requiert encore une vérification matérielle.",
+        "Basculer le décodage audio haute qualité. Le format de contrôle requiert encore une vérification matérielle.",
+        "Envoyer un octet de volume absolu. La plage matérielle n'est pas vérifiée.",
+        "Commuter le canal audio entre mono et stéréo. Le format de contrôle requiert encore une vérification matérielle.",
+        "Remapper les huit actions de maintien. Le format de contrôle requiert encore une vérification matérielle.",
+        "Remapper les quatre actions déclenchées par l'IA. Le format de contrôle requiert encore une vérification matérielle.",
+        "Basculer le contrôle audio par IA. Le format de contrôle requiert encore une vérification matérielle.",
+        "Désactiver le partage audio. Le format de contrôle requiert encore une vérification matérielle.",
+        "Partager l'audio avec l'unique appareil connecté. Le format de contrôle requiert encore une vérification matérielle.",
+        "Partager l'audio avec un appareil choisi. Le format de contrôle requiert encore une vérification matérielle.",
+        "Jouer un ton de localisation sur l'écouteur gauche via l'hôte. Le protocole de recherche requiert encore une vérification matérielle.",
+        "Jouer un ton de localisation sur l'écouteur droit via l'hôte. Le protocole de recherche requiert encore une vérification matérielle.",
+        "Supprimer l'appairage et restaurer les valeurs d'usine. Destructif ; le format de contrôle requiert encore une vérification matérielle.",
+        "Décoder des octets de réponse capturés hors ligne ; sans accès Bluetooth.",
+        "Interpréter un flux de capture complet hors ligne ; sans accès Bluetooth.",
+        "Afficher le paquet statique qu'un contrôle enverrait ; il n'est jamais transmis.",
+    ];
+    l.feature_available = "Disponible";
+    l.feature_pending = "Vérification en attente";
+    l.feature_pending_reason =
+        "Le format filaire requiert encore une vérification matérielle avec l'application officielle.";
+    l.feature_live_disabled =
+        "L'exécution en direct est désactivée jusqu'à preuve vérifiée sur l'appareil.";
+    l.feature_offline_workflow = "Analyse hors ligne uniquement ; rien n'est envoyé au casque.";
+    l.feature_offline_hint = "Exécuter : ugreen {}";
+    l.feature_kind_setting = "Réglage vérifié";
+    l.feature_kind_query = "Requête d'appareil";
+    l.feature_kind_control = "Contrôle d'appareil";
+    l.feature_kind_offline = "Analyse hors ligne";
+    l.feature_category_label = "Catégorie : {}";
+    l.feature_current = "Actuel : {}";
+    l.feature_edit_in_settings = "Modifier dans Réglages (s)";
+    l.feature_run_query = "Entrée : exécuter la requête";
+    l.feature_configure = "Entrée : configurer";
+    l.feature_back = "Échap : retour";
+    l.feature_form_title = " Configurer {} ";
+    l.feature_err_required = "Tous les champs doivent être remplis avant la vérification";
+    l.feature_field_unset = "non défini";
+    l.feature_form_hint = "Haut Bas champ / Gauche Droite choix / Entrée vérifier / Échap retour";
+    l.feature_review_title = " Vérifier {} ";
+    l.review_write_title = " Vérifier l'écriture ";
+    l.feature_review_target = "Cible : {}";
+    l.feature_review_previous = "Actuel : {}";
+    l.feature_review_proposed = "Proposé : {}";
+    l.feature_review_values = "Valeurs : {}";
+    l.feature_review_readback = "Relecture : {}";
+    l.feature_readback_verified = "vérifié par accusé de réception et relecture correspondante";
+    l.feature_readback_noack =
+        "vérifié par relecture correspondante (l'audio spatial n'envoie pas d'accusé)";
+    l.feature_readback_unconfirmed =
+        "non confirmé de façon indépendante ; actualisez après application";
+    l.feature_readback_query = "requête en lecture seule";
+    l.feature_confirm_apply = "Entrée : appliquer    Échap : annuler";
+    l.feature_confirm_reset =
+        "Destructif : supprime l'appairage de l'hôte et restaure les valeurs d'usine.";
+    l.features_footer = [
+        [
+            ("Haut", "déplacer"),
+            ("Bas", "déplacer"),
+            ("Tab", "catégorie"),
+            ("Entrée", "ouvrir"),
+            ("Échap", "retour"),
+            ("", ""),
+        ],
+        [
+            ("lettres", "rechercher"),
+            ("Retour", "effacer"),
+            ("Ctrl+U", "effacer"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+        [
+            ("Esc", "fermer"),
+            ("?", "raccourcis"),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+            ("", ""),
+        ],
+    ];
+    l.status_feature_running = "Exécution de l'opération de fonctionnalités...";
+    l.status_edit_in_settings = "{} est un réglage vérifié ; modifiez-le dans les Réglages (s).";
+    l.codec_unverified = "requête non vérifiée";
+    l.arg_enabled = "Activé";
+    l.arg_side = "Côté";
+    l.arg_duration = "Durée (s)";
+    l.arg_target = "Cible";
+    l.arg_value = "Valeur (0-255)";
+    l.arg_mode = "Mode";
+    l.arg_peer = "Appairé";
+    l.arg_actions = "Actions";
+    l.arg_address = "MAC de l'appairé";
+    l.arg_hint_toggle = "on ou off";
+    l.arg_hint_side = "gauche ou droite";
+    l.arg_hint_seconds = "1..30 secondes";
+    l.arg_hint_byte = "0..255";
+    l.arg_hint_mac = "six octets hexadécimaux séparés par deux-points";
+    l.arg_hint_peer = "1 ou 2";
+    l.arg_hint_actions = "{} valeurs d'action séparées par des virgules";
+    l.tui_no_tty =
+        "L'interface exige des terminaux interactifs stdin et stdout ; exécutez ugreen --help pour les commandes de la CLI.";
+    l.tui_bad_channel =
+        "Le canal de l'interface doit être 1-30 et le délai supérieur à zéro et au plus 60 secondes.";
+    l.status_worker_busy =
+        "Une opération est déjà en cours ; attendez ou appuyez sur Échap pour annuler.";
+    l.status_worker_sequence = "Séquence de requêtes épuisée ; redémarrez l'interface.";
+    l.status_worker_stopped = "Le worker Bluetooth est arrêté ; redémarrez l'interface.";
+    l.status_worker_queue = "La file du worker est pleine ; attendez avant de réessayer.";
+    l.status_reset_unavailable = "cible de réinitialisation indisponible";
+    l.status_reset_done =
+        "Réinitialisation confirmée ; jumelage hôte et appareil enregistré supprimés.";
+    l.status_inflight_write =
+        "Une écriture en cours a peut-être abouti ; actualisez après le redémarrage.";
     l
 }

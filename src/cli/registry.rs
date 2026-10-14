@@ -28,6 +28,7 @@ pub enum Category {
 pub enum AccessPolicy {
     Offline,
     HostRead,
+    HostWrite,
     DeviceRead,
     DeviceWrite,
     CaptureGated,
@@ -227,7 +228,7 @@ const PROFILE_APPLY: CommandSpec = CommandSpec {
 
 const DISCOVER: CommandSpec = CommandSpec {
     name: "discover",
-    aliases: &[],
+    aliases: &["devices"],
     usage: "",
     about: |t| t.cmd_discover,
     category: Category::Bluetooth,
@@ -397,7 +398,7 @@ const AUDIO_DEVICES: CommandSpec = CommandSpec {
     name: "audio-devices",
     aliases: &[],
     usage: "",
-    about: |t| t.cmd_audio_devices,
+    about: |t| t.host_commands[1],
     category: Category::CaptureGated,
     access: AccessPolicy::HostRead,
     min_args: 0,
@@ -429,6 +430,10 @@ const VERSION: CommandSpec = CommandSpec {
 /// its example subcommand lands at the end of the
 /// offline section, matching the historical layout.
 pub const COMMANDS: &[&CommandSpec] = &[
+    &AUDIO,
+    &CAPABILITIES,
+    &DOCTOR,
+    &HOST,
     &HELP,
     &TUI,
     &MODELS,
@@ -496,6 +501,126 @@ pub fn usage_line(path: &[&'static CommandSpec]) -> String {
     }
     out
 }
+
+const AUDIO: CommandSpec = CommandSpec {
+    name: "audio",
+    aliases: &[],
+    usage: "status|devices",
+    about: |t| t.host_commands[0],
+    category: Category::Bluetooth,
+    access: AccessPolicy::HostRead,
+    min_args: 1,
+    max_args: 1,
+    handler: crate::cli::handlers::host::audio_status,
+    subcommands: &[&AUDIO_STATUS, &AUDIO_LIST],
+    help_group: None,
+    hidden: true,
+};
+
+const AUDIO_STATUS: CommandSpec = CommandSpec {
+    name: "status",
+    aliases: &[],
+    usage: "",
+    about: |t| t.host_commands[0],
+    category: Category::Bluetooth,
+    access: AccessPolicy::HostRead,
+    min_args: 0,
+    max_args: 0,
+    handler: crate::cli::handlers::host::audio_status,
+    subcommands: &[],
+    help_group: None,
+    hidden: false,
+};
+
+const AUDIO_LIST: CommandSpec = CommandSpec {
+    name: "devices",
+    aliases: &[],
+    usage: "",
+    about: |t| t.host_commands[1],
+    category: Category::Bluetooth,
+    access: AccessPolicy::HostRead,
+    min_args: 0,
+    max_args: 0,
+    handler: crate::cli::handlers::app::audio_devices,
+    subcommands: &[],
+    help_group: None,
+    hidden: false,
+};
+
+const CAPABILITIES: CommandSpec = CommandSpec {
+    name: "capabilities",
+    aliases: &[],
+    usage: "",
+    about: |t| t.host_commands[2],
+    category: Category::Offline,
+    access: AccessPolicy::Offline,
+    min_args: 0,
+    max_args: 0,
+    handler: crate::cli::handlers::host::capabilities,
+    subcommands: &[],
+    help_group: None,
+    hidden: false,
+};
+
+const DOCTOR: CommandSpec = CommandSpec {
+    name: "doctor",
+    aliases: &[],
+    usage: "",
+    about: |t| t.host_commands[3],
+    category: Category::Bluetooth,
+    access: AccessPolicy::HostRead,
+    min_args: 0,
+    max_args: 0,
+    handler: crate::cli::handlers::host::doctor,
+    subcommands: &[],
+    help_group: None,
+    hidden: false,
+};
+
+const HOST: CommandSpec = CommandSpec {
+    name: "host",
+    aliases: &[],
+    usage: "connect|disconnect",
+    about: |t| t.host_commands[4],
+    category: Category::Bluetooth,
+    access: AccessPolicy::HostRead,
+    min_args: 1,
+    max_args: 1,
+    handler: crate::cli::handlers::host::host_action,
+    subcommands: &[&HOST_CONNECT, &HOST_DISCONNECT],
+    help_group: None,
+    hidden: true,
+};
+
+const HOST_CONNECT: CommandSpec = CommandSpec {
+    name: "connect",
+    aliases: &[],
+    usage: "",
+    about: |t| t.host_commands[4],
+    category: Category::Bluetooth,
+    access: AccessPolicy::HostWrite,
+    min_args: 0,
+    max_args: 0,
+    handler: crate::cli::handlers::host::host_action,
+    subcommands: &[],
+    help_group: None,
+    hidden: false,
+};
+
+const HOST_DISCONNECT: CommandSpec = CommandSpec {
+    name: "disconnect",
+    aliases: &[],
+    usage: "",
+    about: |t| t.host_commands[5],
+    category: Category::Bluetooth,
+    access: AccessPolicy::HostWrite,
+    min_args: 0,
+    max_args: 0,
+    handler: crate::cli::handlers::host::host_action,
+    subcommands: &[],
+    help_group: None,
+    hidden: false,
+};
 
 #[cfg(test)]
 mod tests {

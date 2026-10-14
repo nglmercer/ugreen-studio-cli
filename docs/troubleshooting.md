@@ -82,3 +82,19 @@ Record a suspect session with `capture` instead of reconstructing it from logs: 
 Use `l` in the TUI to inspect the latest 100 session events; the log exists only in memory. Collect the application version, OS/architecture, Rust version if built locally, feature set, exact command or TUI action, error text, headphone retail/model label, and firmware if a read succeeds. A `capture` file from the failing session is the single most useful attachment. Include whether a write may already have happened. A minimal profile and offline capture can help reproduce parsing issues.
 
 Bluetooth addresses and paired-device names can identify devices or people; redact them from public reports. Never include account credentials or unrelated captures. No report should describe a mock/cross-target test as a physical headphone test.
+
+## OS audio and host actions
+
+Install PipeWire tools if `audio status` cannot launch `pw-dump`; run it in the
+same user session as the audio server. An empty observation list means no matching
+node was observed, not that the headset lacks codec support. A codec without an
+explicit transport property remains unknown. Windows negotiated codec queries
+return unavailable. Use OS diagnostics rather than inferring codecs from versions.
+
+Linux `host connect` / `host disconnect` require a paired target visible to BlueZ
+and system-bus authorization. Errors include absent target, ambiguous adapter or
+D-Bus denial; refresh OS settings and choose the correct adapter. Host actions
+never unpair and never substitute RFCOMM socket closure for an OS disconnect.
+`doctor` is read-only and lists unavailable checks explicitly. Firmware preflight
+rejects unrecorded versions; obtain physical evidence before extending the exact
+model/firmware allowlist.

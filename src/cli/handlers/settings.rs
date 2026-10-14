@@ -24,6 +24,14 @@ fn apply(options: &crate::cli::context::Options, settings_list: &[Setting]) -> R
         return Ok(());
     }
     let mut client = connect(options)?;
+    let firmware = client
+        .firmware()
+        .map_err(|e| format!("firmware preflight failed: {e}"))?;
+    crate::models::require_verified_firmware(
+        Some(crate::models::Model::StudioPro),
+        Some(&firmware),
+    )
+    .map_err(|e| e.to_string())?;
     // Initial query must be understood before the first setting write.
     client
         .info()

@@ -54,7 +54,7 @@ fn ready() -> App {
         id: 1,
         result: Ok(Output::Snapshot(Snapshot {
             info: info(),
-            firmware: Some("1.2.3".into()),
+            firmware: Some("0.2.5".into()),
             note: None,
         })),
         connected: true,
@@ -76,7 +76,7 @@ fn render(app: &App, width: u16, height: u16) -> String {
 #[test]
 fn startup_is_disconnected_without_implicit_actions() {
     let app = App::new(&config());
-    assert!(!app.control_connected);
+    assert!(!app.control_state.is_connected());
     assert!(app.info.is_none());
     assert!(app.busy.is_none());
     assert!(app.paired.is_none());
@@ -117,7 +117,7 @@ fn model_cancel_does_not_select_or_connect() {
     app.key(key(KeyCode::Char('m')));
     app.key(key(KeyCode::Esc));
     assert!(!app.model_confirmed);
-    assert!(!app.control_connected);
+    assert!(!app.control_state.is_connected());
 }
 #[test]
 fn address_editor_is_local_bounded_and_validated() {
@@ -129,7 +129,7 @@ fn address_editor_is_local_bounded_and_validated() {
     assert_eq!(app.address_edit.as_deref(), Some("AB:CD:EF:01:23:45"));
     assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
     assert_eq!(app.address, "AB:CD:EF:01:23:45");
-    assert!(!app.control_connected);
+    assert!(!app.control_state.is_connected());
     app.key(key(KeyCode::Char('a')));
     app.key(key(KeyCode::Backspace));
     app.key(key(KeyCode::Enter));
@@ -154,7 +154,7 @@ fn paired_cache_only_on_explicit_request_and_selection_does_not_connect() {
     });
     assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
     assert_eq!(app.address, "AA:BB:CC:DD:EE:FF");
-    assert!(!app.control_connected);
+    assert!(!app.control_state.is_connected());
 }
 #[test]
 fn first_device_pick_opens_protocol_modal_then_connects() {
@@ -262,14 +262,14 @@ fn paired_selection_applies_the_canonical_address() {
 #[test]
 fn connected_target_cannot_be_edited_or_replaced() {
     let mut app = ready();
-    for code in ['a', 'p', 'm', 'c'] {
+    for code in ['a', 'm', 'c'] {
         assert!(matches!(app.key(key(KeyCode::Char(code))), Intent::None));
     }
     assert!(app.address_edit.is_none());
     assert!(app.paired.is_none());
 }
 #[test]
-fn proposing_then_enter_applies_directly() {
+fn proposing_then_enter_requires_review() {
     let mut app = ready();
     assert!(matches!(app.key(key(KeyCode::Right)), Intent::None));
     assert_eq!(app.proposals[0].as_deref(), Some("ultra"));
@@ -277,6 +277,8 @@ fn proposing_then_enter_applies_directly() {
         app.info.as_ref().unwrap().value("anc").as_deref(),
         Some("off")
     );
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    assert!(app.review.is_some());
     assert!(
         matches!(app.key(key(KeyCode::Enter)), Intent::Request(Action::Set(setting)) if setting.key == "anc" && setting.value == "ultra")
     );
@@ -326,6 +328,9 @@ fn enter_without_proposal_opens_value_list() {
     assert_eq!(app.picker, Some(0));
     app.key(key(KeyCode::Down));
     assert_eq!(app.picker, Some(1));
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    assert!(app.review.is_some());
     assert!(
         matches!(app.key(key(KeyCode::Enter)), Intent::Request(Action::Set(setting)) if setting.key == "anc" && setting.value == "ultra")
     );
@@ -339,6 +344,8 @@ fn picker_escape_and_same_value_do_not_write() {
     assert!(app.picker.is_none());
     app.key(key(KeyCode::Enter));
     assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    app.key(key(KeyCode::Enter));
+    app.key(key(KeyCode::Enter));
     assert!(app.status.contains("already"));
     assert!(app.picker.is_none());
 }
@@ -354,8 +361,11 @@ fn mouse_click_applies_picked_value() {
         row,
         modifiers: KeyModifiers::NONE,
     };
+    assert!(matches!(app.mouse(click(13), 100, 30), Intent::None));
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    assert!(app.review.is_some());
     assert!(
-        matches!(app.mouse(click(13), 100, 30), Intent::Request(Action::Set(setting)) if setting.key == "anc" && setting.value == "ultra")
+        matches!(app.key(key(KeyCode::Enter)), Intent::Request(Action::Set(setting)) if setting.key == "anc" && setting.value == "ultra")
     );
     assert!(app.picker.is_none());
 }
@@ -373,7 +383,7 @@ fn same_value_and_unavailable_value_do_not_write() {
 #[test]
 fn all_proposed_values_are_real_supported_settings() {
     for (index, key) in settings::KEYS.iter().enumerate() {
-        for value in choices(index) {
+        for &(value, _) in choices(index) {
             assert!(Setting::parse(key, value).is_ok(), "{key} {value}");
         }
     }
@@ -411,7 +421,7 @@ fn cancel_keeps_busy_until_matching_completion() {
         writes_blocked: false,
     });
     assert!(app.busy.is_some());
-    assert!(app.control_connected);
+    assert!(app.control_state.is_connected());
 }
 #[test]
 fn disconnect_after_cancel_is_scheduled_only_after_completion() {
@@ -474,7 +484,7 @@ fn stale_replies_never_overwrite_ui() {
         writes_blocked: true,
     });
     assert_eq!(app.info, old);
-    assert!(app.control_connected);
+    assert!(app.control_state.is_connected());
     assert!(!app.writes_blocked);
 }
 #[test]
@@ -503,7 +513,7 @@ fn worker_failure_disables_future_work() {
     let mut app = ready();
     app.accepted(2, Action::Set(Setting::parse("game", "on").unwrap()));
     app.worker_failed("Worker stopped".into());
-    assert!(!app.control_connected);
+    assert!(!app.control_state.is_connected());
     assert!(app.writes_blocked);
     assert!(app.status.contains("may have completed"));
     assert!(matches!(app.key(key(KeyCode::Char('c'))), Intent::None));
@@ -514,7 +524,7 @@ fn default_render_truthfully_shows_missing_data() {
     assert!(text.contains("Bluetooth: UNKNOWN"));
     assert!(text.contains("Control:   DISCONNECTED"));
     assert!(text.contains("Battery: unavailable"));
-    assert!(text.contains("Codec: not detected"));
+    assert!(text.contains("query not verified"));
 }
 #[test]
 fn paired_rows_show_link_state_and_confirmed_model() {
@@ -538,7 +548,7 @@ fn bluetooth_and_control_states_are_independent() {
     // control session is not. Both facts must be visible at once.
     let mut app = ready();
     app.host_connection = HostConnectionState::Connected;
-    app.control_connected = false;
+    app.control_state = crate::bluetooth::ControlSessionState::Disconnected;
     let text = render(&app, 100, 30);
     assert!(text.contains("Bluetooth"), "{text}");
     assert!(text.contains("CONNECTED"), "{text}");
@@ -546,7 +556,7 @@ fn bluetooth_and_control_states_are_independent() {
     assert!(text.contains("DISCONNECTED"), "{text}");
     // Losing the control session never rewrites the Bluetooth state.
     app.worker_failed("Worker stopped".into());
-    assert!(!app.control_connected);
+    assert!(!app.control_state.is_connected());
     assert_eq!(app.host_connection, HostConnectionState::Connected);
 }
 #[test]
@@ -566,7 +576,7 @@ fn selected_disconnected_device_updates_host_state() {
     app.key(key(KeyCode::Enter));
     assert_eq!(app.host_connection, HostConnectionState::Disconnected);
     // Picking a device never claims an RFCOMM control session.
-    assert!(!app.control_connected);
+    assert!(!app.control_state.is_connected());
 }
 #[test]
 fn missing_target_becomes_unknown() {
@@ -654,7 +664,7 @@ fn control_disconnect_does_not_change_host_connection() {
         connected: false,
         writes_blocked: false,
     });
-    assert!(!app.control_connected);
+    assert!(!app.control_state.is_connected());
     assert_eq!(app.host_connection, HostConnectionState::Connected);
     assert!(app.status.contains("Bluetooth was not modified"));
     let text = render(&app, 100, 30);
@@ -662,10 +672,8 @@ fn control_disconnect_does_not_change_host_connection() {
     assert!(text.contains("Control:   DISCONNECTED"), "{text}");
 }
 #[test]
-fn open_control_session_holds_bluetooth_connected() {
-    // RFCOMM cannot be open without the link, so connecting settles
-    // an unknown header instead of leaving Control:on next to
-    // Bluetooth:unknown.
+fn open_control_session_does_not_fabricate_host_observation() {
+    // An open socket does not replace an explicit OS observation.
     let mut app = App::new(&config());
     assert_eq!(app.host_connection, HostConnectionState::Unknown);
     app.accepted(
@@ -685,8 +693,8 @@ fn open_control_session_holds_bluetooth_connected() {
         connected: true,
         writes_blocked: false,
     });
-    assert!(app.control_connected);
-    assert_eq!(app.host_connection, HostConnectionState::Connected);
+    assert!(app.control_state.is_connected());
+    assert_eq!(app.host_connection, HostConnectionState::Unknown);
 }
 #[test]
 fn failed_connect_does_not_claim_bluetooth_connected() {
@@ -706,13 +714,12 @@ fn failed_connect_does_not_claim_bluetooth_connected() {
         connected: false,
         writes_blocked: false,
     });
-    assert!(!app.control_connected);
+    assert!(!app.control_state.is_connected());
     assert_eq!(app.host_connection, HostConnectionState::Unknown);
 }
 #[test]
-fn stale_pairing_list_cannot_downgrade_an_open_session() {
-    // A pairing reply is applied first; the open session still wins,
-    // so the two header lines can never contradict a live socket.
+fn host_unknown_observation_does_not_close_control_session() {
+    // Unknown OS state remains unknown while the socket stays open.
     let mut app = ready();
     app.accepted(2, Action::Paired);
     app.receive(Reply {
@@ -724,8 +731,8 @@ fn stale_pairing_list_cannot_downgrade_an_open_session() {
         connected: true,
         writes_blocked: false,
     });
-    assert!(app.control_connected);
-    assert_eq!(app.host_connection, HostConnectionState::Connected);
+    assert!(app.control_state.is_connected());
+    assert_eq!(app.host_connection, HostConnectionState::Unknown);
 }
 #[test]
 fn picker_p_reload_fresh_list_instead_of_stale_modal() {
@@ -1029,9 +1036,9 @@ impl Drop for FakeSession {
 impl Session for FakeSession {
     fn feature(
         &mut self,
-        op: &super::features::Operation,
+        op: &crate::features::Operation,
         cancelled: &dyn Fn() -> bool,
-    ) -> io::Result<super::features::ResultData> {
+    ) -> io::Result<crate::features::ResultData> {
         let mut s = self.0.lock().unwrap();
         s.calls.push("feature".into());
         if s.cancel_feature {
@@ -1041,7 +1048,7 @@ impl Session for FakeSession {
             return Err(io::Error::other("mock feature failed/cancelled"));
         }
         let certain = s.feature_certain.unwrap_or(true);
-        Ok(super::features::ResultData {
+        Ok(crate::features::ResultData {
             text: "mock result".into(),
             codecs: None,
             info: if certain && op.is_write() && !op.is_reset() {
@@ -1453,7 +1460,7 @@ fn address_control_u_clears_prefilled_value_without_io() {
     app.key(key(KeyCode::Char('a')));
     app.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
     assert_eq!(app.address_edit.as_deref(), Some(""));
-    assert!(!app.control_connected);
+    assert!(!app.control_state.is_connected());
 }
 
 #[test]
@@ -1528,60 +1535,41 @@ fn closure_shutdown_guard_cancels_worker_without_waiting() {
 }
 
 #[test]
-fn feature_panel_input_is_bounded_and_gates_before_worker_submission() {
+fn feature_workspace_gates_candidates_before_worker_submission() {
     let mut app = ready();
     app.key(key(KeyCode::Char('F')));
-    assert_eq!(app.feature_input.as_deref(), Some(""));
-    for c in "control ldac on".chars() {
-        assert!(matches!(app.key(key(KeyCode::Char(c))), Intent::None));
-    }
+    assert!(app.features);
+    app.feature_index = crate::features::FeatureId::LdacToggle.index();
     assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
-    assert!(app.status.contains("official-app capture required"));
-    assert!(!app.feature_confirmation);
-    assert!(render(&app, 100, 30).contains("Headset features"));
-    app.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
-    app.key(key(KeyCode::Char('q')));
-    assert_eq!(app.feature_input.as_deref(), Some("q"));
-    for _ in 0..300 {
-        app.key(key(KeyCode::Char('x')));
+    assert!(app.feature_form.is_none());
+    assert!(app.review.is_none());
+    assert!(app.busy.is_none());
+    app.key(key(KeyCode::Esc));
+    if app.features {
+        app.key(key(KeyCode::Esc));
     }
-    assert_eq!(app.feature_input.as_ref().unwrap().len(), 256);
-    app.key(key(KeyCode::Esc));
-    assert!(app.feature_input.is_none());
+    assert!(!app.features);
 }
+
 #[test]
-fn promoted_feature_controls_require_review_and_edits_cancel_confirmation() {
-    use crate::models::Capabilities as C;
-    let caps = C::from_bits(C::VOLUME | C::CODEC_STATUS | C::FACTORY_RESET);
+fn typed_feature_drafts_validate_before_review() {
+    use super::state::FeatureForm;
+    use crate::features::FeatureId;
     let mut app = ready();
-    app.feature_input = Some("control volume 8".into());
-    assert!(matches!(app.prepare_feature(caps), Intent::None));
-    assert!(app.feature_confirmation);
-    app.key(key(KeyCode::Backspace));
-    assert!(!app.feature_confirmation);
-    app.feature_input = Some("control volume 8".into());
-    app.prepare_feature(caps);
-    assert!(matches!(
-        app.prepare_feature(caps),
-        Intent::Request(Action::Feature(_))
-    ));
-    app.feature_input = Some("codec".into());
-    assert!(matches!(
-        app.prepare_feature(caps),
-        Intent::Request(Action::Feature(_))
-    ));
-    app.feature_input = Some("control factory-reset".into());
-    app.prepare_feature(caps);
-    assert!(app.status.contains("removes host pairing"));
+    app.features = true;
+    app.feature_form = Some(FeatureForm {
+        id: FeatureId::VolumeCommand,
+        drafts: vec![Some("256".into())],
+        field: 0,
+    });
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    assert!(app.review.is_none());
     app.key(key(KeyCode::Esc));
-    assert!(!app.feature_confirmation);
-    app.writes_blocked = true;
-    assert!(matches!(app.prepare_feature(caps), Intent::None));
-    assert!(!app.feature_confirmation);
+    assert!(app.feature_form.is_none());
 }
 #[test]
 fn feature_worker_gates_before_preflight_and_blocks_uncertain_outcomes() {
-    use super::features::Operation;
+    use crate::features::Operation;
     use crate::models::Capabilities as C;
     let (mut engine, state) = connected_engine();
     let op = Operation::parse("control volume 8").unwrap();
@@ -1605,7 +1593,7 @@ fn feature_worker_gates_before_preflight_and_blocks_uncertain_outcomes() {
 }
 #[test]
 fn feature_worker_respects_cancellation_before_and_after_write() {
-    use super::features::Operation;
+    use crate::features::Operation;
     use crate::models::Capabilities as C;
     for during_write in [false, true] {
         let (mut engine, state) = connected_engine();
@@ -1633,7 +1621,7 @@ fn feature_worker_respects_cancellation_before_and_after_write() {
 }
 #[test]
 fn feature_reset_closes_session_before_cleanup_for_actual_connected_address() {
-    use super::features::Operation;
+    use crate::features::Operation;
     use crate::models::Capabilities as C;
     for fail_cleanup in [false, true] {
         let (mut engine, state) = engine();
@@ -1667,9 +1655,9 @@ fn feature_reset_closes_session_before_cleanup_for_actual_connected_address() {
 }
 #[test]
 fn feature_panel_busy_escape_cancels_and_results_follow_request_ids() {
-    use super::features::{Operation, ResultData};
+    use crate::features::{Operation, ResultData};
     let mut app = ready();
-    app.feature_input = Some("peers".into());
+    app.features = true;
     app.accepted(8, Action::Feature(Operation::Peers));
     assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
     assert!(matches!(app.key(key(KeyCode::Esc)), Intent::Cancel));
@@ -1705,7 +1693,7 @@ fn feature_panel_busy_escape_cancels_and_results_follow_request_ids() {
 fn feature_panel_mouse_and_ctrl_c_do_not_bypass_busy_safety() {
     use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
     let mut app = ready();
-    app.feature_input = Some("control volume 8".into());
+    app.features = true;
     let mouse = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: 35,
@@ -1715,7 +1703,7 @@ fn feature_panel_mouse_and_ctrl_c_do_not_bypass_busy_safety() {
     assert!(matches!(app.mouse(mouse, 100, 30), Intent::None));
     app.accepted(
         9,
-        Action::Feature(super::features::Operation::parse("control volume 8").unwrap()),
+        Action::Feature(crate::features::Operation::parse("control volume 8").unwrap()),
     );
     assert!(matches!(
         app.key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
@@ -1726,7 +1714,7 @@ fn feature_panel_mouse_and_ctrl_c_do_not_bypass_busy_safety() {
 }
 #[test]
 fn feature_parser_rejects_reserved_and_invalid_forms_and_classifies_writes() {
-    use super::features::Operation;
+    use crate::features::Operation;
     for input in [
         "",
         "firmware",
@@ -1759,7 +1747,7 @@ fn feature_parser_rejects_reserved_and_invalid_forms_and_classifies_writes() {
 
 #[test]
 fn codec_query_result_updates_header_and_writes_invalidate_it() {
-    use super::features::{Operation, ResultData};
+    use crate::features::{Operation, ResultData};
     use crate::protocol::static_analysis::Codec;
     let mut app = ready();
     app.accepted(12, Action::Feature(Operation::Codec));
@@ -1778,4 +1766,176 @@ fn codec_query_result_updates_header_and_writes_invalidate_it() {
     assert!(render(&app, 110, 30).contains("Codecs (last query): SBC/LDAC"));
     app.accepted(13, Action::Set(Setting::parse("game", "on").unwrap()));
     assert!(app.codecs.is_none());
+}
+
+#[test]
+fn host_and_audio_observations_preserve_control_and_reject_changed_targets() {
+    use crate::{
+        audio::{Activity, AudioStatus, Codec, Profile},
+        bluetooth::ControlSessionState,
+    };
+    let mut app = ready();
+    let target = BluetoothAddress::parse(&app.address).unwrap();
+    let observation = AudioStatus {
+        address: target.clone(),
+        profile: Profile::A2dp,
+        codec: Some(Codec::Aac),
+        activity: Activity::Active,
+        source: "mock",
+        observed_at: std::time::SystemTime::now(),
+        transport_id: 1,
+        transport_path: None,
+    };
+    app.accepted(
+        40,
+        Action::Audio {
+            address: app.address.clone(),
+        },
+    );
+    app.receive(Reply {
+        id: 40,
+        result: Ok(Output::Audio {
+            address: target.clone(),
+            observations: vec![observation],
+        }),
+        connected: true,
+        writes_blocked: false,
+    });
+    app.accepted(
+        41,
+        Action::HostRefresh {
+            address: app.address.clone(),
+        },
+    );
+    app.receive(Reply {
+        id: 41,
+        result: Ok(Output::HostSnapshot {
+            address: target.clone(),
+            devices: vec![
+                device(&app.address, "Target").with_connection(HostConnectionState::Disconnected)
+            ],
+        }),
+        connected: true,
+        writes_blocked: false,
+    });
+    assert_eq!(app.host_connection, HostConnectionState::Disconnected);
+    assert_eq!(app.control_state, ControlSessionState::Connected);
+    assert_eq!(app.audio.as_ref().unwrap()[0].activity, Activity::Active);
+    app.accepted(
+        42,
+        Action::HostRefresh {
+            address: target.to_string(),
+        },
+    );
+    let other = BluetoothAddress::parse("00:11:22:33:44:55").unwrap();
+    app.receive(Reply {
+        id: 42,
+        result: Ok(Output::HostSnapshot {
+            address: other,
+            devices: vec![],
+        }),
+        connected: true,
+        writes_blocked: false,
+    });
+    assert_eq!(app.host_connection, HostConnectionState::Disconnected);
+    app.accepted(43, Action::Disconnect);
+    app.receive(Reply {
+        id: 43,
+        result: Ok(Output::Disconnected),
+        connected: false,
+        writes_blocked: false,
+    });
+    assert_eq!(app.control_state, ControlSessionState::Disconnected);
+    assert_eq!(app.audio.as_ref().unwrap()[0].activity, Activity::Active);
+    assert_eq!(app.host_connection, HostConnectionState::Disconnected);
+}
+
+#[test]
+fn devices_allow_browsing_during_session_but_block_target_switch() {
+    let mut app = ready();
+    assert!(matches!(
+        app.key(key(KeyCode::Char('p'))),
+        Intent::Request(Action::Paired)
+    ));
+    app.paired = Some(vec![device("00:11:22:33:44:55", "Other")]);
+    let address = app.address.clone();
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    assert_eq!(app.address, address);
+    assert!(matches!(
+        app.key(key(KeyCode::Char('h'))),
+        Intent::Request(Action::HostConnection {
+            connected: true,
+            ..
+        })
+    ));
+    app.accepted(44, Action::Set(Setting::parse("game", "on").unwrap()));
+    assert!(matches!(app.key(key(KeyCode::Char('H'))), Intent::None));
+}
+
+#[test]
+fn unknown_firmware_cannot_propose_or_confirm_setting_writes() {
+    let mut app = ready();
+    app.firmware = Some("0.2.6".into());
+    assert!(matches!(app.key(key(KeyCode::Right)), Intent::None));
+    assert!(app.proposals[0].is_none());
+    app.review = Some(super::state::Review::Setting {
+        value: "ultra".into(),
+    });
+    assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+    app.firmware = None;
+    assert!(matches!(app.key(key(KeyCode::Right)), Intent::None));
+    assert!(app.proposals[0].is_none());
+}
+
+#[test]
+fn dedicated_pages_keyboard_and_mouse_share_rendered_geometry() {
+    use super::state::ObservationView;
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let mut app = ready();
+    app.key(key(KeyCode::Char('v')));
+    app.key(key(KeyCode::Down));
+    assert!(matches!(
+        app.key(key(KeyCode::Enter)),
+        Intent::Request(Action::Audio { .. })
+    ));
+    assert_eq!(app.observation_view, Some(ObservationView::Audio));
+    app.key(key(KeyCode::Esc));
+    app.key(key(KeyCode::Char('v')));
+    let rect = view::pages_rect(ratatui::layout::Rect::new(0, 0, 100, 30));
+    assert!(matches!(
+        app.mouse(
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: rect.x + 2,
+                row: rect.y + 7,
+                modifiers: KeyModifiers::NONE
+            },
+            100,
+            30
+        ),
+        Intent::Request(Action::Doctor { .. })
+    ));
+    assert_eq!(app.observation_view, Some(ObservationView::Diagnostics));
+}
+
+#[test]
+fn observation_pages_render_small_terminals_and_cancel_refresh() {
+    use super::state::ObservationView;
+    for view in [ObservationView::Audio, ObservationView::Diagnostics] {
+        let mut app = ready();
+        app.observation_view = Some(view);
+        for (width, height) in [(1, 1), (40, 12), (80, 24)] {
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            terminal.draw(|frame| view::render(frame, &app)).unwrap();
+        }
+        app.key(key(KeyCode::Down));
+        assert_eq!(app.observation_scroll, 1);
+        app.accepted(
+            100,
+            Action::Audio {
+                address: app.address.clone(),
+            },
+        );
+        assert!(matches!(app.key(key(KeyCode::Esc)), Intent::Cancel));
+    }
 }

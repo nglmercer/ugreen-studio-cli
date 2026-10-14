@@ -95,17 +95,17 @@ disables capture cleanup through Ratatui's normal restore path.
 
 Address entry accepts hexadecimal digits and colons, Backspace deletes, Ctrl+U clears, Enter validates, and Esc discards the edit; follow the dialog hints. In the protocol dialog, `n` also cancels. The session log retains the latest 100 status events in memory and is not saved to disk. Esc also closes the log or help.
 
-Settings are grouped into four categories — Audio (ANC, equalizer, game mode, spatial audio), Connection (dual connection), Environment (wind reduction) and Feedback (prompts, volume-button actions). `Tab` switches category, digits `1`–`9` jump within it, and Up/Down cross into the adjacent category at a boundary. With no proposal pending, `Enter` opens a value list for the selected setting: Up/Down move, `Enter` applies, `Esc` closes, and a click applies the clicked value at once. The value the device currently reports is marked `*`.
+Settings are grouped into four categories — Audio (ANC, equalizer, game mode, spatial audio), Connection (dual connection), Environment (wind reduction) and Feedback (prompts, volume-button actions). `Tab` switches category, digits `1`–`9` jump within it, and Up/Down cross into the adjacent category at a boundary. With no proposal pending, `Enter` opens a value list for the selected setting: Up/Down move, `Enter` drafts the selected value, `Esc` closes, and a click drafts the clicked value. Enter on the setting opens review; Enter again applies. The value the device currently reports is marked `*`.
 
 A listed device is just a paired device of this OS and may be offline or a different model. Rows show the link state explicitly (`[CONNECTED]`, `[DISCONNECTED]` or `[UNKNOWN]`) and the registry-confirmed model (`model=studio-pro`) when you confirmed it for that address; enumeration never guesses a model. The list orders the current target first, then connected, disconnected and unknown devices, breaking ties by name and address. Selecting a device alone does not open a Bluetooth connection — it only updates the target and the header's Bluetooth state — and the protocol confirmation is re-derived for the selected address, so confirming one device does not confirm another.
 
-The header reports the two links separately: `Bluetooth:` is the OS link state of the current target — from paired-device enumerations, and held at `CONNECTED` whenever this application's RFCOMM `Control:` session is open, since an open session proves the link — while `Control:` is the session itself. The control line may read `DISCONNECTED` while Bluetooth reads `CONNECTED` (after `d`, or for a link this application never opened); neither is wrong, and `d` only ever changes the control side. A failed connect never claims `CONNECTED`, and a stale pairing list cannot downgrade a live session.
+The header reports independent observations: `Bluetooth:` is the last OS host-link observation; `Control:` is this application's typed RFCOMM lifecycle. RFCOMM never overwrites an OS observation. `d` closes only control. Host observations refresh through the worker every five seconds when idle; errors do not terminate the interface. `p` opens host devices during a session, but selecting another target requires disconnecting control first. Within that list, `h` and `H` explicitly request host connect and disconnect; these are Linux BlueZ actions and are unsupported on Windows.
 
 The interface distinguishes last-read state from a proposed value. Editing a proposal is local. Fields missing or unknown in device readback cannot be written from the TUI, and proposing the current value does not send a redundant write. Applying with Enter requires device-info preflight, acknowledgement (except spatial audio: retail firmware applies the write but answers with an `85 86 87` notification instead of a `DD EE FF` ack, so only the readback verifies it), and matching readback. If a write fails or its result is uncertain, further writes are blocked until an explicit successful refresh. Do not infer failure to apply from a timeout alone.
 
 Pressing `d` while busy requests cancellation and disconnection after the current stage. Esc requests cancellation but keeps the interface open; quitting while busy asks for a second `q` or Enter and does not wait for the operation. Cancellation cannot undo bytes already sent. A setting may have changed if you disconnect or exit during a write. Query status before another attempt. Device operations use bounded timeouts, but a whole workflow can require several operations. Follow the on-screen busy/cancellation state rather than repeatedly submitting a write.
 
-Battery is read from the vendor device-info response. No platform battery API is used as a fallback. Codec information is unavailable, and there is no codec-selection command. Unknown fields are not replaced with guessed defaults.
+Battery is read from the vendor device-info response. No platform battery API is used as a fallback. `A` asynchronously refreshes address-matched Linux PipeWire observations, including profile, transport codec, activity and observation age. Vendor codec queries and codec-selection writes remain disabled. Unknown fields are not replaced with guessed defaults.
 
 ## Internationalization
 
@@ -385,27 +385,60 @@ index (including 0) to `find`; the default WAVE_MAPPER is rejected. Native
 uses the same generated stereo tone, with a completion callback,
 duration-plus-five-second deadline and reset/unprepare/close cleanup.
 Windows playback and console interruption need native runtime verification.
-On Linux, identify the headset's sink using `wpctl status`; `audio-devices`
-is Windows-only. Target selection is explicit and separate from the
+On Linux, `audio-devices` and `audio devices` list exact PipeWire sink names. Target selection is explicit and separate from the
 headset's RFCOMM Bluetooth address.
 
 ### TUI feature commands
 
-Press `F` in the main TUI to open the headset feature panel. Its commands
-are `peers`, `codec`, `id`, `color`, `box-mac`, `control OP ARGS` and
-`find left|right SECONDS TARGET`, using the same arguments as the CLI.
-Command names stay canonical across interface languages. All static
-features currently refuse with a capture-required message.
-
-After capture-backed promotion, Enter runs a query or reviews a control;
-a second Enter confirms the control. Editing the command cancels its
-confirmation. Reset review states that pairing and the saved device will
-be removed. Esc cancels review, closes the panel, or cancels active work;
-Ctrl+U clears the input. Input is limited to 256 printable ASCII bytes.
-Mouse clicks cannot apply underlying settings while this panel is open.
+Press `F` to open the registry-based feature workspace. Category tabs and
+bounded search select a feature; Enter opens narrow details or activates the
+wide view. Verified settings return to Settings. Static candidates explain the
+missing physical capture and never open a live operation. Typed forms require
+all values before review; Enter confirms an authorized operation and Esc cancels.
+Input bounds depend on the field, and search is limited to 64 characters.
+Mouse clicks are restricted to the rendered workspace or modal geometry.
 
 Only the worker owns Bluetooth and audio execution. The UI and worker each
 check capabilities. Unconfirmed or acknowledgement-only controls block
 further writes until explicit refresh. Finder uses the worker cancellation
 flag, stops host playback and attempts headset stop. Reset closes the
 session before host cleanup and clears the UI's saved device state.
+
+## OS audio, diagnostics and JSON v1
+
+`ugreen --address ADDRESS --json audio status` reports all matching PipeWire node
+transport observations; inactive nodes remain idle and missing properties remain
+unknown. `audio devices` lists explicit sink names on Linux and wave output IDs on
+Windows. No audio is played by enumeration. Windows negotiated codec observation
+is unavailable. BlueZ MediaTransport is used as a fallback when PipeWire has no known codec.
+Vendor identifiers require both company and codec IDs; bare 0xff remains unknown.
+Windows ETW is not implemented.
+
+Global `--json` precedes the command and is accepted for `status`, `devices`
+(`discover`), `audio status`, `capabilities`, and `doctor`. Output is one JSON
+object containing `schema_version: 1` and a `kind`. Errors and connection banners
+use stderr; failed operations emit no success object. `status` includes address,
+model, firmware, battery percentage, settings and raw device info. `devices`
+includes address, name, pairing, host link, remembered model and explicitly unknown
+control/audio states for this separate CLI process. `audio_status` includes
+observations with source, Unix timestamp, transport ID, profile, codec and activity.
+`capabilities` is offline evidence metadata and never authorizes an operation;
+its observed firmware is null. `doctor` reads host enumeration and optional audio;
+it reports unavailable checks instead of opening RFCOMM merely to probe collisions.
+
+Actual firmware `0.2.5` is required by native CLI/TUI setting preflight. Dry-run
+packet generation remains offline and unchanged. Low-level SDK callers retain
+responsibility for identity and evidence; see [feature matrix](feature-matrix.md).
+
+The feature workspace uses registry categories, search (up to 64 characters),
+typed forms and review. Static candidates explain the missing capture and never
+open a live form. `F` opens the workspace; Esc backs out of narrow details before
+closing it. The historical free-text feature panel has been replaced by those
+forms; the library compatibility parser remains available for offline callers.
+
+Use `v` to select Devices, Audio, Headset Settings, Multipoint, Experimental Features
+or Diagnostics. `A` opens Audio and `D` opens Diagnostics; Up/Down scroll, `r`
+refreshes and Esc cancels a pending refresh or returns. Diagnostic schema field
+names remain stable technical identifiers. Doctor reports adapter power and read
+permissions and, where readable, possible RFCOMM channel collisions from Linux
+debugfs. An absent socket observation does not prove the channel is free.

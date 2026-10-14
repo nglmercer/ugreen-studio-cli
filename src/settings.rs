@@ -18,6 +18,28 @@ pub struct Setting {
     pub payload: Vec<u8>,
 }
 
+/// Setting categories, shared by the CLI, help and
+/// the TUI. The order is stable: localized category
+/// name arrays are indexed by `SettingCategory::index`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SettingCategory {
+    Audio,
+    Connection,
+    Environment,
+    Feedback,
+}
+impl SettingCategory {
+    pub const ALL: [SettingCategory; 4] = [
+        Self::Audio,
+        Self::Connection,
+        Self::Environment,
+        Self::Feedback,
+    ];
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+}
+
 /// One verified setting: its instruction, value encoding and
 /// readback semantics. Adding a setting means adding one
 /// record here; every interface derives from it.
@@ -40,6 +62,8 @@ pub struct SettingSpec {
     pub group: Option<&'static str>,
     /// Localized invalid-value error for this setting.
     pub invalid_value: fn(&'static L) -> &'static str,
+    /// UI category; consecutive records share one category.
+    pub category: SettingCategory,
 }
 
 const ON_OFF: &[(&str, u8)] = &[("on", 1), ("off", 0)];
@@ -62,6 +86,7 @@ pub const SPECS: &[SettingSpec] = &[
         expects_ack: true,
         group: None,
         invalid_value: |t| t.set_bad_anc,
+        category: SettingCategory::Audio,
     },
     SettingSpec {
         key: "eq",
@@ -81,6 +106,7 @@ pub const SPECS: &[SettingSpec] = &[
         expects_ack: true,
         group: None,
         invalid_value: |t| t.set_bad_eq,
+        category: SettingCategory::Audio,
     },
     SettingSpec {
         key: "game",
@@ -91,6 +117,7 @@ pub const SPECS: &[SettingSpec] = &[
         expects_ack: true,
         group: Some("on-off"),
         invalid_value: |t| t.set_bad_onoff,
+        category: SettingCategory::Audio,
     },
     SettingSpec {
         key: "spatial",
@@ -101,6 +128,7 @@ pub const SPECS: &[SettingSpec] = &[
         expects_ack: false,
         group: Some("on-off"),
         invalid_value: |t| t.set_bad_onoff,
+        category: SettingCategory::Audio,
     },
     SettingSpec {
         key: "dual",
@@ -111,6 +139,7 @@ pub const SPECS: &[SettingSpec] = &[
         expects_ack: true,
         group: Some("on-off"),
         invalid_value: |t| t.set_bad_onoff,
+        category: SettingCategory::Connection,
     },
     SettingSpec {
         key: "wind",
@@ -121,6 +150,7 @@ pub const SPECS: &[SettingSpec] = &[
         expects_ack: true,
         group: Some("on-off"),
         invalid_value: |t| t.set_bad_onoff,
+        category: SettingCategory::Environment,
     },
     SettingSpec {
         key: "prompts",
@@ -131,6 +161,7 @@ pub const SPECS: &[SettingSpec] = &[
         expects_ack: true,
         group: None,
         invalid_value: |t| t.set_bad_prompts,
+        category: SettingCategory::Feedback,
     },
     SettingSpec {
         key: "volume-up-action",
@@ -141,6 +172,7 @@ pub const SPECS: &[SettingSpec] = &[
         expects_ack: true,
         group: Some("actions"),
         invalid_value: |t| t.set_bad_button,
+        category: SettingCategory::Feedback,
     },
     SettingSpec {
         key: "volume-down-action",
@@ -151,11 +183,34 @@ pub const SPECS: &[SettingSpec] = &[
         expects_ack: true,
         group: Some("actions"),
         invalid_value: |t| t.set_bad_button,
+        category: SettingCategory::Feedback,
     },
 ];
 
 fn spec_of(key: &str) -> Option<&'static SettingSpec> {
     SPECS.iter().find(|spec| spec.key == key)
+}
+
+/// Setting metadata by its stable index into `SPECS`
+/// (also the index into `KEYS` and the TUI row order).
+pub fn spec(index: usize) -> Option<&'static SettingSpec> {
+    SPECS.get(index)
+}
+
+/// Group `SPECS` into contiguous category runs. Every
+/// interface that shows categories derives from this,
+/// so no numeric index assumptions survive a reorder.
+pub fn category_groups() -> Vec<Vec<usize>> {
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    for (index, spec) in SPECS.iter().enumerate() {
+        match groups.last_mut() {
+            Some(group) if SPECS[group[0]].category == spec.category => {
+                group.push(index);
+            }
+            _ => groups.push(vec![index]),
+        }
+    }
+    groups
 }
 
 /// The `ugreen commands` listing, generated from `SPECS`.

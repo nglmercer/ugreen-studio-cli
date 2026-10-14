@@ -88,6 +88,18 @@ pub fn status(invocation: &Invocation) -> Result<(), String> {
     }
     let mut client = connect(&invocation.options)?;
     let info = client.info().map_err(|e| format!("status failed: {e}"))?;
+    if invocation.options.json {
+        let firmware = client.firmware().map_err(|e| e.to_string())?;
+        let values: serde_json::Map<String, serde_json::Value> = settings::KEYS
+            .iter()
+            .map(|key| ((*key).into(), serde_json::json!(info.value(key))))
+            .collect();
+        println!(
+            "{}",
+            serde_json::json!({"schema_version":1,"kind":"status","address":invocation.options.address,"model":"studio-pro","firmware":firmware,"battery_percent":info.battery(),"settings":values,"raw_device_info":crate::protocol::hex(&info.raw)})
+        );
+        return Ok(());
+    }
     println!("{}", t.cli_model_note);
     println!(
         "battery={}",
@@ -116,10 +128,18 @@ pub fn discover(invocation: &Invocation) -> Result<(), String> {
     }
     let mut devices =
         crate::bluetooth::list_devices().map_err(|e| fill(t.cli_paired_fail, &[&e.to_string()]))?;
-    if devices.is_empty() {
+    if devices.is_empty() && !invocation.options.json {
         println!("{}", t.cli_no_paired);
     }
     crate::device::DeviceRegistry::load().annotate(&mut devices);
+    if invocation.options.json {
+        let rows: Vec<_> = devices.iter().map(|d| serde_json::json!({"address":d.address.as_str(),"name":d.name,"paired":d.paired,"host_link":d.connected.as_str(),"model":d.model.map(|m|m.as_str()),"control_session":"unknown","audio_transport":"unknown"})).collect();
+        println!(
+            "{}",
+            serde_json::json!({"schema_version":1,"kind":"devices","devices":rows})
+        );
+        return Ok(());
+    }
     for device in devices {
         match device.model {
             Some(model) => println!(
