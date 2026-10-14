@@ -247,6 +247,16 @@ pub fn catalog() -> L {
     l.cmd_query = "Consulta com porta; não verificada neste firmware";
     l.cmd_control = "Controle com porta; --dry-run imprime os bytes";
     l.cmd_find = "Tom de busca com porta";
+    l.headset_connections = ["Conexões do fone", "São dispositivos conectados ao fone, separados dos emparelhados com este PC.", "A consulta HP206 (0x0D) precisa de capturas do aplicativo oficial para este firmware. Nenhuma consulta enviada; quantidade e identidades desconhecidas.", "Desconectar, reconectar e trocar dispositivos remotos não é suportado. As ações Bluetooth do host afetam apenas este PC.", "r: verificar · d: conexão dupla · Esc: voltar"];
+    l.page_labels = [
+        "Dispositivos",
+        "Áudio",
+        "Configurações do fone",
+        "Multiponto",
+        "Recursos experimentais",
+        "Diagnóstico",
+    ];
+    l.page_hint = "↑/↓ Enter: abrir · r: atualizar · Esc: voltar";
     l.host_commands = [
         "Observar transporte de áudio do sistema",
         "Listar saídas de áudio do host",

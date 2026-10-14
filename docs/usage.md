@@ -442,3 +442,15 @@ refreshes and Esc cancels a pending refresh or returns. Diagnostic schema field
 names remain stable technical identifiers. Doctor reports adapter power and read
 permissions and, where readable, possible RFCOMM channel collisions from Linux
 debugfs. An absent socket observation does not prove the channel is free.
+
+### Headset connections
+
+Press `P` on the main screen or choose Multipoint in the `v` page selector.
+This view shows the independently observed dual-device toggle and its read age.
+The peer count and identities remain unknown until HP206 instruction `0x0D` is
+physically verified for the selected firmware. `r` checks availability without
+sending that candidate query; `d` opens the existing dual-device setting without
+changing it. Host paired devices never fill this list. Remote peer disconnect,
+reconnect and switch remain unsupported; `p` then `h`/`H` only controls this PC's
+host link. See the [capture workflow](reverse-engineering.md) for the evidence
+needed to enable headset peer discovery.

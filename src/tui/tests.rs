@@ -1939,3 +1939,75 @@ fn observation_pages_render_small_terminals_and_cancel_refresh() {
         assert!(matches!(app.key(key(KeyCode::Esc)), Intent::Cancel));
     }
 }
+
+#[test]
+fn headset_connections_never_substitute_host_devices_or_send_candidate_query() {
+    use super::state::ObservationView;
+    let mut app = ready();
+    assert!(matches!(app.key(key(KeyCode::Char('P'))), Intent::None));
+    assert_eq!(app.observation_view, Some(ObservationView::Multipoint));
+    app.paired = Some(vec![device("00:11:22:33:44:55", "HOST_ONLY_SECRET")]);
+    let text = render(&app, 100, 30);
+    assert!(text.contains("Headset connections"));
+    assert!(text.contains("No query was sent"));
+    assert!(!text.contains("HOST_ONLY_SECRET"));
+    assert!(matches!(app.key(key(KeyCode::Char('r'))), Intent::None));
+    assert!(matches!(app.key(key(KeyCode::Char('d'))), Intent::None));
+    assert_eq!(settings::KEYS[app.selected], "dual");
+    assert!(app.proposals.iter().all(Option::is_none));
+}
+
+#[test]
+fn multipoint_page_is_translated_and_safe_in_small_terminals() {
+    use super::state::ObservationView;
+    for lang in crate::i18n::Lang::ALL {
+        let mut app = ready();
+        app.lang = lang;
+        app.observation_view = Some(ObservationView::Multipoint);
+        for (width, height) in [(1, 1), (40, 12), (80, 24)] {
+            render(&app, width, height);
+        }
+        let text = render(&app, 110, 32);
+        assert!(
+            text.replace(' ', "")
+                .contains(&app.t().headset_connections[0].replace(' ', "")),
+            "{}",
+            lang.code()
+        );
+        if lang != crate::i18n::Lang::En {
+            assert_ne!(
+                app.t().headset_connections[2],
+                crate::i18n::txt(crate::i18n::Lang::En).headset_connections[2]
+            );
+        }
+    }
+}
+
+#[test]
+fn long_feature_names_have_a_visible_separator() {
+    let mut app = ready();
+    app.lang = crate::i18n::Lang::Es;
+    app.open_features();
+    let text = render(&app, 94, 45);
+    assert!(!text.contains("elegidoPendiente"));
+    assert!(!text.contains("calidadPendiente"));
+    assert!(text.contains("Pendiente"));
+}
+
+#[test]
+fn multipoint_page_does_not_accept_stale_audio_or_doctor_replies() {
+    let mut app = ready();
+    app.key(key(KeyCode::Char('P')));
+    let before = render(&app, 100, 30);
+    app.receive(Reply {
+        id: 999,
+        result: Ok(Output::Audio {
+            address: BluetoothAddress::parse(&app.address).unwrap(),
+            observations: vec![],
+        }),
+        connected: false,
+        writes_blocked: false,
+    });
+    assert_eq!(render(&app, 100, 30), before);
+    assert!(app.audio.is_none());
+}

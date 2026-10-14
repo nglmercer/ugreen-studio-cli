@@ -292,27 +292,31 @@ engineering for interoperability is permitted in some jurisdictions
 
 ## Phase-3 verification recipe (live hardware)
 
-The fastest trust path, cheapest first:
+The evidence path starts with the official app, without transmitting candidate
+commands from the normal CLI:
 
-1. **Direct probe** (no app needed): connect the CLI to the headset
-   and send the candidate frames by hand, e.g. peer query
-   `AA BB CC 0D 01 00 <MODBUS-CRC>`, codec query
-   `AA BB CC 0F 01 00 <CRC>`, box MAC `AA BB CC 1F 01 00 <CRC>`;
-   decode the `DD EE FF …` answers with `ugreen decode`. (Requires a
-   raw-send facility — see the plan; `find` makes noise, so run it
-   away from ears.)
-2. **App ground truth:** pair the Studio Pro with an Android phone
-   running UGREEN Audio v260933933. Enable *Bluetooth HCI snoop log*
-   (developer options), open the app's device / headphone-finder /
-   acoustics-code / audio-share pages, pull `/sdcard/btsnoop_hci.log`,
-   and extract the RFCOMM frames. This is the reference capture.
-3. **CLI capture:** with the app closed (it holds the RFCOMM channel),
-   `ugreen --address <MAC> --model studio-pro capture > session.hex`
-   while triggering the same pages' behaviour.
-4. Match observed frames to the tables above; promote matches to
-   verified in `docs/verification.md` and flip the capability bits in
-   `src/models/studio_pro.rs` (`MULTIPOINT_PEERS`, codec, find, …)
-   only for the operations a capture proves end-to-end.
+1. Pair the Studio Pro with an Android phone running the official UGREEN app.
+   Record the headset model, firmware, app version and capture timestamp. Enable
+   Android Bluetooth HCI snoop logging and export the log using the phone's
+   supported bug-report procedure; paths vary by Android release.
+2. Capture opening the headset connections page with zero, one and two peers,
+   followed by controlled connect, disconnect and reconnect transitions. Record
+   the actual topology and distinguish the app/control connection from audio.
+3. Extract RFCOMM frames and use `ugreen decode` / `ugreen analyze` offline.
+   Retain complete original frames privately. Redact names and MAC addresses in
+   public fixtures and recompute CRCs for redacted fixtures; label them derived,
+   never original hardware bytes. Document the extraction and redaction steps.
+4. Compare instruction `0x0D`, slot numbering, completion flags and name/MAC
+   layout to the candidate parser. A single slot without explicit completion
+   does not prove either an empty second slot or an exhaustive list.
+5. Only after reviewed target/firmware-specific captures and controlled runtime
+   tests may the read operation graduate under its own model/firmware gate.
+   Peer disconnect/reconnect/switch require separate established commands and
+   evidence. The dual-device toggle does not authorize these operations.
+
+The CLI `capture` command records its own supported session traffic; it cannot
+record another application's Android traffic or trigger an unverified peer query.
+No raw-send bypass is exposed by the normal CLI/TUI.
 
 Evidence pointers (apktool output, `.re/` — gitignored):
 `assets/static/device/assets/index-D9whH_hy.js` (protocol constants,

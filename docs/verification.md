@@ -17,18 +17,18 @@ Final local checks for this working tree:
 - `cargo fmt --all -- --check`: passed.
 - `cargo clippy --all-targets --all-features -- -D warnings`: passed.
 - `cargo clippy --all-targets --no-default-features -- -D warnings`: passed.
-- `cargo test --all-features`: **284 passed**, one ignored live BlueZ test
-  (246 library, 11 capture fixtures, 25 CLI contracts, two Linux interrupt tests).
-- `cargo test --no-default-features`: **185 passed**, one ignored live BlueZ test
-  (147 library, 11 capture fixtures, 25 CLI contracts, two interrupt tests).
+- `cargo test --all-features`: **290 passed**, one ignored live BlueZ test
+  (252 library, 11 capture fixtures, 25 CLI contracts, two Linux interrupt tests).
+- `cargo test --no-default-features`: **187 passed**, one ignored live BlueZ test
+  (149 library, 11 capture fixtures, 25 CLI contracts, two interrupt tests).
 - `cargo build --release --locked`: passed; `target/release/ugreen`.
 - CLI-only locked release build: passed, separate output directory
   `/tmp/ugreen-cli-only-build/release/ugreen`.
 - Windows MSVC **all-target source checks**, all-features and CLI-only: passed.
   No Windows executable or native Windows runtime verification is claimed.
-- Six offline Linux PTY scenarios passed against the release executable,
+- Seven offline Linux PTY scenarios passed against the release executable,
   restoring terminal attributes and alternate-screen state.
-- Documentation links: **262 local links across 13 Markdown files**, passed.
+- Documentation links: **263 local links across 13 Markdown files**, passed.
 - `git diff --check`: passed.
 - Linux `pw-dump` subprocess smoke succeeded; `audio status` for a dummy Bluetooth
   address returned a valid schema-v1 object with an empty observation list.
@@ -49,8 +49,8 @@ view navigation were tested offline. Signal subscription and other remaining wor
 Release SHA-256:
 
 ```text
-0e487d5368a7d084388c9bcd822be547829a9bc701c9a71ea0eae7a6140473cc  target/release/ugreen
-2e6f8c27d5fa6aa78b10bdc154468aa97f2c6bce08ffac66073f09913dab29d9  /tmp/ugreen-cli-only-build/release/ugreen
+756c1a1ce129566db0f65f040a34d3a58d61a62a604b38cdcde1ff72e0945e58  target/release/ugreen
+15a4f5fd4fab21e9d44fc990aa4717c69d0368e1592089014d953745d4791328  /tmp/ugreen-cli-only-build/release/ugreen
 ```
 
 The binaries remain local build outputs, not a published release bundle. Current
@@ -303,3 +303,13 @@ connection disabled, including feature-panel capture refusal and editor
 cancellation. All exit cleanly and restore terminal attributes. Codec
 query results update the header as a last-query value and are invalidated
 by subsequent writes; rendering tests cover that distinction.
+
+## Headset connections follow-up
+
+The dedicated multipoint page, unknown-peer semantics, host-list isolation,
+zero-query refresh, dual-setting navigation, all-language page text and small
+terminals were tested offline. Candidate peer parsing now rejects payloads over
+255 bytes and clear records with trailing data. The additional PTY scenario
+opens the peer page, checks its gate, returns to dual-device settings and exits;
+no RFCOMM connection or candidate packet is requested. Runtime peer identity,
+slot status and remote management remain unverified and disabled.

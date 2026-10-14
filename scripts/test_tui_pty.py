@@ -95,6 +95,7 @@ def main():
         ('Ctrl+C exit', ['tui'], [b'\x03']),
         ('feature gate and editor cancellation', ['tui'], [b'F', b'codec', b'\r', b'\x1b', b'q']),
         ('small-screen resize recovery', ['tui'], [(8, 24), b'j', (30, 110), b'q']),
+        ('headset connections gate and navigation', ['tui'], [b'P', b'r', b'd', b'q']),
         ('address edit cancellation', ['tui'], [b'a', b'AA:BB:CC:DD:EE:FF', b'\x1b', b'q']),
     ]
     for name, args, actions in scenarios:

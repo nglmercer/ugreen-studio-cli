@@ -310,6 +310,7 @@ pub fn catalog() -> L {
         cmd_query: "Capture-gated query; unverified on this firmware",
         cmd_control: "Capture-gated control; --dry-run prints bytes",
         cmd_find: "Capture-gated finder tone",
+        headset_connections: ["Headset connections", "These are headset peers, separate from this PC’s paired devices.", "The HP206 peer query (0x0D) needs official-app captures for this firmware. No query was sent; the peer count and identities are unknown.", "Remote peer disconnect, reconnect and switch are unsupported. Host Bluetooth actions only affect this PC.", "r: check peer availability · d: dual-device setting · Esc: back"],
         page_labels: ["Devices", "Audio", "Headset settings", "Multipoint", "Experimental features", "Diagnostics"],
         page_hint: "↑/↓ Enter: open · r: refresh · Esc: back",
         host_commands: ["Observe OS audio transport", "List host audio outputs", "Report feature evidence", "Read host diagnostics", "Connect host Bluetooth link", "Disconnect host Bluetooth link"],

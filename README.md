@@ -147,3 +147,5 @@ Audio observations include source and time, remain distinct from the gated
 vendor codec, and never infer a codec from advertised support. Missing transport
 properties remain unknown. [The feature matrix](docs/feature-matrix.md) records
 implemented parts, missing work and physical-validation limits.
+
+Press `P` for Headset Connections: dual-device state and observation age are shown; peer discovery remains capture-gated. Host paired devices are a separate list.

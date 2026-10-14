@@ -309,6 +309,16 @@ pub fn catalog() -> L {
     l.cmd_query = "Consulta con puerta de enlace; sin verificar en este firmware";
     l.cmd_control = "Control con puerta de enlace; --dry-run imprime los bytes";
     l.cmd_find = "Tono de búsqueda con puerta de enlace";
+    l.headset_connections = ["Conexiones del auricular", "Son los dispositivos conectados al auricular, distintos de los emparejados con este PC.", "La consulta de pares HP206 (0x0D) necesita capturas de la aplicación oficial para este firmware. No se envió ninguna consulta; la cantidad y las identidades son desconocidas.", "Desconectar, reconectar y cambiar pares remotos no está soportado. Las acciones Bluetooth del host solo afectan a este PC.", "r: comprobar disponibilidad · d: conexión dual · Esc: volver"];
+    l.page_labels = [
+        "Dispositivos",
+        "Audio",
+        "Ajustes del auricular",
+        "Multipunto",
+        "Funciones experimentales",
+        "Diagnóstico",
+    ];
+    l.page_hint = "↑/↓ Enter: abrir · r: actualizar · Esc: volver";
     l.host_commands = [
         "Observar transporte de audio del sistema",
         "Listar salidas de audio del host",

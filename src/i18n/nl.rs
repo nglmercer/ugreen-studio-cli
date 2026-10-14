@@ -251,6 +251,16 @@ pub fn catalog() -> L {
     l.cmd_query = "Capture-beveiligde opvraging; niet geverifieerd op deze firmware";
     l.cmd_control = "Capture-beveiligde besturing; --dry-run drukt bytes af";
     l.cmd_find = "Capture-beveiligde zoontoon";
+    l.headset_connections = ["Headsetverbindingen", "Dit zijn headsetapparaten, los van apparaten gekoppeld aan deze pc.", "De HP206-query (0x0D) vereist opnamen van de officiële app voor deze firmware. Geen query verzonden; aantal en identiteiten zijn onbekend.", "Externe apparaten loskoppelen, verbinden en wisselen wordt niet ondersteund. Hostacties betreffen alleen deze pc.", "r: controleren · d: dubbele verbinding · Esc: terug"];
+    l.page_labels = [
+        "Apparaten",
+        "Audio",
+        "Headsetinstellingen",
+        "Multipoint",
+        "Experimentele functies",
+        "Diagnostiek",
+    ];
+    l.page_hint = "↑/↓ Enter: openen · r: vernieuwen · Esc: terug";
     l.host_commands = [
         "Systeemaudiotransport bekijken",
         "Audio-uitgangen van de host tonen",

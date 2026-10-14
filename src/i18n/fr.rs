@@ -255,6 +255,16 @@ pub fn catalog() -> L {
     l.cmd_query = "Requête à porte ; non vérifiée sur ce firmware";
     l.cmd_control = "Contrôle à porte ; --dry-run imprime les octets";
     l.cmd_find = "Ton de recherche à porte";
+    l.headset_connections = ["Connexions du casque", "Ces appareils sont reliés au casque, distincts des appareils associés à ce PC.", "La requête HP206 (0x0D) nécessite des captures de l’application officielle pour ce firmware. Aucune requête envoyée ; nombre et identités inconnus.", "Déconnexion, reconnexion et changement des appareils distants non pris en charge. Les actions Bluetooth hôte concernent uniquement ce PC.", "r : vérifier · d : connexion double · Échap : retour"];
+    l.page_labels = [
+        "Appareils",
+        "Audio",
+        "Réglages du casque",
+        "Multipoint",
+        "Fonctions expérimentales",
+        "Diagnostic",
+    ];
+    l.page_hint = "↑/↓ Entrée : ouvrir · r : actualiser · Échap : retour";
     l.host_commands = [
         "Observer le transport audio du système",
         "Lister les sorties audio locales",

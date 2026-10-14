@@ -43,7 +43,7 @@ caller-managed identity/evidence; they are not safe automatic model detection.
 | BlueZ MediaTransport fallback | Linux | tested_mock | unsupported | BlueZ interface definitions and synthetic D-Bus fixtures; no live Bluetooth validation | audio status / Audio view | Exact Device1 path association, standard IDs and company/codec vendor IDs; bare 0xff stays unknown |
 | Audio sink selection inventory | Linux | tested_mock | unsupported | PipeWire Audio/Sink node names | audio devices, audio-devices | Explicit output name; no default routing fallback; playback preview pending |
 | Audio output inventory / playback | Windows | tested_mock | unsupported | Existing waveOut backend; native validation absent | audio devices, audio-devices / feature form | No audio playback claim |
-| Multipoint list 0x0D | Both | tested_mock | static_candidate | APK hypotheses and synthetic peers; firmware unknown | peers refuses / feature workspace | Zero/list completion, fragmentation, CRC, notifications, timeout; never substitutes host list |
+| Multipoint list 0x0D | Both | tested_mock | static_candidate | APK hypotheses and synthetic peers; firmware unknown | peers refuses / P Headset Connections | Zero/list completion, fragmentation, CRC, notifications, timeout, parser bounds and dedicated translated page; never substitutes host list |
 | Remote peer disconnect/reconnect/switch | Both | implemented | unsupported | No established independent classic commands | Disabled | Zero-byte refusal; host action scope remains explicit |
 | Vendor codec 0x0F, acoustics_code | Both | tested_mock | static_candidate | APK/synthetic layout; firmware unknown | codec refuses, candidate / workspace | Independent of OS codec; no physical capture |
 | ID, color, Box MAC queries | Both | tested_mock | static_candidate | APK/synthetic layout; firmware unknown | id, color, box-mac refuse / workspace | Before-I/O gates and strict parsers |
@@ -153,3 +153,13 @@ preserved in the shared `src/features.rs` registry.
 - `third-party/RUST-DEPENDENCIES.md`
 - `third-party/cargo/0f96a83840e146e43c0e.txt`
 - `third-party/cargo/7e12e5df4bae12cb2158.txt`
+
+## Multipoint UI follow-up
+
+Touched `src/tui/state.rs`, `view.rs`, `tests.rs`, `src/protocol/static_analysis.rs`,
+all eleven `src/i18n/` catalogs and their shared schema, `scripts/test_tui_pty.py`, both READMEs, usage,
+reverse-engineering, verification and this matrix. The dedicated peer view is
+`tested_mock`; the protocol remains `static_candidate`. No candidate query,
+remote-peer action or new headset write was performed. Feature names now have
+an explicit separator and display-width-aware padding. This follow-up also
+corrects the page-selector translation fallback in ten non-English catalogs.

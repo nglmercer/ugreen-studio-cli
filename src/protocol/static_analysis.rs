@@ -247,8 +247,12 @@ impl PeerUpdate {
         if p.len() < 2 {
             return Err("peer response needs flag and index".into());
         }
+        if p.len() > usize::from(u8::MAX) {
+            return Err("peer response exceeds protocol payload limit".into());
+        }
         match p[1] {
-            0 => Ok(Self::Clear),
+            0 if p.len() == 2 => Ok(Self::Clear),
+            0 => Err("empty peer response has trailing data".into()),
             1 | 2 => {
                 if p.len() < 8 {
                     return Err("peer response lacks MAC".into());
@@ -743,5 +747,30 @@ pub fn describe_notification_event(event: u8) -> Option<&'static str> {
         0x0C => Some("dual"),
         0x0E => Some("event-0E"),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod peer_bounds_tests {
+    use super::*;
+    #[test]
+    fn peer_parser_rejects_oversize_and_clear_with_trailing_data() {
+        assert!(PeerUpdate::parse(&[0, 0, 1]).is_err());
+        let mut oversized = vec![b'a'; 256];
+        oversized[0] = 0;
+        oversized[1] = 1;
+        assert!(PeerUpdate::parse(&oversized).is_err());
+        assert!(matches!(PeerUpdate::parse(&[0, 0]), Ok(PeerUpdate::Clear)));
+    }
+    #[test]
+    fn incomplete_single_slot_never_claims_complete_or_empty() {
+        let mut list = PeerList::default();
+        assert!(!list.observed && !list.complete);
+        list.apply(PeerUpdate::parse(&[0, 1, 1, 2, 3, 4, 5, 6]).unwrap())
+            .unwrap();
+        assert!(list.observed && !list.complete);
+        assert!(list.slots[0].is_some());
+        list.apply(PeerUpdate::Clear).unwrap();
+        assert!(list.complete && list.slots.iter().all(Option::is_none));
     }
 }

@@ -78,6 +78,7 @@ pub(super) enum Review {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ObservationView {
+    Multipoint,
     Audio,
     Diagnostics,
 }
@@ -821,6 +822,9 @@ impl App {
         let Some(spec) = self.selected_feature() else {
             return Intent::None;
         };
+        if spec.id == features::FeatureId::MultipointPeers {
+            return self.open_page(3);
+        }
         let t = self.t();
         if !spec.verified(Model::StudioPro.capabilities()) {
             // Pending verification never opens a live
@@ -1021,8 +1025,7 @@ impl App {
             }
             2 => Intent::None,
             3 => {
-                self.open_features();
-                self.feature_tab = features::FeatureCategory::Multipoint.index() + 1;
+                self.observation_view = Some(ObservationView::Multipoint);
                 Intent::None
             }
             4 => {
@@ -1099,9 +1102,18 @@ impl App {
                 KeyCode::Down => {
                     self.observation_scroll = self.observation_scroll.saturating_add(1).min(4096)
                 }
+                KeyCode::Char('d') if view == ObservationView::Multipoint => {
+                    self.observation_view = None;
+                    self.select_setting_by_key("dual");
+                    return Intent::None;
+                }
                 KeyCode::Home => self.observation_scroll = 0,
                 KeyCode::Char('r') => {
-                    return self.open_page(if view == ObservationView::Audio { 1 } else { 5 })
+                    return self.open_page(match view {
+                        ObservationView::Audio => 1,
+                        ObservationView::Multipoint => 3,
+                        ObservationView::Diagnostics => 5,
+                    })
                 }
                 _ => {}
             }
@@ -1554,6 +1566,7 @@ impl App {
             }
             KeyCode::Char('A') => return self.open_page(1),
             KeyCode::Char('D') => return self.open_page(5),
+            KeyCode::Char('P') => return self.open_page(3),
             KeyCode::Char('p') => return Intent::Request(Action::Paired),
             KeyCode::Char('m') if !self.control_state.is_connected() => {
                 self.model_confirmation = true

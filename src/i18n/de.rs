@@ -245,6 +245,16 @@ pub fn catalog() -> L {
     l.cmd_query = "Capture-geschützte Abfrage; auf dieser Firmware nicht verifiziert";
     l.cmd_control = "Capture-geschützte Steuerung; --dry-run gibt Bytes aus";
     l.cmd_find = "Capture-geschützter Suchton";
+    l.headset_connections = ["Headset-Verbindungen", "Headset-Verbindungen sind unabhängig von den mit diesem PC gekoppelten Geräten.", "Die HP206-Abfrage (0x0D) benötigt Mitschnitte der offiziellen App für diese Firmware. Keine Abfrage gesendet; Anzahl und Identitäten sind unbekannt.", "Remote-Trennen, Wiederverbinden und Wechseln werden nicht unterstützt. Host-Bluetooth-Aktionen betreffen nur diesen PC.", "r: Verfügbarkeit prüfen · d: Dual-Verbindung · Esc: zurück"];
+    l.page_labels = [
+        "Geräte",
+        "Audio",
+        "Headset-Einstellungen",
+        "Multipoint",
+        "Experimentelle Funktionen",
+        "Diagnose",
+    ];
+    l.page_hint = "↑/↓ Enter: öffnen · r: aktualisieren · Esc: zurück";
     l.host_commands = [
         "Audiotransport des Systems anzeigen",
         "Audioausgänge des Hosts auflisten",

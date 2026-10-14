@@ -328,6 +328,7 @@ pub struct L {
     pub cmd_query: &'static str,
     pub cmd_control: &'static str,
     pub cmd_find: &'static str,
+    pub headset_connections: [&'static str; 5],
     pub page_labels: [&'static str; 6],
     pub page_hint: &'static str,
     pub host_commands: [&'static str; 6],

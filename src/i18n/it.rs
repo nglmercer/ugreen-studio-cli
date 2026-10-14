@@ -255,6 +255,16 @@ pub fn catalog() -> L {
     l.cmd_query = "Richiesta con gate; non verificata su questo firmware";
     l.cmd_control = "Controllo con gate; --dry-run stampa i byte";
     l.cmd_find = "Tono di ricerca con gate";
+    l.headset_connections = ["Connessioni delle cuffie", "Questi dispositivi sono collegati alle cuffie, distinti dai dispositivi associati a questo PC.", "La richiesta HP206 (0x0D) richiede acquisizioni dell’app ufficiale per questo firmware. Nessuna richiesta inviata; numero e identità sconosciuti.", "Disconnessione, riconnessione e cambio dei dispositivi remoti non supportati. Le azioni Bluetooth host riguardano solo questo PC.", "r: verifica · d: doppia connessione · Esc: indietro"];
+    l.page_labels = [
+        "Dispositivi",
+        "Audio",
+        "Impostazioni cuffie",
+        "Multipoint",
+        "Funzioni sperimentali",
+        "Diagnostica",
+    ];
+    l.page_hint = "↑/↓ Invio: apri · r: aggiorna · Esc: indietro";
     l.host_commands = [
         "Osserva il trasporto audio del sistema",
         "Elenca le uscite audio locali",

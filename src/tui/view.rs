@@ -365,6 +365,28 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
     } else if let Some(view) = app.observation_view {
         let mut lines = vec![Line::from(t.page_hint), Line::from(clean(&app.address))];
         match view {
+            ObservationView::Multipoint => {
+                let dual = app
+                    .info
+                    .as_ref()
+                    .and_then(|info| info.value("dual"))
+                    .unwrap_or_else(|| t.unknown.into());
+                lines = vec![
+                    Line::from(clean(&app.address)),
+                    Line::from(t.headset_connections[1]),
+                    Line::from(format!("{}: {}", t.labels[4], dual)),
+                    Line::from(
+                        app.observed_at
+                            .map(|at| fill(t.snapshot_ago, &[&at.elapsed().as_secs()]))
+                            .unwrap_or_else(|| t.snapshot_never.into()),
+                    ),
+                    Line::from(if app.stale { t.snapshot_stale } else { "" }),
+                    Line::from(format!("{}: {}", t.page_labels[3], t.feature_pending)),
+                    Line::from(t.headset_connections[2]),
+                    Line::from(t.headset_connections[3]),
+                    Line::from(t.headset_connections[4]),
+                ];
+            }
             ObservationView::Audio => {
                 if let Some(observations) = &app.audio {
                     if observations.is_empty() {
@@ -397,7 +419,11 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         }
         overlay_lines(
             frame,
-            t.page_labels[if view == ObservationView::Audio { 1 } else { 5 }],
+            match view {
+                ObservationView::Audio => t.page_labels[1],
+                ObservationView::Multipoint => t.headset_connections[0],
+                ObservationView::Diagnostics => t.page_labels[5],
+            },
             lines,
             app.observation_scroll,
         );
@@ -468,6 +494,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
             ("v", t.page_hint),
             ("A", t.page_labels[1]),
             ("D", t.page_labels[5]),
+            ("P", t.headset_connections[0]),
         ] {
             lines.push(Line::from(format!(" {key:<12}{label}")));
         }
@@ -707,6 +734,12 @@ fn render_features(frame: &mut Frame<'_>, area: Rect, regions: &Regions, app: &A
     let list = app.feature_list();
     let caps = Model::StudioPro.capabilities();
     let mut lines = Vec::new();
+    let label_width = list
+        .iter()
+        .map(|spec| Line::from(spec.name(t)).width())
+        .max()
+        .unwrap_or(0)
+        .min(48);
     for (position, spec) in list.iter().enumerate() {
         let selected = position == app.feature_index;
         let style = if selected {
@@ -731,7 +764,14 @@ fn render_features(frame: &mut Frame<'_>, area: Rect, regions: &Regions, app: &A
         };
         lines.push(Line::from(vec![
             Span::raw(marker),
-            Span::styled(format!("{:<26}", spec.name(t)), style),
+            Span::styled(
+                format!(
+                    "{}{}  ",
+                    spec.name(t),
+                    " ".repeat(label_width.saturating_sub(Line::from(spec.name(t)).width()))
+                ),
+                style,
+            ),
             Span::styled(
                 state,
                 if selected {

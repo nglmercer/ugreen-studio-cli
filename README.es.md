@@ -146,3 +146,5 @@ Las escrituras de ajustes en CLI/TUI requieren una respuesta de firmware
 pruebas físicas nuevas ni pruebas nativas de Windows. Consulta la
 [matriz de funciones](docs/feature-matrix.md) para las tareas implementadas,
 las pendientes y los límites de evidencia.
+
+Pulsa `P` para Conexiones del auricular: muestra la conexión dual y la antigüedad de la lectura; la lista de pares sigue bloqueada hasta verificar capturas. Los dispositivos emparejados del host son una lista distinta.
