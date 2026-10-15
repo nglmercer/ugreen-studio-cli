@@ -4,6 +4,10 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.cli_json_unsupported = "Cette commande ne prend pas en charge --json.";
+    l.status_applying_noack = "Application de {}={} après vérification préalable, puis relecture (audio spatial sans accusé de réception)...";
+    l.status_verified_noack =
+        "{}={} vérifié par relecture concordante ; aucun accusé de réception pour l’audio spatial.";
     l.app_title = " UGREEN / contrôle Studio Pro ";
     l.connected = "CONNECTÉ";
     l.disconnected = "DÉCONNECTÉ";
@@ -255,7 +259,17 @@ pub fn catalog() -> L {
     l.cmd_query = "Requête à porte ; non vérifiée sur ce firmware";
     l.cmd_control = "Contrôle à porte ; --dry-run imprime les octets";
     l.cmd_find = "Ton de recherche à porte";
+    l.navigation = [
+        "Accueil",
+        "Audio",
+        "Appareils",
+        "Réglages",
+        "Diagnostic",
+        "Recherche",
+    ];
     l.headset_connections = ["Connexions du casque", "Ces appareils sont reliés au casque, distincts des appareils associés à ce PC.", "La requête HP206 (0x0D) nécessite des captures de l’application officielle pour ce firmware. Aucune requête envoyée ; nombre et identités inconnus.", "Déconnexion, reconnexion et changement des appareils distants non pris en charge. Les actions Bluetooth hôte concernent uniquement ce PC.", "r : vérifier · d : connexion double · Échap : retour"];
+    l.headset_connections[4] =
+        "r : actualiser l’état double · d : connexion double · Échap : retour";
     l.page_labels = [
         "Appareils",
         "Audio",
@@ -423,7 +437,7 @@ pub fn catalog() -> L {
         ],
     ];
     l.status_feature_running = "Exécution de l'opération de fonctionnalités...";
-    l.status_edit_in_settings = "{} est un réglage vérifié ; modifiez-le dans les Réglages (s).";
+    l.status_edit_in_settings = "{} est un réglage vérifié ; modifiez-le dans les Réglages (F4).";
     l.codec_unverified = "requête non vérifiée";
     l.arg_enabled = "Activé";
     l.arg_side = "Côté";

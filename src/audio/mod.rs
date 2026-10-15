@@ -131,8 +131,11 @@ pub fn parse_pipewire(
             Some("idle" | "suspended") => Activity::Idle,
             _ => Activity::Unknown,
         };
-        // A node must explicitly identify its transport and codec. Codec support
-        // lists and device defaults do not establish negotiated transport state.
+        // A node must carry its transport key and codec, not a support list.
+        // PipeWire publishes an internal pointer here; its native protocol
+        // redacts pointer values to "". An empty string is therefore valid
+        // transport metadata, but must never be presented as a D-Bus path.
+        // See PipeWire bluez5-device.c emit_node and protocol-native.c push_item.
         let codec = if props["api.bluez5.transport"].as_str().is_some() {
             props["api.bluez5.codec"].as_str().map(|name| match name {
                 "sbc" => Codec::Sbc,
@@ -157,7 +160,10 @@ pub fn parse_pipewire(
             source: "pipewire_node_transport",
             observed_at,
             transport_id: entry["id"].as_u64().unwrap_or(0),
-            transport_path: props["api.bluez5.transport"].as_str().map(str::to_owned),
+            transport_path: props["api.bluez5.transport"]
+                .as_str()
+                .filter(|path| path.starts_with("/org/bluez/"))
+                .map(str::to_owned),
         });
     }
     result.sort_by_key(|status| status.transport_id);
@@ -251,6 +257,21 @@ mod tests {
             parse_pipewire(&dump, &address(), UNIX_EPOCH).unwrap()[0].codec,
             None
         );
+    }
+    #[test]
+    fn redacted_pipewire_pointer_preserves_codec_without_inventing_a_transport_path() {
+        for value in ["", "pointer:0x1234"] {
+            let mut n = node("sbc_xq");
+            n["info"]["props"]["api.bluez5.transport"] = json!(value);
+            let result = parse_pipewire(
+                &serde_json::to_vec(&json!([n])).unwrap(),
+                &address(),
+                UNIX_EPOCH,
+            )
+            .unwrap();
+            assert_eq!(result[0].codec, Some(Codec::SbcXq));
+            assert!(result[0].transport_path.is_none());
+        }
     }
     #[test]
     fn malformed_oversized_missing_and_conflicting_data() {

@@ -116,7 +116,7 @@ Firmware interpretation uses the first three response payload bytes unless all t
 
 ## Multipoint peer operations (not verified)
 
-The dual-device toggle (`0x06`) is verified. The peer-list query and the peer disconnect/reconnect/switch writes are not: no Studio Pro capture from the official app has shown their packet formats, so no instruction numbers are invented here, no model capability bit is set, and the client refuses those operations with `UnsupportedFeature` before any bytes are written. There is deliberately no `peers` subcommand. Recorded sessions that eventually show these frames belong in `tests/fixtures/protocol/`.
+The dual-device toggle (`0x06`) is verified. The peer-list query and the peer disconnect/reconnect/switch writes are not: no Studio Pro capture from the official app has shown their packet formats, so no instruction numbers are invented here, no model capability bit is set, and the client refuses those operations with `UnsupportedFeature` before any bytes are written. The registered `peers` subcommand is deliberately capture-gated and refuses before opening a connection. Recorded sessions that eventually show these frames belong in `tests/fixtures/protocol/`.
 
 ## Decoder behavior and limits
 

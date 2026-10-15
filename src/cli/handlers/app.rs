@@ -105,6 +105,17 @@ pub fn audio_devices(invocation: &Invocation) -> Result<(), String> {
     let devices = crate::audio::output_devices().map_err(|e| e.to_string())?;
     #[cfg(not(target_os = "linux"))]
     let devices = crate::finder::windows_output_devices().map_err(|e| e.to_string())?;
+    if invocation.options.json {
+        let devices: Vec<_> = devices
+            .into_iter()
+            .map(|(id, name)| serde_json::json!({"id":id.to_string(), "name":name}))
+            .collect();
+        println!(
+            "{}",
+            serde_json::json!({"schema_version":1,"kind":"audio_devices","devices":devices})
+        );
+        return Ok(());
+    }
     for (id, name) in devices {
         println!(
             "{} {}",

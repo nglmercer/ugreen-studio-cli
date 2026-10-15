@@ -90,6 +90,7 @@ def main():
     parser.add_argument('binary', type=Path, help='Default-feature ugreen release/debug executable')
     binary = parser.parse_args().binary.resolve(strict=True)
     scenarios = [
+        ('persistent navigation', ['tui'], [b'\x1bOP', b'\x1bOQ', b'\x1bOS', b'\x1b[17~', b'\x1bOP', b'q']),
         ('explicit quit', ['tui'], [b'q']),
         ('automatic TTY entry', [], [b'q']),
         ('Ctrl+C exit', ['tui'], [b'\x03']),

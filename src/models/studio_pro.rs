@@ -14,6 +14,9 @@
 
 use super::Capabilities;
 
+/// Exact firmware scope of the historical verified setting evidence.
+pub const VERIFIED_FIRMWARE: &str = "0.2.5";
+
 /// Verified Studio Pro capabilities (HP206, firmware 0.2.5):
 /// the nine verified settings and nothing else.
 pub const fn capabilities() -> Capabilities {

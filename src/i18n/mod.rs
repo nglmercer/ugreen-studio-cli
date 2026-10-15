@@ -107,13 +107,16 @@ impl Lang {
     /// when set, so tests and scripts can pin the language
     /// regardless of locale.
     pub fn detect() -> Self {
-        if let Ok(value) = env::var("UGREEN_LANG") {
+        Self::detect_with(|key| env::var(key).ok())
+    }
+    fn detect_with(get: impl Fn(&str) -> Option<String>) -> Self {
+        if let Some(value) = get("UGREEN_LANG") {
             if let Ok(lang) = Self::from_code(&value) {
                 return lang;
             }
         }
         for key in ["LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"] {
-            if let Ok(value) = env::var(key) {
+            if let Some(value) = get(key) {
                 let lower = value.to_ascii_lowercase();
                 let tag = lower.split(['.', '@', ':']).next().unwrap_or("");
                 let base = tag.split(['-', '_']).next().unwrap_or("");
@@ -199,6 +202,8 @@ pub struct L {
     pub status_connecting: &'static str,
     pub status_refreshing: &'static str,
     pub status_disconnecting: &'static str,
+    pub status_applying_noack: &'static str,
+    pub status_verified_noack: &'static str,
     pub status_applying: &'static str,
     pub status_paired_empty: &'static str,
     pub status_paired_pick: &'static str,
@@ -264,6 +269,7 @@ pub struct L {
     pub cli_no_tty: &'static str,
     pub cli_no_tui_feature: &'static str,
     pub cli_tui_dry: &'static str,
+    pub cli_json_unsupported: &'static str,
     pub cli_bad_profile: &'static str,
     pub cli_inflight_after_quit: &'static str,
     pub set_bad_anc: &'static str,
@@ -329,6 +335,7 @@ pub struct L {
     pub cmd_control: &'static str,
     pub cmd_find: &'static str,
     pub headset_connections: [&'static str; 5],
+    pub navigation: [&'static str; 6],
     pub page_labels: [&'static str; 6],
     pub page_hint: &'static str,
     pub host_commands: [&'static str; 6],
@@ -474,6 +481,8 @@ mod tests {
             (|l| l.proposed, "proposed"),
             (|l| l.resize_to, "resize_to"),
             (|l| l.status_applying, "status_applying"),
+            (|l| l.status_applying_noack, "status_applying_noack"),
+            (|l| l.status_verified_noack, "status_verified_noack"),
             (|l| l.status_firmware_note, "status_firmware_note"),
             (|l| l.status_verified, "status_verified"),
             (|l| l.status_lang, "status_lang"),
@@ -530,21 +539,45 @@ mod tests {
                     lang,
                     name
                 );
+                assert_eq!(
+                    get(t).matches("{:02X}").count(),
+                    get(en).matches("{:02X}").count(),
+                    "{lang:?} {name}: hexadecimal placeholder"
+                );
             }
         }
     }
     #[test]
-    fn detect_reads_spanish_locale() {
-        unsafe { env::set_var("UGREEN_TEST_LANG", "es_ES.UTF-8") };
-        unsafe { env::set_var("LANGUAGE", "") };
-        unsafe { env::set_var("LC_ALL", "") };
-        unsafe { env::set_var("LC_MESSAGES", "") };
-        unsafe { env::set_var("LANG", env::var("UGREEN_TEST_LANG").unwrap()) };
-        assert_eq!(Lang::detect(), Lang::Es);
-        unsafe { env::set_var("LANG", "en_US.UTF-8") };
-        assert_eq!(Lang::detect(), Lang::En);
-        unsafe { env::remove_var("LANG") };
-        unsafe { env::remove_var("UGREEN_TEST_LANG") };
+    fn locale_detection_never_mutates_global_test_environment() {
+        assert_eq!(
+            Lang::detect_with(|key| if key == "LANG" {
+                Some("es_ES.UTF-8".into())
+            } else {
+                None
+            }),
+            Lang::Es
+        );
+        assert_eq!(
+            Lang::detect_with(|key| match key {
+                "UGREEN_LANG" => Some("ja".into()),
+                "LANG" => Some("es_ES.UTF-8".into()),
+                _ => None,
+            }),
+            Lang::Ja
+        );
+        assert_eq!(Lang::detect_with(|_| None), Lang::En);
+    }
+    #[test]
+    fn every_locale_has_navigation_and_registry_metadata() {
+        for lang in Lang::ALL {
+            let text = txt(lang);
+            assert!(text.navigation.iter().all(|value| !value.is_empty()));
+            for feature in crate::features::FEATURES {
+                assert!(!feature.name(text).is_empty());
+                assert!(!feature.description(text).is_empty());
+            }
+            assert!(text.cli_json_unsupported.contains("--json"));
+        }
     }
     #[test]
     fn language_codes_roundtrip() {

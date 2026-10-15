@@ -36,7 +36,7 @@ cargo build --release --locked
 ./target/release/ugreen tui
 ```
 
-The release output is `target/release/ugreen`. The delivery ZIP contains `bin/linux-x86_64/ugreen` (default features) and `bin/linux-x86_64/ugreen-cli-only`. Both packaged Linux x86-64 binaries require glibc 2.39 or newer and `libgcc_s.so.1`; rebuild locally for older distributions. These executables are delivery artifacts, not committed build outputs. Refer to the [verification report](verification.md) for tested behavior and remaining limits.
+The release output is `target/release/ugreen`. The earlier delivery ZIP contained `bin/linux-x86_64/ugreen` (default features) and `bin/linux-x86_64/ugreen-cli-only`. Both packaged Linux x86-64 binaries require glibc 2.39 or newer and `libgcc_s.so.1`; rebuild locally for older distributions. These executables are delivery artifacts, not committed build outputs. Refer to the [verification report](verification.md) for tested behavior and remaining limits.
 
 ## Windows
 
@@ -82,3 +82,30 @@ The workflow in [CI](../.github/workflows/ci.yml) covers Linux and Windows with 
 ## Other systems
 
 Offline parsing and profiles are separate from transport, but macOS and other OS targets return an unsupported-platform error for Bluetooth operations. The upstream Swift project is a protocol reference; its macOS support does not confer macOS support on this Rust program.
+
+## Release bundles
+
+The [release workflow](../.github/workflows/release.yml) builds/tests both variants
+on native Linux and Windows runners using Rust 1.88.0. It uploads ZIPs as workflow
+artifacts; it does not publish a GitHub release or establish headset compatibility.
+Run it manually or from a version tag. Native Windows hardware validation remains
+separate from those build/test jobs.
+
+After a fresh locked build from a clean checkout, package the exact executable:
+
+```sh
+python3 scripts/package_release.py target/release/ugreen --target x86_64-unknown-linux-gnu --variant tui --output target/release-bundles
+```
+
+For Windows, use the `.exe` path and `--target x86_64-pc-windows-msvc`. For CLI-only
+builds, use `--variant cli-only`. The packager includes license notices, Markdown
+documentation, public evidence records, Rust source/tests, build scripts, the lockfile and a manifest recording source commit, compiler,
+variant, target and SHA-256 for every bundled file. It refuses to overwrite an
+archive. `--allow-dirty` is only for development artifacts and records that state.
+
+ZIP order, timestamps, permissions and uncompressed storage are fixed, so identical
+inputs yield byte-identical bundles independently of host timestamps or zlib
+versions. This establishes packaging reproducibility, not identical compiler output
+across toolchain/OS versions; binary hashes and compiler identity make that limit
+reviewable. Keep the compiler, linker, OS image and build inputs fixed when checking
+binary reproducibility.

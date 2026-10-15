@@ -169,6 +169,8 @@ pub fn catalog() -> L {
         status_connecting: "Connecting, then reading status and firmware...",
         status_refreshing: "Refreshing status and firmware...",
         status_disconnecting: "Disconnecting control...",
+        status_applying_noack: "Applying {}={} after preflight, then verifying readback (spatial audio has no acknowledgement)...",
+        status_verified_noack: "Verified {}={} by matching readback; spatial audio has no acknowledgement.",
         status_applying:
             "Applying {}={} after preflight, then verifying acknowledgement and readback...",
         status_paired_empty: "No cached paired devices. Pair in OS Bluetooth settings first.",
@@ -247,6 +249,7 @@ pub fn catalog() -> L {
             "TUI feature is disabled in this CLI-only build; rebuild without --no-default-features",
         cli_tui_dry:
             "tui cannot be combined with --dry-run; use --dry-run set KEY VALUE for offline packets",
+        cli_json_unsupported: "This command does not support --json.",
         cli_bad_profile: "profile exceeds 16 KiB",
         cli_inflight_after_quit: "An in-flight setting write may have completed. Explicitly refresh device status before making further changes.",
         set_bad_anc: "invalid ANC value",
@@ -310,7 +313,8 @@ pub fn catalog() -> L {
         cmd_query: "Capture-gated query; unverified on this firmware",
         cmd_control: "Capture-gated control; --dry-run prints bytes",
         cmd_find: "Capture-gated finder tone",
-        headset_connections: ["Headset connections", "These are headset peers, separate from this PC’s paired devices.", "The HP206 peer query (0x0D) needs official-app captures for this firmware. No query was sent; the peer count and identities are unknown.", "Remote peer disconnect, reconnect and switch are unsupported. Host Bluetooth actions only affect this PC.", "r: check peer availability · d: dual-device setting · Esc: back"],
+        headset_connections: ["Headset connections", "These are headset peers, separate from this PC’s paired devices.", "The HP206 peer query (0x0D) needs official-app captures for this firmware. No query was sent; the peer count and identities are unknown.", "Remote peer disconnect, reconnect and switch are unsupported. Host Bluetooth actions only affect this PC.", "r: refresh dual-device status · d: dual-device setting · Esc: back"],
+        navigation: ["Home", "Audio", "Devices", "Settings", "Diagnostics", "Research"],
         page_labels: ["Devices", "Audio", "Headset settings", "Multipoint", "Experimental features", "Diagnostics"],
         page_hint: "↑/↓ Enter: open · r: refresh · Esc: back",
         host_commands: ["Observe OS audio transport", "List host audio outputs", "Report feature evidence", "Read host diagnostics", "Connect host Bluetooth link", "Disconnect host Bluetooth link"],
@@ -467,7 +471,7 @@ pub fn catalog() -> L {
         ],
         status_feature_running: "Running feature operation...",
         status_edit_in_settings:
-            "{} is a verified setting; edit it in the Settings screen (s).",
+            "{} is a verified setting; edit it in the Settings screen (F4).",
         codec_unverified: "query not verified",
         arg_enabled: "Enabled",
         arg_side: "Side",

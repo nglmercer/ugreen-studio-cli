@@ -86,6 +86,7 @@ fn startup_is_disconnected_without_implicit_actions() {
 fn configure_updates_future_connect_settings() {
     let (mut engine, _state) = engine();
     let reply = engine.execute(request(Action::Configure {
+        lang: crate::i18n::Lang::En,
         channel: 9,
         timeout_seconds: 12,
     }));
@@ -898,9 +899,13 @@ fn mouse_click_selects_setting_and_second_click_proposes() {
         row,
         modifiers: KeyModifiers::NONE,
     };
-    assert!(matches!(app.mouse(click(11), 110, 30), Intent::None));
+    let row = view::regions(ratatui::layout::Rect::new(0, 0, 110, 30), false)
+        .list
+        .y
+        + 3;
+    assert!(matches!(app.mouse(click(row), 110, 30), Intent::None));
     assert_eq!(app.selected, 2);
-    let intent = app.mouse(click(11), 110, 30);
+    let intent = app.mouse(click(row), 110, 30);
     assert!(matches!(intent, Intent::None));
     assert_eq!(app.proposals[2].as_deref(), Some("on"));
 }
@@ -979,6 +984,7 @@ struct MockState {
     raw: Vec<u8>,
     info_count: usize,
     fail_info: Option<usize>,
+    fail_info_kind: Option<io::ErrorKind>,
     fail_ack: bool,
     fail_firmware: bool,
     wrong_readback: bool,
@@ -1068,7 +1074,10 @@ impl Session for FakeSession {
             s.cancel.as_ref().unwrap().store(true, Ordering::SeqCst);
         }
         if s.fail_info == Some(s.info_count) {
-            return Err(io::Error::other("mock status failure"));
+            return Err(io::Error::new(
+                s.fail_info_kind.unwrap_or(io::ErrorKind::Other),
+                "mock status failure",
+            ));
         }
         StudioProState::new(s.raw.clone()).map_err(io::Error::other)
     }
@@ -1557,6 +1566,39 @@ fn feature_workspace_gates_candidates_before_worker_submission() {
 }
 
 #[test]
+fn finder_form_accepts_explicit_host_output_without_transmitting() {
+    use super::state::FeatureForm;
+    use crate::features::FeatureId;
+    let mut app = ready();
+    app.features = true;
+    app.feature_form = Some(FeatureForm {
+        id: FeatureId::FindLeft,
+        drafts: vec![Some("1".into()), None],
+        field: 1,
+    });
+    let output = "bluez_output.AA_BB_CC_DD_EE_FF.1";
+    for c in output.chars() {
+        app.key(key(KeyCode::Char(c)));
+    }
+    app.key(key(KeyCode::Char('\n')));
+    assert_eq!(
+        app.feature_form.as_ref().unwrap().drafts[1].as_deref(),
+        Some(output)
+    );
+    for _ in 0..300 {
+        app.key(key(KeyCode::Char('x')));
+    }
+    assert_eq!(
+        app.feature_form.as_ref().unwrap().drafts[1]
+            .as_ref()
+            .unwrap()
+            .len(),
+        256
+    );
+    assert!(app.review.is_none());
+}
+
+#[test]
 fn typed_feature_drafts_validate_before_review() {
     use super::state::FeatureForm;
     use crate::features::FeatureId;
@@ -1956,7 +1998,10 @@ fn headset_connections_never_substitute_host_devices_or_send_candidate_query() {
     assert!(text.contains("Headset connections"));
     assert!(text.contains("No query was sent"));
     assert!(!text.contains("HOST_ONLY_SECRET"));
-    assert!(matches!(app.key(key(KeyCode::Char('r'))), Intent::None));
+    assert!(matches!(
+        app.key(key(KeyCode::Char('r'))),
+        Intent::Request(Action::Refresh)
+    ));
     assert!(matches!(app.key(key(KeyCode::Char('d'))), Intent::None));
     assert_eq!(settings::KEYS[app.selected], "dual");
     assert!(app.proposals.iter().all(Option::is_none));
@@ -2051,5 +2096,372 @@ fn research_search_and_categories_never_expose_live_forms() {
         assert!(app.feature_form.is_none());
         assert!(app.review.is_none());
         assert!(app.busy.is_none());
+    }
+}
+
+#[test]
+fn multipoint_refresh_updates_dual_and_preserves_unknown_peers() {
+    let mut app = ready();
+    app.key(key(KeyCode::Char('P')));
+    let Intent::Request(action @ Action::Refresh) = app.key(key(KeyCode::Char('r'))) else {
+        panic!("multipoint refresh must request the verified snapshot");
+    };
+    app.accepted(75, action);
+    assert!(matches!(app.key(key(KeyCode::Char('r'))), Intent::None));
+    assert!(matches!(app.key(key(KeyCode::Esc)), Intent::Cancel));
+    let mut raw = info().raw;
+    raw[5] = 1;
+    app.receive(Reply {
+        id: 75,
+        result: Ok(Output::Snapshot(Snapshot {
+            info: StudioProState::new(raw).unwrap(),
+            firmware: Some("0.2.5".into()),
+            note: None,
+        })),
+        connected: true,
+        writes_blocked: false,
+    });
+    assert_eq!(
+        app.info.as_ref().unwrap().value("dual").as_deref(),
+        Some("on")
+    );
+    assert!(!app.stale);
+    assert!(app.observed_at.is_some());
+    assert!(render(&app, 110, 32).contains("identities are unknown"));
+}
+
+#[test]
+fn disconnected_multipoint_refresh_explains_connection_requirement() {
+    let mut app = App::new(&config());
+    app.key(key(KeyCode::Char('P')));
+    assert!(matches!(app.key(key(KeyCode::Char('r'))), Intent::None));
+    assert_eq!(app.status, app.t().status_must_connect);
+    assert!(app.busy.is_none());
+    assert!(app.info.is_none());
+}
+
+#[test]
+fn persistent_navigation_uses_shared_geometry_and_all_locales() {
+    use super::routing::Route;
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    for lang in crate::i18n::Lang::ALL {
+        for width in [56, 80, 100, 140] {
+            for route in Route::ALL {
+                let mut app = ready();
+                app.lang = lang;
+                let intent = app.key(key(KeyCode::F(route.index() as u8 + 1)));
+                assert_eq!(app.route, route);
+                if matches!(route, Route::Devices | Route::Diagnostics) {
+                    assert!(matches!(intent, Intent::Request(_)));
+                } else {
+                    assert!(matches!(intent, Intent::None));
+                }
+                render(&app, width, 35);
+                let regions =
+                    view::regions(ratatui::layout::Rect::new(0, 0, width, 35), app.features);
+                let home = view::navigation_rects(regions.navigation)[0];
+                assert!(matches!(
+                    app.mouse(
+                        MouseEvent {
+                            kind: MouseEventKind::Down(MouseButton::Left),
+                            column: home.x,
+                            row: home.y,
+                            modifiers: KeyModifiers::NONE
+                        },
+                        width,
+                        35
+                    ),
+                    Intent::None
+                ));
+                assert_eq!(app.route, Route::Home);
+            }
+        }
+    }
+}
+
+#[test]
+fn navigation_does_not_discard_write_review_or_busy_work() {
+    use super::{routing::Route, state::Review};
+    let mut app = ready();
+    app.review = Some(Review::Setting { value: "on".into() });
+    assert!(matches!(app.key(key(KeyCode::F(6))), Intent::None));
+    assert_eq!(app.route, Route::Settings);
+    assert!(app.review.is_some());
+    app.review = None;
+    app.accepted(88, Action::Refresh);
+    assert!(matches!(app.key(key(KeyCode::F(1))), Intent::None));
+    assert_eq!(app.route, Route::Settings);
+    assert!(app.busy.is_some());
+}
+
+#[test]
+fn audio_navigation_shows_verified_controls_and_research_stays_separate() {
+    use super::routing::Route;
+    let mut app = ready();
+    app.navigate(Route::Audio);
+    assert!(app.features);
+    assert!(app
+        .feature_list()
+        .iter()
+        .all(|spec| spec.category == crate::features::FeatureCategory::Audio));
+    assert!(!app.feature_list().is_empty());
+    app.navigate(Route::Research);
+    assert!(app
+        .feature_list()
+        .iter()
+        .all(|spec| !spec.verified(crate::models::Model::StudioPro.capabilities())));
+    app.navigate(Route::Home);
+    assert!(!app.features);
+    assert!(app.observation_view.is_none());
+}
+
+/// Explicitly requested snapshots use synthetic state and never access Bluetooth.
+#[test]
+#[ignore = "writes SVG artifacts for offline visual review"]
+fn export_navigation_previews() {
+    use super::routing::Route;
+    use ratatui::style::Color;
+    let directory = std::env::var_os("UGREEN_TUI_PREVIEW_DIR").expect("set UGREEN_TUI_PREVIEW_DIR");
+    std::fs::create_dir_all(&directory).unwrap();
+    fn color(value: Color) -> String {
+        match value {
+            Color::Rgb(r, g, b) => format!("#{r:02x}{g:02x}{b:02x}"),
+            Color::Black => "#000000".into(),
+            Color::Cyan => "#00ffff".into(),
+            Color::Green => "#00ff00".into(),
+            Color::Yellow => "#ffff00".into(),
+            Color::Gray => "#aaaaaa".into(),
+            _ => "#dae2ef".into(),
+        }
+    }
+    for (width, height) in [(56, 24), (110, 35)] {
+        for route in Route::ALL {
+            let mut app = ready();
+            app.navigate(route);
+            if route == Route::Devices {
+                app.paired = Some(vec![device("AA:BB:CC:DD:EE:FF", "HP206 (offline fixture)")]);
+            }
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            terminal.draw(|frame| view::render(frame, &app)).unwrap();
+            let mut svg = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\"><rect width=\"100%\" height=\"100%\" fill=\"#0f141e\"/>", width * 9, height * 18);
+            for y in 0..height {
+                for x in 0..width {
+                    let cell = &terminal.backend().buffer()[(x, y)];
+                    if cell.bg != Color::Reset {
+                        svg.push_str(&format!(
+                            "<rect x=\"{}\" y=\"{}\" width=\"9\" height=\"18\" fill=\"{}\"/>",
+                            x * 9,
+                            y * 18,
+                            color(cell.bg)
+                        ));
+                    }
+                    let text = cell
+                        .symbol()
+                        .replace('&', "&amp;")
+                        .replace('<', "&lt;")
+                        .replace('>', "&gt;");
+                    svg.push_str(&format!("<text x=\"{}\" y=\"{}\" font-family=\"DejaVu Sans Mono\" font-size=\"14\" fill=\"{}\">{}</text>", x * 9, y * 18 + 14, color(cell.fg), text));
+                }
+            }
+            svg.push_str("</svg>");
+            std::fs::write(
+                std::path::Path::new(&directory).join(format!("{}-{width}.svg", route.index())),
+                svg,
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn device_mouse_selection_tracks_the_rendered_scroll_offset() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let mut app = App::new(&config());
+    app.paired = Some(
+        (0..40)
+            .map(|i| device(&format!("00:11:22:33:44:{i:02X}"), "Fixture"))
+            .collect(),
+    );
+    app.paired_index = 39;
+    let area = ratatui::layout::Rect::new(0, 0, 110, 30);
+    let rect = view::regions(area, false).list;
+    let expected = app.paired_scroll(rect.height);
+    let address = app.paired.as_ref().unwrap()[expected].address.to_string();
+    app.mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: rect.x + 2,
+            row: rect.y + 1,
+            modifiers: KeyModifiers::NONE,
+        },
+        110,
+        30,
+    );
+    assert_eq!(app.address, address);
+    assert_eq!(app.paired_index, expected);
+}
+
+#[test]
+fn terminal_transport_errors_close_session_and_allow_explicit_reconnect() {
+    for kind in [
+        io::ErrorKind::UnexpectedEof,
+        io::ErrorKind::ConnectionReset,
+        io::ErrorKind::BrokenPipe,
+        io::ErrorKind::NotConnected,
+    ] {
+        let (mut engine, state) = connected_engine();
+        {
+            let mut s = state.lock().unwrap();
+            s.fail_info = Some(1);
+            s.fail_info_kind = Some(kind);
+        }
+        let reply = engine.execute(request(Action::Refresh));
+        assert!(reply.result.is_err());
+        assert!(!reply.connected);
+        assert!(engine
+            .execute(request(Action::Connect {
+                address: "AA:BB:CC:DD:EE:FF".into(),
+                model_confirmed: true
+            }))
+            .result
+            .is_ok());
+    }
+}
+
+#[test]
+fn reconnect_after_lost_write_readback_never_replays_or_unlocks_the_write() {
+    let (mut engine, state) = connected_engine();
+    {
+        let mut s = state.lock().unwrap();
+        s.fail_info = Some(2);
+        s.fail_info_kind = Some(io::ErrorKind::UnexpectedEof);
+    }
+    let reply = engine.execute(request(Action::Set(Setting::parse("game", "on").unwrap())));
+    assert!(reply.result.is_err());
+    assert!(!reply.connected);
+    assert!(reply.writes_blocked);
+    assert!(engine
+        .execute(request(Action::Connect {
+            address: "AA:BB:CC:DD:EE:FF".into(),
+            model_confirmed: true
+        }))
+        .result
+        .is_ok());
+    assert!(engine
+        .execute(request(Action::Set(Setting::parse("game", "off").unwrap())))
+        .result
+        .is_err());
+    assert_eq!(
+        state
+            .lock()
+            .unwrap()
+            .calls
+            .iter()
+            .filter(|call| call.starts_with("ack:"))
+            .count(),
+        1
+    );
+    assert!(engine.execute(request(Action::Refresh)).result.is_ok());
+    assert!(engine
+        .execute(request(Action::Set(Setting::parse("game", "off").unwrap())))
+        .result
+        .is_ok());
+}
+
+#[test]
+fn language_selection_updates_the_worker_and_prevents_overlapping_preferences() {
+    let mut app = ready();
+    app.open_options();
+    let Intent::Request(
+        action @ Action::Configure {
+            lang: crate::i18n::Lang::Es,
+            ..
+        },
+    ) = app.key(key(KeyCode::Right))
+    else {
+        panic!("language change must update worker configuration");
+    };
+    app.accepted(300, action.clone());
+    assert!(matches!(app.key(key(KeyCode::Right)), Intent::None));
+    assert_eq!(app.lang, crate::i18n::Lang::Es);
+    assert!(matches!(app.key(key(KeyCode::Esc)), Intent::None));
+    assert!(app.busy.is_some());
+    let (mut engine, _) = engine();
+    assert!(engine.execute(request(action)).result.is_ok());
+    let reply = engine.execute(request(Action::Connect {
+        address: app.address.clone(),
+        model_confirmed: false,
+    }));
+    assert_eq!(
+        reply.result.unwrap_err(),
+        crate::i18n::txt(crate::i18n::Lang::Es).err_need_model
+    );
+}
+
+#[test]
+fn worker_admission_errors_use_the_selected_language() {
+    let mut cfg = config();
+    cfg.lang = crate::i18n::Lang::Es;
+    let state = Arc::new(Mutex::new(MockState::default()));
+    let mut worker = Worker::spawn(FakeBackend(state), cfg).unwrap();
+    worker.submit(Action::Paired).unwrap();
+    assert_eq!(
+        worker.submit(Action::Paired).unwrap_err(),
+        crate::i18n::txt(crate::i18n::Lang::Es).status_worker_busy
+    );
+}
+
+#[test]
+fn unicode_tab_and_footer_hitboxes_follow_terminal_cell_width() {
+    use ratatui::layout::Rect;
+    let tabs = view::tab_rects(Rect::new(0, 0, 56, 1), &["音声", "設定"], 0);
+    assert_eq!(tabs, vec![Rect::new(0, 0, 6, 1), Rect::new(6, 0, 6, 1)]);
+    let rows = [[
+        ("A", "声音"),
+        ("D", "診断"),
+        ("", ""),
+        ("", ""),
+        ("", ""),
+        ("", ""),
+    ]];
+    let slots = view::footer_slots(Rect::new(0, 0, 56, 1), &rows);
+    assert_eq!(slots[0], ("A", Rect::new(0, 0, 8, 1)));
+    assert_eq!(slots[1], ("D", Rect::new(8, 0, 8, 1)));
+    assert!(view::footer_slots(Rect::new(0, 0, 4, 1), &rows)
+        .iter()
+        .all(|(_, rect)| rect.right() <= 4));
+}
+
+#[test]
+fn spatial_status_uses_readback_only_messages_in_every_locale() {
+    for lang in crate::i18n::Lang::ALL {
+        let mut app = ready();
+        app.lang = lang;
+        let setting = Setting::parse("spatial", "on").unwrap();
+        app.accepted(501, Action::Set(setting.clone()));
+        let t = crate::i18n::txt(lang);
+        assert_eq!(
+            app.status,
+            t.status_applying_noack
+                .replacen("{}", "spatial", 1)
+                .replacen("{}", "on", 1)
+        );
+        let mut raw = info().raw;
+        raw[20] = 1;
+        app.receive(Reply {
+            id: 501,
+            result: Ok(Output::Verified {
+                info: StudioProState::new(raw).unwrap(),
+                setting,
+            }),
+            connected: true,
+            writes_blocked: false,
+        });
+        assert_eq!(
+            app.status,
+            t.status_verified_noack
+                .replacen("{}", "spatial", 1)
+                .replacen("{}", "on", 1)
+        );
     }
 }

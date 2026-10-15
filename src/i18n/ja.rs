@@ -4,6 +4,11 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.cli_json_unsupported = "このコマンドは --json に対応していません。";
+    l.status_applying_noack =
+        "事前確認後に {}={} を適用し、読み戻しを検証します（空間オーディオは確認応答なし）...";
+    l.status_verified_noack =
+        "読み戻しの一致により {}={} を検証済み。空間オーディオは確認応答を返しません。";
     l.app_title = " UGREEN / Studio Pro コントロール ";
     l.connected = "接続済み";
     l.disconnected = "未接続";
@@ -244,7 +249,9 @@ pub fn catalog() -> L {
     l.cmd_query = "キャプチャ保護クエリ；このファームウェアでは未検証";
     l.cmd_control = "キャプチャ保護制御；--dry-run でバイトを表示";
     l.cmd_find = "キャプチャ保護の検索音";
+    l.navigation = ["ホーム", "音声", "デバイス", "設定", "診断", "研究"];
     l.headset_connections = ["ヘッドセットの接続", "ヘッドセットの接続先です。このPCのペアリング一覧とは別です。", "HP206の照会（0x0D）には、このファームウェアでの公式アプリのキャプチャが必要です。照会は送信されていません。台数と接続先は不明です。", "リモート接続先の切断、再接続、切り替えは未対応です。ホストのBluetooth操作はこのPCだけに適用されます。", "r: 対応状況 · d: デュアル接続 · Esc: 戻る"];
+    l.headset_connections[4] = "r: デュアル接続状態を更新 · d: デュアル接続 · Esc: 戻る";
     l.page_labels = [
         "デバイス",
         "オーディオ",
@@ -407,7 +414,7 @@ pub fn catalog() -> L {
         ],
     ];
     l.status_feature_running = "機能操作を実行中...";
-    l.status_edit_in_settings = "{} は検証済みの設定です。設定画面で編集してください (s)。";
+    l.status_edit_in_settings = "{} は検証済みの設定です。設定画面で編集してください (F4)。";
     l.codec_unverified = "照会は未検証";
     l.arg_enabled = "有効";
     l.arg_side = "側";

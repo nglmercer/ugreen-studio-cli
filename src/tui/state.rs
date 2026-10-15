@@ -1,3 +1,5 @@
+mod forms;
+
 use super::{
     worker::{self, Action, Output, Reply},
     Config,
@@ -83,6 +85,7 @@ pub(super) enum ObservationView {
     Diagnostics,
 }
 pub(super) struct App {
+    pub route: super::routing::Route,
     pub view_picker: Option<usize>,
     pub observation_view: Option<ObservationView>,
     pub observation_scroll: u16,
@@ -147,7 +150,7 @@ pub(super) struct App {
     started_at: Instant,
     last_logged_status: String,
     disconnect_after: bool,
-    worker_alive: bool,
+    pub(super) worker_alive: bool,
     skip_autoload: bool,
     autoconnect: bool,
 }
@@ -155,6 +158,7 @@ impl App {
     pub fn new(config: &Config) -> Self {
         let t = crate::i18n::txt(config.lang);
         Self {
+            route: super::routing::Route::Settings,
             view_picker: None,
             observation_view: None,
             observation_scroll: 0,
@@ -267,9 +271,17 @@ impl App {
         self.feature_list_scroll = 0;
         self.feature_scope = super::workspace::FeatureScope::Everyday;
         self.features = true;
+        self.route = super::routing::Route::Settings;
     }
     /// Select one language directly and remember the choice
     /// in the target cache.
+    fn configuration(&self) -> Action {
+        Action::Configure {
+            lang: self.lang,
+            channel: self.channel,
+            timeout_seconds: self.timeout_seconds,
+        }
+    }
     pub fn apply_lang(&mut self, lang: Lang) {
         self.lang = lang;
         self.status = fill(self.t().status_lang, &[&lang.name()]);
@@ -332,24 +344,12 @@ impl App {
             Action::Disconnect => t.status_disconnecting.into(),
             Action::Feature(_) => t.status_feature_running.into(),
             Action::Set(setting) => {
-                let noack = !setting.expects_ack();
-                let template = if noack {
-                    t.status_applying.replace(
-                        "verifying acknowledgement and readback",
-                        "verifying readback (no ack for spatial audio)",
-                    )
+                let template = if setting.expects_ack() {
+                    t.status_applying
                 } else {
-                    t.status_applying.into()
+                    t.status_applying_noack
                 };
-                let template = if noack && self.lang == Lang::Es {
-                    t.status_applying.replace(
-                        "verificando confirmación y lectura",
-                        "verificando lectura (sin confirmación para audio espacial)",
-                    )
-                } else {
-                    template
-                };
-                fill(&template, &[&setting.key, &setting.value])
+                fill(template, &[&setting.key, &setting.value])
             }
             // The options screen already set the saved
             // status before submitting the change.
@@ -447,6 +447,7 @@ impl App {
                 };
                 self.host_observed_at = Some(Instant::now());
                 self.paired = Some(devices);
+                self.route = super::routing::Route::Devices;
                 self.paired_index = 0;
             }
             Ok(Output::Snapshot(snapshot)) => {
@@ -465,7 +466,14 @@ impl App {
                 self.observed_at = Some(Instant::now());
                 self.stale = false;
                 self.proposals = Default::default();
-                self.status = fill(t.status_verified, &[&setting.key, &setting.value]);
+                self.status = fill(
+                    if setting.expects_ack() {
+                        t.status_verified
+                    } else {
+                        t.status_verified_noack
+                    },
+                    &[&setting.key, &setting.value],
+                );
             }
             Ok(Output::Feature(result)) => {
                 if let Some(codecs) = result.codecs {
@@ -559,7 +567,7 @@ impl App {
         let mut reachable = false;
         let mut x = 0usize;
         for (index, label) in labels.iter().enumerate().skip(self.feature_tab_scroll) {
-            let tab_width = 2 + label.chars().count();
+            let tab_width = 2 + super::view::text_width(label);
             if index == self.feature_tab {
                 reachable = x + tab_width <= limit;
                 break;
@@ -598,6 +606,17 @@ impl App {
         }
         let area = ratatui::layout::Rect::new(0, 0, width, height);
         let regions = super::view::regions(area, self.features);
+        if (self.options || self.lang_picker) && self.busy.is_some() {
+            return Intent::None;
+        }
+        for (index, rect) in super::view::navigation_rects(regions.navigation)
+            .iter()
+            .enumerate()
+        {
+            if rect.contains(ratatui::layout::Position::new(x, y)) {
+                return self.navigate(super::routing::Route::ALL[index]);
+            }
+        }
         if self.observation_view.is_some() {
             return Intent::None;
         }
@@ -657,6 +676,7 @@ impl App {
                 self.lang_picker = false;
                 self.options = false;
                 self.apply_lang(lang);
+                return Intent::Request(self.configuration());
             }
             return Intent::None;
         }
@@ -689,7 +709,7 @@ impl App {
         } else {
             super::view::footer_rows(self.t())
         };
-        for (key, rect) in super::view::footer_slots(area, &rows) {
+        for (key, rect) in super::view::footer_slots(regions.footer, &rows) {
             if x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height {
                 return match super::view::footer_key(key) {
                     Some(event) => self.key(event),
@@ -701,14 +721,10 @@ impl App {
         // centered dialog rectangle the renderer uses.
         if self.paired.is_some() {
             let count = self.paired.as_ref().map(Vec::len).unwrap_or(0);
-            let rect = super::view::centered(
-                area,
-                width.saturating_sub(4).min(100),
-                height.saturating_sub(4),
-            );
+            let rect = regions.list;
             if y > rect.y && y < rect.y + rect.height - 1 && x >= rect.x && x < rect.x + rect.width
             {
-                let idx = (y - rect.y - 1) as usize;
+                let idx = (y - rect.y - 1) as usize + self.paired_scroll(rect.height);
                 if idx < count {
                     self.paired_index = idx;
                     return self.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -791,238 +807,28 @@ impl App {
         }
         Intent::None
     }
-    /// Activate the selected feature. Pending features only
-    /// explain their state; verified settings hand editing
-    /// back to the settings screen; queries and typed
-    /// controls go through the worker's guards.
-    fn feature_activate(&mut self) -> Intent {
-        let Some(spec) = self.selected_feature() else {
-            return Intent::None;
-        };
-        if spec.id == features::FeatureId::MultipointPeers {
-            return self.open_page(3);
-        }
-        let t = self.t();
-        if !spec.verified(Model::StudioPro.capabilities()) {
-            // Pending verification never opens a live
-            // operation; the explanation says so.
-            self.status = format!("{} - {}", t.feature_pending, t.feature_pending_reason);
-            if self.width < super::view::WIDE_WIDTH {
-                self.feature_details = true;
-            }
-            return Intent::None;
-        }
-        match spec.kind {
-            FeatureKind::OfflineAnalysis => {
-                let command = spec.offline_command().unwrap_or_default();
-                self.status = fill(t.feature_offline_hint, &[&command]);
-                Intent::None
-            }
-            FeatureKind::VerifiedSetting => {
-                let key = spec.setting.unwrap_or_default();
-                self.select_setting_by_key(key);
-                self.features = false;
-                self.feature_details = false;
-                self.feature_search.clear();
-                self.status = fill(t.status_edit_in_settings, &[&spec.name(t)]);
-                Intent::None
-            }
-            FeatureKind::DeviceQuery => match spec.operation(&[]) {
-                Ok(operation) => self.submit_feature(operation),
-                Err(error) => {
-                    self.status = error;
-                    Intent::None
-                }
-            },
-            FeatureKind::DeviceControl => {
-                if spec.arguments.is_empty() {
-                    self.review = Some(Review::Feature {
-                        form: FeatureForm::new(spec.id),
-                    });
-                } else {
-                    self.feature_form = Some(FeatureForm::new(spec.id));
-                }
-                Intent::None
-            }
-        }
-    }
-    /// Select the settings-screen row that edits a
-    /// verified setting key.
-    fn select_setting_by_key(&mut self, key: &str) {
-        if let Some(index) = settings::KEYS
-            .iter()
-            .position(|candidate| *candidate == key)
-        {
-            self.selected = index;
-            let groups = categories();
-            if let Some((tab, _)) = groups
-                .iter()
-                .enumerate()
-                .find(|(_, group)| group.contains(&index))
-            {
-                self.tab = tab;
-            }
-        }
-    }
-    /// Submit a typed feature operation through the same
-    /// guards the settings screen uses: capability, model
-    /// confirmation, connection, busy and write lockout.
-    fn submit_feature(&mut self, operation: Operation) -> Intent {
-        let t = self.t();
-        if let Err(error) = operation.check(Model::StudioPro.capabilities()) {
-            self.status = error.to_string();
-            return Intent::None;
-        }
-        if !self.control_state.is_connected() || !self.model_confirmed {
-            self.status = t.status_must_connect.into();
-            return Intent::None;
-        }
-        if self.busy.is_some() || !self.worker_alive {
-            return Intent::None;
-        }
-        if operation.is_write() && self.writes_blocked {
-            self.status = t.status_blocked_note.into();
-            return Intent::None;
-        }
-        Intent::Request(Action::Feature(operation))
-    }
-    /// Cycle a toggle, choice or peer-index field to its
-    /// next value; the draft is set, never left empty.
-    fn cycle_argument(&mut self, forward: bool) {
-        let Some(form) = self.feature_form.as_mut() else {
-            return;
-        };
-        let Some(spec) = lookup(form.id) else {
-            return;
-        };
-        let Some(argument) = spec.arguments.get(form.field) else {
-            return;
-        };
-        let draft = &mut form.drafts[form.field];
-        match argument.kind {
-            features::ArgumentKind::Toggle => {
-                let on = draft.as_deref() == Some("on");
-                *draft = Some(if on { "off" } else { "on" }.into());
-            }
-            features::ArgumentKind::PeerIndex => {
-                let next = if draft.as_deref() == Some("1") {
-                    "2"
-                } else {
-                    "1"
-                };
-                *draft = Some(next.into());
-            }
-            features::ArgumentKind::Choice(options) => {
-                let position = draft
-                    .as_deref()
-                    .and_then(|value| options.iter().position(|(name, _)| *name == value));
-                let next = match position {
-                    Some(position) => {
-                        let len = options.len();
-                        if forward {
-                            (position + 1) % len
-                        } else {
-                            (position + len - 1) % len
-                        }
-                    }
-                    None => 0,
-                };
-                *draft = Some(options[next].0.into());
-            }
-            features::ArgumentKind::Side
-            | features::ArgumentKind::Seconds
-            | features::ArgumentKind::Byte
-            | features::ArgumentKind::Mac
-            | features::ArgumentKind::Actions(_) => {}
-        }
-    }
-    /// Type into the selected form field, accepting only
-    /// the characters its argument kind allows.
-    fn feature_form_char(&mut self, c: char) {
-        let Some(form) = self.feature_form.as_mut() else {
-            return;
-        };
-        let Some(spec) = lookup(form.id) else {
-            return;
-        };
-        let Some(argument) = spec.arguments.get(form.field) else {
-            return;
-        };
-        let draft = form.drafts[form.field].get_or_insert_with(String::new);
-        match argument.kind {
-            features::ArgumentKind::Toggle
-            | features::ArgumentKind::Side
-            | features::ArgumentKind::Choice(_)
-            | features::ArgumentKind::PeerIndex => {}
-            features::ArgumentKind::Seconds => {
-                if c.is_ascii_digit() && draft.chars().count() < 2 {
-                    draft.push(c);
-                }
-            }
-            features::ArgumentKind::Byte => {
-                if c.is_ascii_digit() && draft.chars().count() < 3 {
-                    draft.push(c);
-                }
-            }
-            features::ArgumentKind::Mac => {
-                if (c.is_ascii_hexdigit() || c == ':') && draft.chars().count() < 17 {
-                    draft.push(c.to_ascii_uppercase());
-                }
-            }
-            features::ArgumentKind::Actions(_) => {
-                if (c.is_ascii_digit() || c == ',') && draft.chars().count() < 30 {
-                    draft.push(c);
-                }
-            }
-        }
-    }
-    pub(super) fn open_page(&mut self, index: usize) -> Intent {
-        if self.busy.is_some() || !self.worker_alive {
-            return Intent::None;
-        }
-        self.view_picker = None;
-        self.observation_view = None;
-        self.observation_scroll = 0;
-        self.features = false;
-        self.feature_details = false;
-        self.feature_form = None;
-        self.review = None;
-        self.paired = None;
-        self.help = false;
-        self.log_open = false;
-        self.options = false;
-        self.lang_picker = false;
-        match index {
-            0 => Intent::Request(Action::Paired),
-            1 => {
-                self.observation_view = Some(ObservationView::Audio);
-                Intent::Request(Action::Audio {
-                    address: self.address.clone(),
-                })
-            }
-            2 => Intent::None,
-            3 => {
-                self.observation_view = Some(ObservationView::Multipoint);
-                Intent::None
-            }
-            4 => {
-                self.open_features();
-                self.feature_scope = super::workspace::FeatureScope::Research;
-                Intent::None
-            }
-            5 => {
-                self.observation_view = Some(ObservationView::Diagnostics);
-                Intent::Request(Action::Doctor {
-                    address: (!self.address.is_empty()).then(|| self.address.clone()),
-                    model: self.model_confirmed.then_some(Model::StudioPro),
-                })
-            }
-            _ => Intent::None,
-        }
-    }
     pub fn key(&mut self, key: KeyEvent) -> Intent {
         if key.kind != KeyEventKind::Press {
             return Intent::None;
+        }
+        if let KeyCode::F(number @ 1..=6) = key.code {
+            return self.navigate(super::routing::Route::ALL[usize::from(number - 1)]);
+        }
+        if self.route == super::routing::Route::Home
+            && self.navigation_available()
+            && matches!(
+                key.code,
+                KeyCode::Enter
+                    | KeyCode::Left
+                    | KeyCode::Right
+                    | KeyCode::Up
+                    | KeyCode::Down
+                    | KeyCode::Tab
+                    | KeyCode::BackTab
+                    | KeyCode::Char('1'..='9')
+            )
+        {
+            self.navigate(super::routing::Route::Settings);
         }
         let t = self.t();
         let quit = key.code == KeyCode::Char('q')
@@ -1057,6 +863,22 @@ impl App {
                 _ => Intent::None,
             };
         }
+        // Preferences already accepted locally must reach the worker before
+        // another edit. Esc closes their screen without cancelling the update.
+        if matches!(self.busy, Some((_, Action::Configure { .. }))) {
+            if key.code == KeyCode::Esc {
+                self.options = false;
+                self.lang_picker = false;
+            }
+            return Intent::None;
+        }
+        if (self.options || self.lang_picker) && self.busy.is_some() {
+            return if key.code == KeyCode::Esc {
+                Intent::Cancel
+            } else {
+                Intent::None
+            };
+        }
         if let Some(index) = self.view_picker {
             match key.code {
                 KeyCode::Esc => self.view_picker = None,
@@ -1074,6 +896,7 @@ impl App {
                         return Intent::Cancel;
                     }
                     self.observation_view = None;
+                    self.route = super::routing::Route::Home;
                 }
                 KeyCode::Up => self.observation_scroll = self.observation_scroll.saturating_sub(1),
                 KeyCode::Down => {
@@ -1081,10 +904,20 @@ impl App {
                 }
                 KeyCode::Char('d') if view == ObservationView::Multipoint => {
                     self.observation_view = None;
+                    self.route = super::routing::Route::Settings;
                     self.select_setting_by_key("dual");
                     return Intent::None;
                 }
                 KeyCode::Home => self.observation_scroll = 0,
+                KeyCode::Char('r') if view == ObservationView::Multipoint => {
+                    if self.busy.is_some() || !self.worker_alive {
+                        return Intent::None;
+                    }
+                    if self.control_state.is_connected() {
+                        return Intent::Request(Action::Refresh);
+                    }
+                    self.status = self.t().status_must_connect.into();
+                }
                 KeyCode::Char('r') => {
                     return self.open_page(match view {
                         ObservationView::Audio => 1,
@@ -1211,6 +1044,7 @@ impl App {
             match key.code {
                 KeyCode::Esc => {
                     self.features = false;
+                    self.route = super::routing::Route::Settings;
                     self.feature_details = false;
                     self.feature_form = None;
                     self.review = None;
@@ -1289,6 +1123,7 @@ impl App {
                     self.lang_picker = false;
                     self.options = false;
                     self.apply_lang(lang);
+                    return Intent::Request(self.configuration());
                 }
                 _ => {}
             }
@@ -1322,6 +1157,7 @@ impl App {
                                 (position + Lang::ALL.len() - 1) % Lang::ALL.len()
                             };
                             self.apply_lang(Lang::ALL[next]);
+                            return Intent::Request(self.configuration());
                         }
                         1 => {
                             self.channel = if forward {
@@ -1333,6 +1169,7 @@ impl App {
                             let channel = self.channel;
                             self.save_config_change(template, &[&channel]);
                             return Intent::Request(Action::Configure {
+                                lang: self.lang,
                                 channel: self.channel,
                                 timeout_seconds: self.timeout_seconds,
                             });
@@ -1347,6 +1184,7 @@ impl App {
                             let timeout = self.timeout_seconds;
                             self.save_config_change(template, &[&timeout]);
                             return Intent::Request(Action::Configure {
+                                lang: self.lang,
                                 channel: self.channel,
                                 timeout_seconds: self.timeout_seconds,
                             });

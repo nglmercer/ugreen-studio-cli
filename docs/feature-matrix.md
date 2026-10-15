@@ -12,8 +12,8 @@ Implementation states: `not_started`, `implemented`, `tested_mock`,
 `tested_platform`, `tested_hardware`. A mock test never promotes evidence.
 
 `verified` below describes the historical HP206 firmware **0.2.5** record in
-[verification](verification.md#live-retail-verification-2026-10-04), not a new
-hardware session. No new physical capture, native Windows runtime test, audio
+[verification](verification.md#live-retail-verification-2026-10-04), with additional read-only status/firmware evidence in the
+[October 14 audit](audit-2026-10-14.md). No native Windows runtime test, audio
 playback, reset or host link mutation was performed for this implementation.
 Unknown model/firmware lookup grants zero capabilities. CLI setting/profile writes
 and native TUI setting preflight now require an actual `0.2.5` firmware reply.
@@ -26,7 +26,7 @@ caller-managed identity/evidence; they are not safe automatic model detection.
 
 | Feature / operation | Platform | Implementation | Evidence | Provenance / firmware | CLI / TUI | Coverage / limitation |
 | --- | --- | --- | --- | --- | --- | --- |
-| Device info, battery, firmware | Linux | tested_hardware | verified | Historical retail HP206 / 0.2.5 | status, profile export, capture / header | CRC, fragmentation, notifications; no new hardware run |
+| Device info, battery, firmware | Linux | tested_hardware | verified | Historical retail HP206 / 0.2.5 | status, profile export, capture / header | CRC, fragmentation, notifications; new read-only fixture in October 14 audit |
 | ANC, eight EQ presets | Linux | tested_hardware | verified | Historical retail record and protocol fixtures / 0.2.5 | set, profile apply / settings | Preflight, ack, matching readback |
 | Game, spatial, dual-device, wind | Linux | tested_hardware | verified | Historical retail / 0.2.5 | set, profile apply / settings | Spatial uses readback without ack; dual independent of peers |
 | Prompts, two volume-hold actions | Linux | tested_hardware | verified | Historical retail / 0.2.5 | set, profile apply / settings | Hold actions do not change playback volume |
@@ -36,9 +36,9 @@ caller-managed identity/evidence; they are not safe automatic model detection.
 | Typed RFCOMM lifecycle and independent OS link | Linux, Windows | tested_mock | unsupported | Offline state tests; no new retail validation | devices JSON / header | Connected, connecting, disconnected, error; host observation never overwritten by RFCOMM |
 | Explicit host connect/disconnect | Linux | tested_mock | unsupported | BlueZ Device1 methods; no live mutation validation | host connect/disconnect / p then h/H | Existing bounded D-Bus path; exact identity and adapter ambiguity checks |
 | Host connect/disconnect | Windows, other | implemented | unsupported | No implemented legitimate host-control API | Same commands return actionable error | Never equates socket close with host disconnect |
-| Host periodic refresh | Linux, Windows | tested_mock | unsupported | Five-second bounded worker fallback | TUI automatically when idle | Coalesced by one-request worker, request IDs and target matching; signal subscription pending |
-| BlueZ PropertiesChanged listener | Linux | not_started | unsupported | No listener backend yet | None | Fallback refresh exists; no signal-monitoring claim |
-| OS audio profile/codec/activity | Linux | tested_mock | unsupported | PipeWire Node transport properties; not a headset packet | audio status, JSON / A dedicated view | Address matching, explicit transport required, conflicting nodes preserved, timestamps; live BT transport validation pending |
+| Host periodic refresh | Linux, Windows | tested_mock | unsupported | Five-second bounded worker fallback | TUI automatically when idle | Coalesced by one-request worker, request IDs and target matching; separate signal invalidation on Linux |
+| BlueZ PropertiesChanged listener | Linux | tested_mock | unsupported | D-Bus AddMatch for device/adapter properties, object changes and BlueZ owner changes | TUI invalidates host snapshot | Bounded incremental reads, coalesced flag, one-second refresh limit, reconnect backoff, socket shutdown; live subscription acceptance passed; physical transition observation pending |
+| OS audio profile/codec/activity | Linux | tested_platform | unsupported | PipeWire Node transport properties; not a headset packet | audio status, JSON / A dedicated view | Exact-address PipeWire observation recorded; internal transport pointers are redacted, conflicting nodes preserved; no vendor codec validation |
 | OS negotiated codec | Windows, other | implemented | unsupported | No supported observable provider implemented | audio status returns unavailable | No version/installed-codec inference; ETW not implemented |
 | BlueZ MediaTransport fallback | Linux | tested_mock | unsupported | BlueZ interface definitions and synthetic D-Bus fixtures; no live Bluetooth validation | audio status / Audio view | Exact Device1 path association, standard IDs and company/codec vendor IDs; bare 0xff stays unknown |
 | Audio sink selection inventory | Linux | tested_mock | unsupported | PipeWire Audio/Sink node names | audio devices, audio-devices | Explicit output name; no default routing fallback; playback preview pending |
@@ -70,14 +70,15 @@ mean an offline implementation emits headset packets.
 
 M0 audit and safety baseline are implemented. M1 includes independent states,
 current-target sorting, session-safe device browsing, explicit Linux host actions,
-and bounded worker refresh; signal monitoring, complete per-device history,
+and bounded worker refresh plus signal invalidation; complete per-device history,
 reconnect/backoff and detailed permissions/adapter UX remain. M2 includes the
 bounded PipeWire and BlueZ MediaTransport providers and honest unavailable Windows backend;
 real platform transport validation remains. M3/M4 retain offline
 parsers, orchestration and gates; official-app and retail captures remain required.
 M5 includes registry commands, JSON, initial doctor and repaired typed feature UI;
-six-page navigation and dedicated Audio/Diagnostics views are implemented; signal monitoring,
-remaining diagnostic probes and release bundles remain.
+six-page navigation and dedicated Audio/Diagnostics views are implemented;
+remaining diagnostic probes and native release/hardware validation remain. A deterministic
+ZIP packager and native build workflow now exist; no remote workflow execution is claimed.
 M6 adds exact firmware lookup; low-level SDK authorization still depends on the
 caller. This matrix does **not** declare the full work order complete.
 

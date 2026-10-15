@@ -272,3 +272,32 @@ fn candidate_finder_notification_uses_the_event_code_offset() {
         Some("headphone-finder")
     );
 }
+
+#[test]
+fn live_studio_pro_fw025_core_capture_remains_crc_valid_and_scoped_to_reads() {
+    let mut decoder = Decoder::default();
+    let frames = decoder.feed(&bytes("studio-pro-fw025-core-read-20261014.hex"));
+    assert_clean("studio-pro-fw025-core-read-20261014", &decoder);
+    assert_eq!(frames.len(), 2);
+    let IncomingFrame::Response(info) = &frames[0] else {
+        panic!("expected device info");
+    };
+    let IncomingFrame::Response(firmware) = &frames[1] else {
+        panic!("expected firmware");
+    };
+    assert_eq!(info.instruction, protocol::INFO);
+    assert_eq!(firmware.instruction, protocol::FIRMWARE);
+    assert!(info.succeeded && firmware.succeeded);
+    assert_eq!(
+        ugreen_cli::settings::firmware(&firmware.payload).as_deref(),
+        Some("0.2.5")
+    );
+    let observed = StudioProState::new(info.payload.clone()).unwrap();
+    assert_eq!(observed.battery(), Some(50));
+    assert_eq!(observed.value("dual").as_deref(), Some("on"));
+    assert!(
+        ugreen_cli::multipoint::MultipointState::from_device_info(&observed)
+            .peers
+            .is_none()
+    );
+}

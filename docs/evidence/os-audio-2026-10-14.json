@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "kind": "live_os_audio_observation",
+  "platform": "Linux",
+  "provider_result": {
+    "address": "redacted",
+    "kind": "audio_status",
+    "observations": [
+      {
+        "activity": "Idle",
+        "address": "redacted",
+        "codec": "SbcXq",
+        "evidence": "os_observation",
+        "observed_at_unix_ms": 1792032861380,
+        "profile": "A2dp",
+        "source": "pipewire_node_transport",
+        "transport_id": 83,
+        "transport_path": null
+      }
+    ],
+    "schema_version": 1
+  },
+  "headset_vendor_query_sent": false,
+  "capabilities_promoted": false,
+  "limits": [
+    "PipeWire node metadata is an OS observation, not an independent over-the-air codec capture.",
+    "Node activity does not prove audible playback.",
+    "An empty internal transport pointer is redacted by PipeWire; no D-Bus transport path is inferred."
+  ]
+}

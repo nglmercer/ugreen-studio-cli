@@ -90,6 +90,8 @@ pub enum ArgumentKind {
     Seconds,
     Byte,
     Mac,
+    /// Explicit host playback output identifier, not a Bluetooth address.
+    AudioOutput,
     PeerIndex,
     Choice(&'static [(&'static str, u8)]),
     /// N comma-separated button action bytes.
@@ -111,6 +113,7 @@ impl ArgumentKind {
             Self::Seconds => t.arg_hint_seconds.into(),
             Self::Byte => t.arg_hint_byte.into(),
             Self::Mac => t.arg_hint_mac.into(),
+            Self::AudioOutput => "PipeWire node.name / object.serial; Windows waveOut ID".into(),
             Self::PeerIndex => t.arg_hint_peer.into(),
             Self::Choice(options) => options
                 .iter()
@@ -232,7 +235,7 @@ const SECONDS: ArgumentSpec = ArgumentSpec {
 };
 const TARGET: ArgumentSpec = ArgumentSpec {
     label: |t| t.arg_target,
-    kind: ArgumentKind::Mac,
+    kind: ArgumentKind::AudioOutput,
 };
 const VALUE: ArgumentSpec = ArgumentSpec {
     label: |t| t.arg_value,
@@ -562,6 +565,16 @@ pub fn by_setting(key: &str) -> Option<&'static FeatureSpec> {
 }
 
 impl FeatureSpec {
+    /// Historical registry evidence, never authorization for the current session.
+    pub fn historical_evidence(&self) -> crate::models::EvidenceStatus {
+        use crate::models::EvidenceStatus;
+        match self.capability {
+            None => EvidenceStatus::Unsupported,
+            Some(_) if self.verified(Model::StudioPro.capabilities()) => EvidenceStatus::Verified,
+            Some(_) => EvidenceStatus::StaticCandidate,
+        }
+    }
+
     pub fn offline_command(&self) -> Option<&'static str> {
         match self.id {
             FeatureId::OfflineDecode => Some("decode HEX"),
@@ -827,20 +840,12 @@ impl Operation {
             .and_then(|id| lookup(id).and_then(|spec| spec.capability))
     }
     pub fn check(&self, caps: Capabilities) -> io::Result<()> {
-        let bit = match self {
-            Self::Peers => Capabilities::MULTIPOINT_PEERS,
-            Self::Codec => Capabilities::CODEC_STATUS,
-            Self::Id => Capabilities::HEADPHONE_ID,
-            Self::Color => Capabilities::HEADPHONE_COLOR,
-            Self::BoxMac => Capabilities::BOX_MAC,
-            Self::Control(command) => command.control_capability().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidInput, "query is not a control")
-            })?,
-            Self::Find {
-                side: Side::Left, ..
-            } => Capabilities::FIND_LEFT,
-            Self::Find { .. } => Capabilities::FIND_RIGHT,
-        };
+        let bit = self.capability().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "operation has no registered capability",
+            )
+        })?;
         if caps.contains(bit) {
             Ok(())
         } else {
@@ -943,8 +948,6 @@ mod tests {
                 );
                 assert_eq!(by_setting(key).map(|found| found.id), Some(spec.id));
             }
-            // Draft count always matches the argument count.
-            assert_eq!(spec.arguments.len(), spec.arguments.len());
         }
     }
 

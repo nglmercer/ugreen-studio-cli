@@ -4,6 +4,11 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.cli_json_unsupported = "이 명령은 --json을 지원하지 않습니다.";
+    l.status_applying_noack =
+        "사전 확인 후 {}={} 적용, 다시 읽은 값 확인 중(공간 오디오는 확인 응답 없음)...";
+    l.status_verified_noack =
+        "다시 읽은 값이 일치하여 {}={} 검증됨. 공간 오디오는 확인 응답을 보내지 않습니다.";
     l.app_title = " UGREEN / Studio Pro 제어 ";
     l.connected = "연결됨";
     l.disconnected = "연결 안 됨";
@@ -247,7 +252,9 @@ pub fn catalog() -> L {
     l.cmd_query = "캡처 보호 쿼리; 이 펌웨어에서 미검증";
     l.cmd_control = "캡처 보호 제어; --dry-run이 바이트 출력";
     l.cmd_find = "캡처 보호 찾음 음";
+    l.navigation = ["홈", "오디오", "장치", "설정", "진단", "연구"];
     l.headset_connections = ["헤드셋 연결", "헤드셋에 연결된 장치이며 이 PC의 페어링 목록과 다릅니다.", "HP206 조회(0x0D)는 해당 펌웨어의 공식 앱 캡처가 필요합니다. 조회를 전송하지 않았으며 장치 수와 정보는 알 수 없습니다.", "원격 장치 연결 해제, 재연결 및 전환은 지원하지 않습니다. 호스트 Bluetooth 작업은 이 PC에만 적용됩니다.", "r: 지원 확인 · d: 이중 연결 · Esc: 뒤로"];
+    l.headset_connections[4] = "r: 이중 연결 상태 새로 고침 · d: 이중 연결 · Esc: 뒤로";
     l.page_labels = [
         "장치",
         "오디오",
@@ -410,7 +417,7 @@ pub fn catalog() -> L {
         ],
     ];
     l.status_feature_running = "기능 작업을 실행하는 중...";
-    l.status_edit_in_settings = "{}는 검증된 설정입니다. 설정 화면에서 편집하세요 (s).";
+    l.status_edit_in_settings = "{}는 검증된 설정입니다. 설정 화면에서 편집하세요 (F4).";
     l.codec_unverified = "조회 미검증";
     l.arg_enabled = "활성화";
     l.arg_side = "쪽";

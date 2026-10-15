@@ -17,7 +17,7 @@ cargo run --release --locked -- tui
 
 The executable is `target/release/ugreen` on Linux or `target\release\ugreen.exe` on Windows. Examples below use `ugreen`; substitute that path if the executable is not on your `PATH`.
 
-The delivery ZIP also includes Linux x86-64 executables: `bin/linux-x86_64/ugreen` (TUI + CLI) and `bin/linux-x86_64/ugreen-cli-only`. Both require glibc 2.39 or newer and `libgcc_s.so.1`; build locally on older distributions. No Windows executable is included; use the Windows build instructions.
+The earlier delivery ZIP included Linux x86-64 executables: `bin/linux-x86_64/ugreen` (TUI + CLI) and `bin/linux-x86_64/ugreen-cli-only`. Both require glibc 2.39 or newer and `libgcc_s.so.1`; build locally on older distributions. The new per-platform packaging workflow is described in [building](docs/building.md#release-bundles); remote artifacts remain unverified.
 
 On start the TUI reconnects to the last confirmed device (on by default; `--no-autoconnect` opts out). With no cached target it starts disconnected: enter an address with `a`, or explicitly load the OS's paired-device cache with `p`; press `m` then `y` to confirm the Studio Pro protocol, then press `c` to connect and read status. Pair the headphones in your OS settings first. Opening the interface, choosing a device, or editing a proposed value does not write settings.
 
@@ -111,6 +111,17 @@ ugreen decode "$(cat session.hex)"
 ```
 
 `#` starts a comment in hex input. The [protocol notes](docs/protocol.md) explain the evidence and decoder limits.
+
+
+Persistent navigation: `F1` Home, `F2` Audio controls, `F3` Devices, `F4` Settings,
+`F5` Diagnostics and `F6` Research. The main browser keeps candidates in Research.
+Language changes reach the worker, and configuration persists in the native Linux
+or Windows config directory. JSON output also supports `audio devices` and its
+`audio-devices` alias. See the [progress checklist](docs/implementation-progress.md).
+
+A fresh read-only Linux session returned firmware 0.2.5 and CRC-valid core replies;
+the [redacted evidence](docs/evidence/core-read-2026-10-14.json) records its limited
+scope. Vendor codec/peer queries and advanced controls remain capture-gated.
 
 ## Documentation and verification
 

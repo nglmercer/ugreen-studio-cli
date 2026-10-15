@@ -4,6 +4,10 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.cli_json_unsupported = "Este comando não suporta --json.";
+    l.status_applying_noack = "Aplicando {}={} após a verificação prévia e conferindo a leitura (áudio espacial sem confirmação)...";
+    l.status_verified_noack =
+        "Verificado {}={} por leitura correspondente; áudio espacial não envia confirmação.";
     l.app_title = " UGREEN / controle Studio Pro ";
     l.connected = "CONECTADO";
     l.disconnected = "DESCONECTADO";
@@ -247,7 +251,16 @@ pub fn catalog() -> L {
     l.cmd_query = "Consulta com porta; não verificada neste firmware";
     l.cmd_control = "Controle com porta; --dry-run imprime os bytes";
     l.cmd_find = "Tom de busca com porta";
+    l.navigation = [
+        "Início",
+        "Áudio",
+        "Dispositivos",
+        "Configurações",
+        "Diagnóstico",
+        "Pesquisa",
+    ];
     l.headset_connections = ["Conexões do fone", "São dispositivos conectados ao fone, separados dos emparelhados com este PC.", "A consulta HP206 (0x0D) precisa de capturas do aplicativo oficial para este firmware. Nenhuma consulta enviada; quantidade e identidades desconhecidas.", "Desconectar, reconectar e trocar dispositivos remotos não é suportado. As ações Bluetooth do host afetam apenas este PC.", "r: verificar · d: conexão dupla · Esc: voltar"];
+    l.headset_connections[4] = "r: atualizar estado duplo · d: conexão dupla · Esc: voltar";
     l.page_labels = [
         "Dispositivos",
         "Áudio",
@@ -414,7 +427,7 @@ pub fn catalog() -> L {
         ],
     ];
     l.status_feature_running = "Executando operação de recursos...";
-    l.status_edit_in_settings = "{} é um ajuste verificado; edite na tela de Ajustes (s).";
+    l.status_edit_in_settings = "{} é um ajuste verificado; edite na tela de Ajustes (F4).";
     l.codec_unverified = "consulta não verificada";
     l.arg_enabled = "Ativado";
     l.arg_side = "Lado";

@@ -1,0 +1,11 @@
+# Live core-read session, 2026-10-14, Linux RFCOMM channel 1.
+# Model: Studio Pro selected in existing registry; physical retail label not inspected.
+# Firmware reply: 0.2.5. Adapter: USB 0BDA:B82C, btusb.
+# Only established device-info/firmware queries were sent; no setting/candidate writes.
+# No headset or adapter address is included in this fixture.
+# tx 8 bytes: AA BB CC 04 01 00 31 91
+# rx 38 bytes
+DD EE FF 04 01 1E 32 FF FF A0 00 01 00 00 08 0B 00 07 00 00 00 00 00 00 00 07 00 00 04 05 00 01 00 0C 0D 0E BA E9
+# tx 8 bytes: AA BB CC 01 01 00 21 90
+# rx 14 bytes
+DD EE FF 01 01 06 00 02 05 00 00 00 61 ED

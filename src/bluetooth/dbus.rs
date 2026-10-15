@@ -3,7 +3,7 @@
 //! Why a hand-written client: the project keeps its dependency set at
 //! small and avoids a D-Bus runtime dependency. Enumeration uses `Hello` and
 //! `ObjectManager.GetManagedObjects`; reset cleanup adds `RemoveDevice` —
-//! no async runtime, no signal subscriptions, no reconnection logic.
+//! no async runtime. A separate bounded signal listener invalidates host snapshots.
 //!
 //! Safety bounds: the socket path is fixed, reads/writes carry a 5 s
 //! timeout, message sizes are capped, the reply wait is bounded, and
@@ -11,6 +11,9 @@
 //! performs a targeted `Adapter1.RemoveDevice` after a reset acknowledgement.
 //! Any failure propagates to the caller, which falls back to the
 //! bounded `bluetoothctl` path.
+
+#[cfg(feature = "tui")]
+pub(super) mod signals;
 
 use super::{BluetoothAddress, HostAdapter, HostConnectionState, HostHeadset, HostSnapshot};
 use std::io::{self, Read, Write};
@@ -393,6 +396,12 @@ struct Message {
     kind: u8,
     reply_serial: Option<u32>,
     error_name: Option<String>,
+    #[cfg(feature = "tui")]
+    path: Option<String>,
+    #[cfg(feature = "tui")]
+    interface: Option<String>,
+    #[cfg(feature = "tui")]
+    member: Option<String>,
     body: Vec<u8>,
     little_endian: bool,
 }
@@ -406,7 +415,7 @@ fn u32_at(bytes: &[u8], little_endian: bool) -> u32 {
     }
 }
 
-fn read_message(stream: &mut UnixStream) -> io::Result<Message> {
+fn read_message(stream: &mut impl Read) -> io::Result<Message> {
     let mut fixed = [0u8; 16];
     stream.read_exact(&mut fixed)?;
     let little_endian = match fixed[0] {
@@ -441,11 +450,23 @@ fn read_message(stream: &mut UnixStream) -> io::Result<Message> {
     let mut reader = Reader::new(&fields, little_endian);
     let mut reply_serial = None;
     let mut error_name = None;
+    #[cfg(feature = "tui")]
+    let mut path = None;
+    #[cfg(feature = "tui")]
+    let mut interface = None;
+    #[cfg(feature = "tui")]
+    let mut member = None;
     while reader.pos() < fields.len() {
         reader.align(8)?;
         let code = reader.u8()?;
         let signature = reader.signature()?;
         match (code, signature.as_str()) {
+            #[cfg(feature = "tui")]
+            (1, "o") => path = Some(reader.string()?),
+            #[cfg(feature = "tui")]
+            (2, "s") => interface = Some(reader.string()?),
+            #[cfg(feature = "tui")]
+            (3, "s") => member = Some(reader.string()?),
             (5, "u") => reply_serial = Some(reader.u32()?),
             (4, "s") => error_name = Some(reader.string()?),
             _ => reader.skip_one(&signature)?,
@@ -455,6 +476,12 @@ fn read_message(stream: &mut UnixStream) -> io::Result<Message> {
         kind,
         reply_serial,
         error_name,
+        #[cfg(feature = "tui")]
+        path,
+        #[cfg(feature = "tui")]
+        interface,
+        #[cfg(feature = "tui")]
+        member,
         body,
         little_endian,
     })

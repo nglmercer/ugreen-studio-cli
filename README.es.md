@@ -17,7 +17,7 @@ cargo run --release --locked -- tui
 
 El ejecutable se genera en `target/release/ugreen` en Linux o `target\release\ugreen.exe` en Windows. Los ejemplos usan `ugreen`; sustituye ese nombre por la ruta completa si no está en tu `PATH`.
 
-El ZIP de distribución también incluye ejecutables para Linux x86-64: `bin/linux-x86_64/ugreen` (TUI + CLI) y `bin/linux-x86_64/ugreen-cli-only`. Ambos requieren glibc 2.39 o posterior y `libgcc_s.so.1`; compila localmente en distribuciones anteriores. No se incluye un ejecutable de Windows; sigue sus instrucciones de compilación.
+El ZIP de distribución anterior incluía ejecutables para Linux x86-64: `bin/linux-x86_64/ugreen` (TUI + CLI) y `bin/linux-x86_64/ugreen-cli-only`. Ambos requieren glibc 2.39 o posterior y `libgcc_s.so.1`; compila localmente en distribuciones anteriores. El nuevo flujo de empaquetado por plataforma se describe en [compilación](docs/building.md#release-bundles); sus artefactos remotos siguen sin verificar.
 
 Al iniciar, la TUI se reconecta al último dispositivo confirmado (activado por defecto; `--no-autoconnect` lo desactiva). Sin destino guardado inicia desconectada: pulsa `a` para introducir la dirección, o `p` para cargar explícitamente la lista de dispositivos ya emparejados del sistema; confirma el protocolo Studio Pro con `m` y después `y`, y pulsa `c` para conectar y consultar el estado. Empareja antes los auriculares desde los ajustes del sistema. Abrir la interfaz, elegir un dispositivo o editar un valor propuesto no modifica sus ajustes.
 
@@ -111,6 +111,18 @@ ugreen decode "$(cat session.hex)"
 ```
 
 `#` inicia un comentario en la entrada hexadecimal. Las [notas del protocolo](docs/protocol.md) detallan las pruebas y los límites del decodificador.
+
+
+Navegación persistente: `F1` Inicio, `F2` Audio, `F3` Dispositivos, `F4` Ajustes,
+`F5` Diagnóstico y `F6` Investigación. Las funciones candidatas quedan en Investigación.
+Los cambios de idioma llegan al trabajador y la configuración usa la carpeta nativa
+de Linux o Windows. JSON también admite `audio devices` y su alias `audio-devices`.
+Consulta la [lista de progreso](docs/implementation-progress.md).
+
+Una nueva sesión de solo lectura en Linux obtuvo firmware 0.2.5 y respuestas básicas
+con CRC válido; la [evidencia sin direcciones](docs/evidence/core-read-2026-10-14.json)
+delimita lo comprobado. Las consultas de pares/códec y los controles avanzados siguen
+bloqueados hasta verificar capturas específicas.
 
 ## Documentación y verificación
 

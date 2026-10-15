@@ -91,6 +91,9 @@ pub fn command(lang: Lang, path: &[&'static CommandSpec]) -> String {
         t.help_usage,
         registry::usage_line(path)
     ));
+    if spec.supports_json {
+        out.push_str(&format!("\n--json: {}\n", t.opt_json));
+    }
     out
 }
 

@@ -13,7 +13,8 @@ use crate::{
     models::Model,
 };
 use std::{
-    fs, io,
+    fs,
+    io::{self, Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -148,9 +149,34 @@ impl DeviceRegistry {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        let tmp = path.with_extension("tmp");
-        fs::write(&tmp, self.render())?;
-        fs::rename(&tmp, path)
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let name = path.file_name().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "registry path has no filename")
+        })?;
+        let mut temporary_name = name.to_os_string();
+        temporary_name.push(format!(
+            ".{}.{}.tmp",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let tmp = path.with_file_name(temporary_name);
+        // create_new prevents following an existing temporary-file symlink or
+        // colliding with another process. Remove only the file we created.
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)?;
+        let outcome = (|| {
+            file.write_all(self.render().as_bytes())?;
+            file.sync_all()?;
+            drop(file);
+            fs::rename(&tmp, path)
+        })();
+        if outcome.is_err() {
+            let _ = fs::remove_file(&tmp);
+        }
+        outcome
     }
 
     fn render(&self) -> String {
@@ -211,7 +237,14 @@ impl DeviceRegistry {
     /// or unreadable files all yield the default registry: the file is
     /// never required for correct operation.
     pub fn load_from(path: Option<&Path>) -> Self {
-        let text = match path.and_then(|path| fs::read_to_string(path).ok()) {
+        let text = match path.and_then(|path| {
+            let file = fs::File::open(path).ok()?;
+            let mut text = String::new();
+            file.take(MAX_FILE_BYTES as u64 + 1)
+                .read_to_string(&mut text)
+                .ok()?;
+            Some(text)
+        }) {
             Some(text) if text.len() <= MAX_FILE_BYTES => text,
             Some(_) => return Self::default(),
             None => return Self::default(),
@@ -238,7 +271,7 @@ impl DeviceRegistry {
             };
             let (key, value) = (key.trim(), value.trim());
             match key {
-                "version" => {
+                "version" if matches!(section, Section::Header) => {
                     if value != "2" {
                         // A future format must not be half-parsed.
                         return Self::default();
@@ -246,7 +279,7 @@ impl DeviceRegistry {
                 }
                 // v1 wrote `address=`; v2 writes `selected=`. Both name
                 // the target and imply a device entry.
-                "address" | "selected" => {
+                "address" | "selected" if matches!(section, Section::Header) => {
                     if let Ok(address) = BluetoothAddress::parse(value) {
                         registry.set_selected(&address);
                     }
@@ -262,31 +295,31 @@ impl DeviceRegistry {
                 }
                 "name" => {
                     if let Some(target) = section_address(&section, &registry) {
-                        registry.upsert(target).name = Some(value.to_owned());
+                        registry.upsert(target).name = Some(sanitize_name(value));
                     }
                 }
-                "channel" => {
+                "channel" if !matches!(section, Section::Ignored) => {
                     if let Ok(channel) = value.parse::<u8>() {
                         if (1..=30).contains(&channel) {
                             registry.channel = Some(channel);
                         }
                     }
                 }
-                "timeout" => {
+                "timeout" if !matches!(section, Section::Ignored) => {
                     if let Ok(timeout) = value.parse::<u64>() {
                         if (1..=60).contains(&timeout) {
                             registry.timeout = Some(timeout);
                         }
                     }
                 }
-                "lang" => {
+                "lang" if !matches!(section, Section::Ignored) => {
                     if let Ok(lang) = Lang::from_code(value) {
                         registry.lang = Some(lang);
                     }
                 }
                 // Only the two written states are meaningful; anything
                 // else keeps the default instead of guessing "off".
-                "autoconnect" => match value {
+                "autoconnect" if !matches!(section, Section::Ignored) => match value {
                     "1" => registry.autoconnect = true,
                     "0" => registry.autoconnect = false,
                     _ => {}
@@ -371,14 +404,28 @@ fn state_path() -> Option<PathBuf> {
     if cfg!(test) {
         return None;
     }
-    if let Ok(path) = std::env::var("UGREEN_STATE_FILE") {
-        if !path.is_empty() {
-            return Some(PathBuf::from(path));
-        }
+    registry_path(cfg!(target_os = "windows"), |key| std::env::var_os(key))
+}
+
+/// Environment lookup is injected so both platform rules can be tested without
+/// modifying process-global environment variables in parallel tests.
+fn registry_path(
+    windows: bool,
+    get: impl Fn(&str) -> Option<std::ffi::OsString>,
+) -> Option<PathBuf> {
+    let value = |key| get(key).filter(|value| !value.is_empty());
+    if let Some(path) = value("UGREEN_STATE_FILE") {
+        return Some(PathBuf::from(path));
     }
-    let base = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))?;
+    let base = if windows {
+        value("APPDATA").map(PathBuf::from).or_else(|| {
+            value("USERPROFILE").map(|home| PathBuf::from(home).join("AppData").join("Roaming"))
+        })
+    } else {
+        value("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| value("HOME").map(|home| PathBuf::from(home).join(".config")))
+    }?;
     Some(base.join("ugreen-cli").join("state"))
 }
 
@@ -644,5 +691,73 @@ mod tests {
         assert!(registry.selected.is_none());
         registry.forget(&b);
         assert!(registry.devices.is_empty());
+    }
+    #[test]
+    fn registry_paths_follow_native_platform_conventions_and_explicit_override() {
+        let values = |key: &str| match key {
+            "APPDATA" => Some(std::ffi::OsString::from("roaming")),
+            "HOME" => Some(std::ffi::OsString::from("home")),
+            _ => None,
+        };
+        assert_eq!(
+            registry_path(true, values),
+            Some(PathBuf::from("roaming").join("ugreen-cli/state"))
+        );
+        assert_eq!(
+            registry_path(false, values),
+            Some(PathBuf::from("home/.config/ugreen-cli/state"))
+        );
+        for windows in [false, true] {
+            assert_eq!(
+                registry_path(windows, |key| if key == "UGREEN_STATE_FILE" {
+                    Some("override".into())
+                } else {
+                    values(key)
+                }),
+                Some(PathBuf::from("override"))
+            );
+        }
+        assert_eq!(
+            registry_path(true, |key| if key == "USERPROFILE" {
+                Some("user".into())
+            } else {
+                None
+            }),
+            Some(PathBuf::from("user/AppData/Roaming/ugreen-cli/state"))
+        );
+    }
+
+    #[test]
+    fn ignored_sections_cannot_change_global_preferences_or_target() {
+        let path = temp_path("ignored-scope");
+        fs::write(&path, "version=2\nselected=AA:BB:CC:DD:EE:FF\n[settings]\nchannel=2\n[unknown]\nchannel=30\nselected=00:11:22:33:44:55\nautoconnect=0\n").unwrap();
+        let registry = DeviceRegistry::load_from(Some(&path));
+        assert_eq!(registry.channel, Some(2));
+        assert!(registry.autoconnect);
+        assert_eq!(registry.selected.unwrap().as_str(), "AA:BB:CC:DD:EE:FF");
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn concurrent_atomic_saves_never_share_a_temporary_file() {
+        let path = temp_path("parallel-save");
+        let threads: Vec<_> = (1..=8)
+            .map(|channel| {
+                let path = path.clone();
+                std::thread::spawn(move || {
+                    DeviceRegistry {
+                        channel: Some(channel),
+                        ..Default::default()
+                    }
+                    .save_to(&path)
+                })
+            })
+            .collect();
+        for thread in threads {
+            thread.join().unwrap().unwrap();
+        }
+        let restored = DeviceRegistry::load_from(Some(&path));
+        assert!(matches!(restored.channel, Some(1..=8)));
+        fs::remove_file(path).unwrap();
     }
 }

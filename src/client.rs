@@ -79,16 +79,27 @@ impl<T: Read + Write> Client<T> {
         }
     }
     pub fn info(&mut self) -> io::Result<StudioProState> {
-        StudioProState::new(self.request(protocol::INFO, &[0])?.payload)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        self.info_in(Lang::En)
     }
-    pub fn firmware(&mut self) -> io::Result<String> {
-        let response = self.request(protocol::FIRMWARE, &[0])?;
-        crate::settings::firmware(&response.payload).ok_or_else(|| {
+    pub fn info_in(&mut self, lang: Lang) -> io::Result<StudioProState> {
+        let payload = self.request_in(lang, protocol::INFO, &[0])?.payload;
+        let length = payload.len();
+        StudioProState::new(payload).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
-                "firmware response lacks version bytes",
+                crate::i18n::txt(lang)
+                    .info_short
+                    .replacen("{}", &length.to_string(), 1),
             )
+        })
+    }
+    pub fn firmware(&mut self) -> io::Result<String> {
+        self.firmware_in(Lang::En)
+    }
+    pub fn firmware_in(&mut self, lang: Lang) -> io::Result<String> {
+        let response = self.request_in(lang, protocol::FIRMWARE, &[0])?;
+        crate::settings::firmware(&response.payload).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, crate::i18n::txt(lang).fw_short)
         })
     }
     /// Evidence-aware setting API. Unknown model is rejected before I/O;
@@ -99,22 +110,26 @@ impl<T: Read + Write> Client<T> {
         model: Option<crate::models::Model>,
         setting: &Setting,
     ) -> io::Result<StudioProState> {
+        self.set_for_model_in(Lang::En, model, setting)
+    }
+    pub fn set_for_model_in(
+        &mut self,
+        lang: Lang,
+        model: Option<crate::models::Model>,
+        setting: &Setting,
+    ) -> io::Result<StudioProState> {
+        crate::application::validate_setting(setting)?;
         let model = model.ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::Unsupported,
                 "setting requires an explicitly confirmed model",
             )
         })?;
-        let firmware = self.firmware()?;
-        crate::models::require_verified_firmware(Some(model), Some(&firmware))?;
-        let info = self.info()?;
-        if info.value(&setting.key).is_none() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "setting field missing from preflight",
-            ));
-        }
-        self.set(setting)
+        let firmware = self.firmware_in(lang)?;
+        crate::application::authorize_setting(Some(model), Some(&firmware), setting)?;
+        let info = self.info_in(lang)?;
+        crate::application::validate_preflight(&info, setting)?;
+        self.set_in(lang, setting)
     }
     /// Low-level compatibility API: caller must establish model and firmware evidence.
     /// Prefer [`Self::set_for_model`] for automatic evidence preflight.
@@ -124,28 +139,49 @@ impl<T: Read + Write> Client<T> {
     /// answers with an `85 86 87` notification instead of a `DD EE FF`
     /// acknowledgement, so verification there relies on the readback alone.
     pub fn set(&mut self, setting: &Setting) -> io::Result<StudioProState> {
-        if setting.expects_ack() {
-            self.request(setting.instruction,&setting.payload).map_err(|e| io::Error::new(e.kind(),format!("setting may have been sent but acknowledgement failed: {e}; query status before retrying")))?;
+        self.set_in(Lang::En, setting)
+    }
+    pub fn set_in(&mut self, lang: Lang, setting: &Setting) -> io::Result<StudioProState> {
+        crate::application::validate_setting(setting)?;
+        let t = crate::i18n::txt(lang);
+        let acknowledged = setting.expects_ack();
+        if acknowledged {
+            self.request_in(lang, setting.instruction, &setting.payload)
+                .map_err(|error| {
+                    io::Error::new(
+                        error.kind(),
+                        t.set_ackfail.replacen("{}", &error.to_string(), 1),
+                    )
+                })?;
         } else {
-            self.io
-                .write_all(&protocol::request(setting.instruction, &setting.payload)?)?;
-            self.io.flush()?;
+            self.send(setting)?;
         }
-        let info = self.info().map_err(|e| {
+        let info = self.info_in(lang).map_err(|error| {
             io::Error::new(
-                e.kind(),
-                format!("write acknowledged but readback failed: {e}"),
+                error.kind(),
+                if acknowledged {
+                    t.set_rbfail
+                } else {
+                    t.set_rbfail_noack
+                }
+                .replacen("{}", &error.to_string(), 1),
             )
         })?;
         if !setting.matches(&info) {
-            return Err(io::Error::other(format!(
-                "write acknowledged but {} readback does not match {}; query status",
-                setting.key, setting.value
-            )));
+            return Err(io::Error::other(
+                if acknowledged {
+                    t.set_mismatch
+                } else {
+                    t.set_mismatch_noack
+                }
+                .replacen("{}", &setting.key, 1)
+                .replacen("{}", &setting.value, 1),
+            ));
         }
         Ok(info)
     }
     pub fn send(&mut self, setting: &Setting) -> io::Result<()> {
+        crate::application::validate_setting(setting)?;
         self.io
             .write_all(&protocol::request(setting.instruction, &setting.payload)?)?;
         self.io.flush()
@@ -157,6 +193,12 @@ impl<T: Read + Write> Client<T> {
         command: &protocol::static_analysis::Command,
     ) -> io::Result<ControlOutcome> {
         command.check_control()?;
+        self.require_capture(
+            command
+                .control_capability()
+                .expect("checked control capability"),
+            "control",
+        )?;
         self.control_verified(command)
     }
     fn control_verified(
@@ -232,7 +274,7 @@ impl<T: Read + Write> Client<T> {
     /// Read all headset peer slots, including UTF-8 names and slot indices.
     /// Static evidence is insufficient: the model gate is checked before I/O.
     pub fn peers(&mut self) -> io::Result<protocol::static_analysis::PeerList> {
-        Self::require_capture(
+        self.require_capture(
             crate::models::Capabilities::MULTIPOINT_PEERS,
             "multipoint peer list",
         )?;
@@ -250,18 +292,24 @@ impl<T: Read + Write> Client<T> {
             })
             .collect())
     }
-    fn require_capture(bit: u32, feature: &str) -> io::Result<()> {
-        if crate::models::Model::StudioPro.capabilities().contains(bit) {
-            Ok(())
-        } else {
-            Err(io::Error::new(
+    fn require_capture(&mut self, bit: u32, feature: &str) -> io::Result<()> {
+        // Candidates still refuse before any I/O. If evidence later promotes a
+        // bit, the live firmware must independently authorize the operation.
+        if !crate::models::Model::StudioPro.capabilities().contains(bit) {
+            return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 format!("{feature} is not verified for Studio Pro; official-app capture required"),
-            ))
+            ));
         }
+        let firmware = self.firmware()?;
+        crate::application::authorize_capability(
+            Some(crate::models::Model::StudioPro),
+            Some(&firmware),
+            bit,
+        )
     }
     pub fn codecs(&mut self) -> io::Result<[(u8, protocol::static_analysis::Codec); 2]> {
-        Self::require_capture(crate::models::Capabilities::CODEC_STATUS, "codec status")?;
+        self.require_capture(crate::models::Capabilities::CODEC_STATUS, "codec status")?;
         match protocol::static_analysis::interpret(&self.request(15, &[0])?)
             .map_err(invalid_data)?
         {
@@ -280,7 +328,7 @@ impl<T: Read + Write> Client<T> {
         )
     }
     fn query_byte(&mut self, bit: u32, feature: &str, instruction: u8) -> io::Result<u8> {
-        Self::require_capture(bit, feature)?;
+        self.require_capture(bit, feature)?;
         match protocol::static_analysis::interpret(&self.request(instruction, &[0])?)
             .map_err(invalid_data)?
         {
@@ -289,7 +337,7 @@ impl<T: Read + Write> Client<T> {
         }
     }
     pub fn box_mac(&mut self) -> io::Result<crate::bluetooth::BluetoothAddress> {
-        Self::require_capture(crate::models::Capabilities::BOX_MAC, "box MAC")?;
+        self.require_capture(crate::models::Capabilities::BOX_MAC, "box MAC")?;
         match protocol::static_analysis::interpret(&self.request(31, &[0])?)
             .map_err(invalid_data)?
         {
@@ -811,5 +859,90 @@ mod tests {
             .to_string()
             .contains("may have been sent"));
         assert_eq!(c.into_inner().written, command.packet().unwrap());
+    }
+    #[test]
+    fn forged_setting_packets_fail_before_any_io_in_all_setting_apis() {
+        for mutation in 0..3 {
+            let mut setting = Setting::parse("game", "on").unwrap();
+            match mutation {
+                0 => setting.instruction = 16,
+                1 => setting.payload.clear(),
+                _ => setting.payload.push(0),
+            }
+            let mut client = Client::new(Mock::default(), Duration::from_secs(1));
+            assert!(client
+                .set_for_model(Some(crate::models::Model::StudioPro), &setting)
+                .is_err());
+            assert!(client.set(&setting).is_err());
+            assert!(client.send(&setting).is_err());
+            assert!(client.into_inner().written.is_empty());
+        }
+    }
+    #[test]
+    fn capture_gate_still_checks_exact_firmware_after_historical_bit_is_available() {
+        let mut client = Client::new(
+            Mock {
+                read: vec![response(protocol::FIRMWARE, 1, &[0, 2, 6])].into(),
+                ..Default::default()
+            },
+            Duration::from_secs(1),
+        );
+        assert_eq!(
+            client
+                .require_capture(crate::models::Capabilities::ANC, "test operation")
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::Unsupported
+        );
+        assert_eq!(
+            client.into_inner().written,
+            protocol::request(protocol::FIRMWARE, &[0]).unwrap()
+        );
+    }
+
+    #[test]
+    fn localized_spatial_readback_failure_never_claims_an_acknowledgement() {
+        let mut client = Client::new(Mock::default(), Duration::from_secs(1));
+        let error = client
+            .set_in(Lang::Es, &Setting::parse("spatial", "on").unwrap())
+            .unwrap_err()
+            .to_string();
+        assert!(error.starts_with(
+            crate::i18n::txt(Lang::Es)
+                .set_rbfail_noack
+                .split("{}")
+                .next()
+                .unwrap()
+        ));
+        assert!(!error.contains("acknowledged"));
+    }
+    #[test]
+    fn evidence_aware_setting_refuses_missing_field_before_write() {
+        let mut client = Client::new(
+            Mock {
+                read: vec![
+                    response(protocol::FIRMWARE, 1, &[0, 2, 5]),
+                    response(protocol::INFO, 1, &[0; 8]),
+                ]
+                .into(),
+                ..Default::default()
+            },
+            Duration::from_secs(1),
+        );
+        let error = client
+            .set_for_model(
+                Some(crate::models::Model::StudioPro),
+                &Setting::parse("wind", "on").unwrap(),
+            )
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(
+            client.into_inner().written,
+            [
+                protocol::request(protocol::FIRMWARE, &[0]).unwrap(),
+                protocol::request(protocol::INFO, &[0]).unwrap()
+            ]
+            .concat()
+        );
     }
 }

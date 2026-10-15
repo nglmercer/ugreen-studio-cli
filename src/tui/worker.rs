@@ -23,8 +23,8 @@ pub(super) trait Session: Send {
     fn info(&mut self) -> io::Result<StudioProState>;
     fn firmware(&mut self) -> io::Result<String>;
     fn acknowledge(&mut self, setting: &Setting) -> io::Result<()>;
-    fn authorize_setting(&mut self) -> io::Result<()> {
-        Ok(())
+    fn authorize_setting(&mut self, setting: &Setting) -> io::Result<()> {
+        crate::application::validate_setting(setting)
     }
     fn feature(&mut self, _: &Operation, _: &dyn Fn() -> bool) -> io::Result<ResultData> {
         Err(io::Error::new(
@@ -47,11 +47,13 @@ impl Session for Client<bluetooth::Connection> {
     ) -> io::Result<ResultData> {
         operation.execute(self, cancelled)
     }
-    fn authorize_setting(&mut self) -> io::Result<()> {
+    fn authorize_setting(&mut self, setting: &Setting) -> io::Result<()> {
+        crate::application::validate_setting(setting)?;
         let firmware = Client::firmware(self)?;
-        crate::models::require_verified_firmware(
+        crate::application::authorize_setting(
             Some(crate::models::Model::StudioPro),
             Some(&firmware),
+            setting,
         )
     }
     fn acknowledge(&mut self, setting: &Setting) -> io::Result<()> {
@@ -139,6 +141,7 @@ pub(super) enum Action {
     /// App-settings change; the new channel and timeout
     /// apply to the next connection, never to a live one.
     Configure {
+        lang: Lang,
         channel: u8,
         timeout_seconds: u64,
     },
@@ -229,21 +232,44 @@ impl<B: Backend> Engine<B> {
             Ok(())
         }
     }
-    fn session(&mut self) -> Result<&mut Box<dyn Session>, String> {
-        let lang = self.config.lang;
-        self.session
-            .as_mut()
-            .ok_or_else(|| crate::i18n::txt(lang).err_gone.into())
+    /// Transport loss closes the control session. It never retries a write;
+    /// uncertainty survives reconnect until an explicit completed refresh.
+    fn with_session<T>(
+        &mut self,
+        operation: impl FnOnce(&mut dyn Session) -> io::Result<T>,
+    ) -> io::Result<T> {
+        let missing = self.t().err_gone;
+        let result = operation(
+            self.session
+                .as_mut()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotConnected, missing))?
+                .as_mut(),
+        );
+        if result.as_ref().is_err_and(|error| {
+            matches!(
+                error.kind(),
+                io::ErrorKind::UnexpectedEof
+                    | io::ErrorKind::BrokenPipe
+                    | io::ErrorKind::NotConnected
+                    | io::ErrorKind::ConnectionReset
+                    | io::ErrorKind::ConnectionAborted
+                    | io::ErrorKind::HostUnreachable
+                    | io::ErrorKind::NetworkUnreachable
+            )
+        }) {
+            self.session = None;
+        }
+        result
     }
     fn snapshot(&mut self, request: &Request) -> Result<Snapshot, String> {
         self.check(request)?;
         let info = self
-            .session()?
-            .info()
+            .with_session(|session| session.info())
             .map_err(|e| self.t().err_status_query.replacen("{}", &e.to_string(), 1))?;
         self.check(request)?;
-        let (firmware, note) = match self.session()?.firmware() {
+        let (firmware, note) = match self.with_session(|session| session.firmware()) {
             Ok(value) => (Some(value), None),
+            Err(e) if self.session.is_none() => return Err(e.to_string()),
             Err(e) => (
                 None,
                 Some(
@@ -368,9 +394,11 @@ impl<B: Backend> Engine<B> {
                 Ok(Output::Disconnected)
             }
             Action::Configure {
+                lang,
                 channel,
                 timeout_seconds,
             } => {
+                self.config.lang = *lang;
                 self.config.channel = *channel;
                 self.config.timeout = Duration::from_secs(*timeout_seconds);
                 Ok(Output::Configured)
@@ -385,8 +413,7 @@ impl<B: Backend> Engine<B> {
                     return Err(t.err_uncertain_blocked.into());
                 }
                 if operation.is_write() {
-                    self.session()?
-                        .info()
+                    self.with_session(|session| session.info())
                         .map_err(|e| t.err_preflight.replacen("{}", &e.to_string(), 1))?;
                 }
                 self.check(request)?;
@@ -396,9 +423,10 @@ impl<B: Backend> Engine<B> {
                 let cancelled = request.cancelled.clone();
                 let shutdown = self.shutdown.clone();
                 let mut result = self
-                    .session()?
-                    .feature(operation, &|| {
-                        cancelled.load(Ordering::SeqCst) || shutdown.load(Ordering::SeqCst)
+                    .with_session(|session| {
+                        session.feature(operation, &|| {
+                            cancelled.load(Ordering::SeqCst) || shutdown.load(Ordering::SeqCst)
+                        })
                     })
                     .map_err(|e| e.to_string())?;
                 if result.reset {
@@ -409,14 +437,13 @@ impl<B: Backend> Engine<B> {
                         self.config
                             .address
                             .as_deref()
-                            .ok_or("reset target unavailable")?,
+                            .ok_or(t.status_reset_unavailable)?,
                     )
                     .map_err(|e| e.to_string())?;
                     self.backend
                         .reset_cleanup(&address)
                         .map_err(|e| e.to_string())?;
-                    result.text =
-                        "Reset acknowledged; host pairing and saved device removed".into();
+                    result.text = t.status_reset_done.into();
                     self.uncertain = false;
                 } else {
                     self.check(request)?;
@@ -431,16 +458,14 @@ impl<B: Backend> Engine<B> {
                     return Err(t.err_uncertain_blocked.into());
                 }
                 self.check(request)?;
-                self.session()?
-                    .authorize_setting()
+                self.with_session(|session| session.authorize_setting(setting))
                     .map_err(|e| e.to_string())?;
                 self.check(request)?;
                 let before = self
-                    .session()?
-                    .info()
+                    .with_session(|session| session.info())
                     .map_err(|e| t.err_preflight.replacen("{}", &e.to_string(), 1))?;
                 self.check(request)?;
-                if before.value(&setting.key).is_none() {
+                if crate::application::validate_preflight(&before, setting).is_err() {
                     return Err(t.err_preflight_unreadable.replacen("{}", &setting.key, 1));
                 }
                 // Includes the unavoidable check-to-I/O race: once we pass this
@@ -448,11 +473,10 @@ impl<B: Backend> Engine<B> {
                 self.check(request)?;
                 self.uncertain = true;
                 let noack = !setting.expects_ack();
-                self.session()?
-                    .acknowledge(setting)
+                self.with_session(|session| session.acknowledge(setting))
                     .map_err(|e| t.err_ack.replacen("{}", &e.to_string(), 1))?;
                 self.check(request)?;
-                let info = self.session()?.info().map_err(|e| {
+                let info = self.with_session(|session| session.info()).map_err(|e| {
                     if noack {
                         t.err_readback_noack
                     } else {
@@ -507,6 +531,7 @@ impl Drop for ShutdownGuard {
 }
 
 pub(super) struct Worker {
+    lang: Lang,
     requests: Option<SyncSender<Request>>,
     replies: Receiver<Reply>,
     shutdown: Arc<AtomicBool>,
@@ -518,6 +543,7 @@ impl Worker {
         Self::spawn(Native, config)
     }
     pub fn spawn<B: Backend>(backend: B, config: Config) -> io::Result<Self> {
+        let lang = config.lang;
         let (tx, rx) = mpsc::sync_channel::<Request>(1);
         let (reply_tx, reply_rx) = mpsc::sync_channel(1);
         let shutdown = Arc::new(AtomicBool::new(false));
@@ -542,6 +568,7 @@ impl Worker {
                 }
             })?;
         Ok(Self {
+            lang,
             requests: Some(tx),
             replies: reply_rx,
             shutdown,
@@ -550,13 +577,14 @@ impl Worker {
         })
     }
     pub fn submit(&mut self, action: Action) -> Result<u64, String> {
+        let t = crate::i18n::txt(self.lang);
         if self.active.is_some() {
-            return Err("An operation is already running; wait or press Esc to cancel.".into());
+            return Err(t.status_worker_busy.into());
         }
         self.next_id = self
             .next_id
             .checked_add(1)
-            .ok_or("Request sequence exhausted; restart the interface.")?;
+            .ok_or(t.status_worker_sequence)?;
         let id = self.next_id;
         let cancelled = Arc::new(AtomicBool::new(false));
         let request = Request {
@@ -564,21 +592,27 @@ impl Worker {
             action,
             cancelled: cancelled.clone(),
         };
+        let language = if let Action::Configure { lang, .. } = &request.action {
+            Some(*lang)
+        } else {
+            None
+        };
         match self
             .requests
             .as_ref()
-            .ok_or("Worker stopped")?
+            .ok_or(t.status_worker_stopped)?
             .try_send(request)
         {
             Ok(()) => {
+                if let Some(lang) = language {
+                    self.lang = lang;
+                }
                 self.active = Some((id, cancelled));
                 Ok(id)
             }
-            Err(TrySendError::Full(_)) => {
-                Err("Worker queue is full; wait before trying again.".into())
-            }
+            Err(TrySendError::Full(_)) => Err(t.status_worker_queue.into()),
             Err(TrySendError::Disconnected(_)) => {
-                Err("Bluetooth worker stopped; restart the interface.".into())
+                Err(crate::i18n::txt(self.lang).status_worker_stopped.into())
             }
         }
     }
@@ -592,7 +626,7 @@ impl Worker {
             }
             Err(TryRecvError::Empty) => Ok(None),
             Err(TryRecvError::Disconnected) => {
-                Err("Bluetooth worker stopped; restart the interface.".into())
+                Err(crate::i18n::txt(self.lang).status_worker_stopped.into())
             }
         }
     }

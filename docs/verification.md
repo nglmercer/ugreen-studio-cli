@@ -313,3 +313,73 @@ terminals were tested offline. Candidate peer parsing now rejects payloads over
 opens the peer page, checks its gate, returns to dual-device settings and exits;
 no RFCOMM connection or candidate packet is requested. Runtime peer identity,
 slot status and remote management remain unverified and disabled.
+
+## Opt-in hardware validation runner
+
+The [read-only runner](../scripts/hardware_validate.py) requires explicit live
+opt-in, a selected model, an expected exact firmware, a retail label and adapter
+identification. It starts with schema-v1 status and stops if firmware or identity
+is inconsistent. It then records raw status/firmware traffic and replays it through
+the offline CRC decoder. It never writes settings, sends candidate opcodes, resets,
+unpairs or changes the host link.
+
+```sh
+python3 scripts/hardware_validate.py target/release/ugreen --live --address AA:BB:CC:DD:EE:FF --model studio-pro --firmware 0.2.5 --retail-label HP206 --adapter "adapter model and driver" --output target/hardware-records/session-001
+```
+
+Use your real headset address. On Windows, substitute the native executable and
+`python` as appropriate. Close conflicting vendor control sessions first. The
+output directory must be new. The runner saves stdout/stderr even on failure and
+writes `record.json` with firmware, model, platform, binary hash, outcome and
+artifact hashes. The directory contains local device addresses; review before
+sharing. A failed read remains failed evidence; an empty/missing response never
+means zero connected peers.
+
+A passing record establishes only those core reads on that model/firmware and
+platform. It does not promote any feature bit, verify candidate peers/codecs or
+prove reversible/destructive control behavior. Official-app exchanges still need
+separate capture analysis and per-operation hardware verification. The runner's
+own offline tests use fake invocations and are not hardware evidence:
+
+```sh
+python3 -m unittest discover -s scripts -p 'test_*.py'
+```
+
+## Offline TUI visual previews
+
+Generate synthetic, disconnected-from-hardware screen artifacts for all six routes
+at narrow and wide sizes:
+
+```sh
+UGREEN_TUI_PREVIEW_DIR=target/tui-previews cargo test export_navigation_previews -- --ignored
+```
+
+The test writes SVGs from Ratatui's rendered cell buffer. Open them directly or
+rasterize with `rsvg-convert` for visual inspection. The previews use fake device
+state and establish layout only. The ignored system-bus test and this explicitly
+requested artifact export are separate from ordinary offline test results.
+
+## Live core-read observation — 2026-10-14
+
+The current Linux host exposed a connected target whose existing registry entry
+explicitly selected Studio Pro. A read-only status request returned firmware
+**0.2.5**. The opt-in hardware runner then passed core status/firmware validation
+and offline CRC replay. The [redacted record](evidence/core-read-2026-10-14.json)
+and [public protocol fixture](../tests/fixtures/protocol/studio-pro-fw025-core-read-20261014.hex)
+preserve the observation and binary hash. Physical retail labelling was not
+inspected; model identity remains the existing explicit selection.
+
+A live system-bus probe also confirmed that all five BlueZ signal match rules are
+accepted while that target is connected. This proves subscription setup, not
+receipt of a physical radio-state transition. Reproduce that opt-in check with:
+
+```sh
+UGREEN_LIVE_ADDRESS=YOUR_HEADSET_MAC cargo test live_system_bus_accepts_all_subscriptions_for_connected_target -- --ignored
+```
+
+The [OS audio observation](evidence/os-audio-2026-10-14.json) reports address-matched
+PipeWire A2DP/SBC-XQ metadata. It is an OS observation, not an over-the-air codec
+capture or audible playback test. Internal pointer redaction is preserved without
+inventing a transport path. No vendor codec query, peer query, setting write,
+reset, unpair or host disconnect was sent for these checks. No new capability bit
+or native Windows hardware claim follows from them.

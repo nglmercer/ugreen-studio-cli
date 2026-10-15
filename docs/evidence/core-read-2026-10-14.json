@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "kind": "hardware_core_read_validation",
+  "started_at": "2026-10-15T02:37:57.789049+00:00",
+  "finished_at": "2026-10-15T02:37:58.089224+00:00",
+  "platform": "Linux-7.2.9-2-cachyos-x86_64-with-glibc2.44",
+  "retail_label": "Studio Pro selected in device registry; physical label not inspected",
+  "model": "studio-pro",
+  "expected_firmware": "0.2.5",
+  "observed_firmware": "0.2.5",
+  "rfcomm_channel": 1,
+  "query_timeout_seconds": 3,
+  "binary_sha256": "18ab1e571d03380dc43e8e22f1879e41ad8bbf5025b2b57301e19a52052a9d5b",
+  "binary_version": "ugreen 0.1.0",
+  "outcome": "passed_core_reads_only",
+  "operations": [
+    "device_info_read",
+    "firmware_read"
+  ],
+  "candidate_operations_executed": false,
+  "capabilities_promoted": false,
+  "adapter": "USB 0BDA:B82C; btusb; Linux hci0",
+  "address": "redacted",
+  "capture_sha256": "8f9cc6a66ce9d12b2978200270e948cedf97d2d408242124123462ac33f61966",
+  "fixture": "tests/fixtures/protocol/studio-pro-fw025-core-read-20261014.hex",
+  "fixture_sha256": "5dc85c62269299bc708a5f42fac1701268d82b69e72731977f463413142a426d",
+  "limits": [
+    "Physical retail label not inspected; model is existing explicit registry selection.",
+    "Core status/firmware reads only; no codec/peer queries, setting writes or Windows execution.",
+    "Original per-command stdout/stderr remains local under target/hardware-records."
+  ]
+}

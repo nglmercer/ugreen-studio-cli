@@ -4,6 +4,10 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.cli_json_unsupported = "Questo comando non supporta --json.";
+    l.status_applying_noack = "Applicazione di {}={} dopo il controllo preliminare e verifica della rilettura (audio spaziale senza conferma)...";
+    l.status_verified_noack =
+        "{}={} verificato tramite rilettura corrispondente; l’audio spaziale non invia conferma.";
     l.app_title = " UGREEN / controllo Studio Pro ";
     l.connected = "CONNESSO";
     l.disconnected = "DISCONNESSO";
@@ -255,7 +259,16 @@ pub fn catalog() -> L {
     l.cmd_query = "Richiesta con gate; non verificata su questo firmware";
     l.cmd_control = "Controllo con gate; --dry-run stampa i byte";
     l.cmd_find = "Tono di ricerca con gate";
+    l.navigation = [
+        "Home",
+        "Audio",
+        "Dispositivi",
+        "Impostazioni",
+        "Diagnostica",
+        "Ricerca",
+    ];
     l.headset_connections = ["Connessioni delle cuffie", "Questi dispositivi sono collegati alle cuffie, distinti dai dispositivi associati a questo PC.", "La richiesta HP206 (0x0D) richiede acquisizioni dell’app ufficiale per questo firmware. Nessuna richiesta inviata; numero e identità sconosciuti.", "Disconnessione, riconnessione e cambio dei dispositivi remoti non supportati. Le azioni Bluetooth host riguardano solo questo PC.", "r: verifica · d: doppia connessione · Esc: indietro"];
+    l.headset_connections[4] = "r: aggiorna stato doppio · d: doppia connessione · Esc: indietro";
     l.page_labels = [
         "Dispositivi",
         "Audio",
@@ -424,7 +437,7 @@ pub fn catalog() -> L {
     ];
     l.status_feature_running = "Esecuzione dell'operazione di funzionalità...";
     l.status_edit_in_settings =
-        "{} è un'impostazione verificata; modificala nello schermo Impostazioni (s).";
+        "{} è un'impostazione verificata; modificala nello schermo Impostazioni (F4).";
     l.codec_unverified = "query non verificata";
     l.arg_enabled = "Attivato";
     l.arg_side = "Lato";

@@ -35,9 +35,11 @@ pub fn capabilities(invocation: &Invocation) -> Result<(), String> {
     // No device connection: firmware evidence is deliberately absent.
     let features: Vec<_> = crate::features::FEATURES.iter().map(|spec| json!({
         "id":format!("{:?}",spec.id), "implementation_status":"tested_mock",
-        "evidence_status":if spec.kind==crate::features::FeatureKind::VerifiedSetting {"verified"} else if spec.kind==crate::features::FeatureKind::OfflineAnalysis {"unsupported"} else {"static_candidate"},
-        "verified_firmware":if spec.kind==crate::features::FeatureKind::VerifiedSetting {Some("0.2.5")} else {None},
+        "evidence_status":spec.historical_evidence().as_str(),
+        "verified_firmware":if spec.historical_evidence()==crate::models::EvidenceStatus::Verified {Some(crate::models::studio_pro::VERIFIED_FIRMWARE)} else {None},
         "operation_authorized":false,
+        "required_capability":spec.capability,
+        "execution_scope":if spec.kind==crate::features::FeatureKind::OfflineAnalysis {"offline"} else {"headset"},
     })).collect();
     println!(
         "{}",

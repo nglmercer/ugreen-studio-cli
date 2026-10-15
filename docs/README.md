@@ -14,13 +14,14 @@ The application and primary documentation use English. The Spanish README covers
 
 - [Architecture](architecture.md): module responsibilities, transport boundaries, validation and write flow
 - [Protocol and provenance](protocol.md): model-specific mapping, frame layout, CRC evidence, upstream references and notices
+- [Implementation progress](implementation-progress.md): completed work and outstanding acceptance evidence
 - [Feature matrix](feature-matrix.md): per-operation implementation, evidence and remaining milestones
 - [Verification](verification.md): reproducible checks, current results, historical baseline and untested behavior
 - [Optional Serena pilot](serena-pilot.md): what was observed previously and what that evidence does not show
 
 ## Read this before using hardware
 
-Studio Pro HP206 is the reference protocol; historical physical verification covers HP206 firmware 0.2.5; this build has no new hardware session. A familiar device name and a successful connection are not proof that the command mapping is correct. Do not apply this protocol to HiTune Max5c, which has conflicting instruction IDs.
+Studio Pro HP206 is the reference protocol; historical physical verification covers HP206 firmware 0.2.5; the October 14 follow-up adds only read-only core replies and OS observations, documented separately in Verification. A familiar device name and a successful connection are not proof that the command mapping is correct. Do not apply this protocol to HiTune Max5c, which has conflicting instruction IDs.
 
 Start with offline commands, pair in OS settings, then request status before attempting a single reversible setting. Firmware flashing and arbitrary raw writes are unavailable. Reset, Finder and actual-volume commands have offline candidates and disabled live gates. A valid acknowledgement plus matching readback establishes the result of that operation, not universal compatibility.
 

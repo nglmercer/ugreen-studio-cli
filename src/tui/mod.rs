@@ -1,4 +1,5 @@
 //! Optional, explicitly operated terminal interface. Startup is entirely offline.
+mod routing;
 mod state;
 mod view;
 mod worker;
@@ -46,17 +47,21 @@ impl Default for Config {
 /// Run interactively on a real terminal. Ratatui restores raw mode and the
 /// alternate screen on ordinary errors, normal exit, and Rust panics.
 pub fn run(config: Config) -> io::Result<()> {
+    let t = crate::i18n::txt(config.lang);
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput,
-            "The TUI requires interactive stdin and stdout terminals; run ugreen --help for CLI commands."));
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, t.tui_no_tty));
     }
     if !(1..=30).contains(&config.channel)
         || config.timeout.is_zero()
         || config.timeout > Duration::from_secs(60)
     {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "TUI channel must be 1-30 and timeout must be greater than zero and at most 60 seconds."));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            t.tui_bad_channel,
+        ));
     }
     let mut app = App::new(&config);
+    app.navigate(routing::Route::Home);
     let mut worker = Worker::native(config)?;
     // Startup stays offline unless auto-connect (on by default) can use
     // a cached, confirmed target; then it connects directly. Without a
@@ -99,7 +104,7 @@ pub fn run(config: Config) -> io::Result<()> {
         .is_some_and(|(_, action)| action.is_write());
     drop(worker);
     if possibly_inflight {
-        eprintln!("An in-flight setting write may have completed. Explicitly refresh device status before making further changes.");
+        eprintln!("{}", app.t().cli_inflight_after_quit);
     }
     result
 }
@@ -108,11 +113,13 @@ fn event_loop(
     app: &mut App,
     worker: &mut Worker,
 ) -> io::Result<()> {
+    let host_signals = crate::bluetooth::HostSignalMonitor::start();
     let mut last_host_refresh = std::time::Instant::now();
     loop {
-        if last_host_refresh.elapsed() >= Duration::from_secs(5)
-            && app.busy.is_none()
+        if app.busy.is_none()
             && !app.address.is_empty()
+            && (host_signals.take_changed()
+                || last_host_refresh.elapsed() >= Duration::from_secs(5))
         {
             last_host_refresh = std::time::Instant::now();
             dispatch(

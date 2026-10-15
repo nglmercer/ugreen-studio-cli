@@ -226,6 +226,21 @@ pub fn host_snapshot() -> io::Result<HostSnapshot> {
     }
 }
 
+/// Read-only signal invalidations. Unsupported platforms retain periodic polling.
+#[cfg(all(feature = "tui", target_os = "linux"))]
+pub(crate) use dbus::signals::HostSignalMonitor;
+#[cfg(all(feature = "tui", not(target_os = "linux")))]
+pub(crate) struct HostSignalMonitor;
+#[cfg(all(feature = "tui", not(target_os = "linux")))]
+impl HostSignalMonitor {
+    pub(crate) fn start() -> Self {
+        Self
+    }
+    pub(crate) fn take_changed(&self) -> bool {
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

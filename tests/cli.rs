@@ -396,3 +396,40 @@ fn new_command_paths_are_registered_without_removing_old_names() {
         assert!(output.status.success(), "{args:?}");
     }
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn audio_output_json_is_stable_across_aliases_and_languages() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = std::env::temp_dir().join(format!("ugreen-audio-json-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let executable = directory.join("pw-dump");
+    let dump = r#"[{"type":"PipeWire:Interface:Node","info":{"props":{"media.class":"Audio/Sink","node.name":"fixture_sink","node.description":"Fixture output"}}}]"#;
+    std::fs::write(&executable, format!("#!/bin/sh\nprintf '%s\\n' '{dump}'\n")).unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    for lang in ["en", "es", "ja"] {
+        for command in [
+            vec!["--json", "audio", "devices"],
+            vec!["--json", "audio-devices"],
+        ] {
+            let output = Command::new(env!("CARGO_BIN_EXE_ugreen"))
+                .args(command)
+                .env("UGREEN_LANG", lang)
+                .env("PATH", &directory)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(output.stderr.is_empty());
+            let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(
+                value,
+                serde_json::json!({"schema_version":1,"kind":"audio_devices","devices":[{"id":"fixture_sink","name":"Fixture output"}]})
+            );
+        }
+    }
+    std::fs::remove_dir_all(directory).unwrap();
+}

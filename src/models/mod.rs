@@ -169,7 +169,7 @@ impl EvidenceStatus {
 /// `Model::capabilities` remains the historical model metadata, not a firmware proof.
 pub fn capabilities_for(model: Option<Model>, firmware: Option<&str>) -> Capabilities {
     match (model, firmware) {
-        (Some(Model::StudioPro), Some("0.2.5")) => studio_pro::capabilities(),
+        (Some(Model::StudioPro), Some(studio_pro::VERIFIED_FIRMWARE)) => studio_pro::capabilities(),
         _ => Capabilities::new(),
     }
 }

@@ -163,15 +163,8 @@ fn command_invocation(
     args: Vec<String>,
 ) -> Result<Invocation, String> {
     check_model(options)?;
-    if options.json
-        && !matches!(
-            command.name,
-            "status" | "discover" | "capabilities" | "doctor"
-        )
-    {
-        return Err(
-            "--json is supported for status, devices, audio status, capabilities and doctor".into(),
-        );
+    if options.json && !command.supports_json {
+        return Err(txt(lang_of(options)).cli_json_unsupported.into());
     }
     Ok(Invocation {
         options: options.clone(),
@@ -326,5 +319,37 @@ mod tests {
         // Piped streams fall back to the help screen.
         let invocation = parse(Vec::new()).unwrap();
         assert_eq!(invocation.command.name, "help");
+    }
+    #[test]
+    fn json_support_is_declared_per_resolved_command_and_alias() {
+        for path in [
+            vec!["devices"],
+            vec!["discover"],
+            vec!["status"],
+            vec!["audio", "status"],
+            vec!["audio", "devices"],
+            vec!["audio-devices"],
+            vec!["doctor"],
+            vec!["capabilities"],
+        ] {
+            let args = std::iter::once("--json")
+                .chain(path)
+                .map(str::to_owned)
+                .collect();
+            let invocation = parse(args).unwrap();
+            assert!(invocation.target().supports_json);
+        }
+        for path in [
+            vec!["host", "connect"],
+            vec!["set", "game", "on"],
+            vec!["profile", "example"],
+            vec!["capture"],
+        ] {
+            let args = std::iter::once("--json")
+                .chain(path)
+                .map(str::to_owned)
+                .collect();
+            assert!(parse(args).is_err());
+        }
     }
 }

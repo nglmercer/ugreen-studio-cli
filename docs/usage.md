@@ -75,11 +75,14 @@ The footer bar mirrors the same keys; clicking a footer label presses it.
 | `q` or Ctrl+C | Quit; while a write or refresh is in flight, ask for `q`/Enter again to exit (a lone paired-cache load quits at once) |
 
 The TUI remembers your last target, channel, timeout and language in
-`~/.config/ugreen-cli/state` (override with `UGREEN_STATE_FILE`). On the next
+`$XDG_CONFIG_HOME/ugreen-cli/state` (or `~/.config/ugreen-cli/state`) on Linux.
+Windows uses `%APPDATA%/ugreen-cli/state`, with `%USERPROFILE%/AppData/Roaming` as
+a fallback. Override either platform with `UGREEN_STATE_FILE`. On the next
 start it reconnects to that device automatically — autoconnect is on by default;
 `--no-autoconnect` disables it for future runs and `--autoconnect` turns it back
-on. With no cached target, or when autoconnect is off, the address is pre-filled
-and the protocol choice is already confirmed, so connecting is a single `c`.
+on. When autoconnect is off, a remembered target and protocol choice are pre-filled,
+so connecting is a single `c`. With no cached target, choose a paired device and
+confirm its protocol before connecting.
 The cache only stores your own explicit choices — it never detects the device
 model, and every connection still runs its preflight query.
 
@@ -415,14 +418,16 @@ Vendor identifiers require both company and codec IDs; bare 0xff remains unknown
 Windows ETW is not implemented.
 
 Global `--json` precedes the command and is accepted for `status`, `devices`
-(`discover`), `audio status`, `capabilities`, and `doctor`. Output is one JSON
+(`discover`), `audio status`, `audio devices` (`audio-devices`), `capabilities`, and `doctor`. Output is one JSON
 object containing `schema_version: 1` and a `kind`. Errors and connection banners
 use stderr; failed operations emit no success object. `status` includes address,
-model, firmware, battery percentage, settings and raw device info. `devices`
+the explicitly selected model (`model_source: user_selected`), firmware, battery
+percentage, settings and raw device info. Addresses use canonical uppercase octets. `devices`
 includes address, name, pairing, host link, remembered model and explicitly unknown
 control/audio states for this separate CLI process. `audio_status` includes
 observations with source, Unix timestamp, transport ID, profile, codec and activity.
-`capabilities` is offline evidence metadata and never authorizes an operation;
+`audio_devices` contains string output IDs and names. Command help states when
+`--json` is available. `capabilities` is offline evidence metadata and never authorizes an operation;
 its observed firmware is null. `doctor` reads host enumeration and optional audio;
 it reports unavailable checks instead of opening RFCOMM merely to probe collisions.
 
@@ -442,6 +447,18 @@ live-operation guards intact. Search and category tabs apply within each page.
 Browsing a historically supported control does not authorize a write: the live
 session must still pass model and firmware checks.
 
+The persistent navigation bar uses `F1` Home, `F2` Audio controls, `F3` Devices,
+`F4` Settings, `F5` Diagnostics and `F6` Research. Click the same cells to navigate;
+narrow terminals use two rows. Active writes, confirmations and editable forms
+must finish or be cancelled before switching. Home shows the latest observed
+core audio settings. From Home or Settings, `A` opens OS audio observations
+separately from vendor controls.
+
+On Linux, read-only BlueZ signals trigger a coalesced host-state refresh (at most
+once per second while idle). A five-second refresh fallback remains active if
+signals are unavailable. Listener failures retry with bounded backoff; signals
+never stand in for exact-address enumeration or headset peer discovery.
+
 Use `v` to select Devices, Audio, Headset Settings, Multipoint, Experimental Features
 or Diagnostics. `A` opens Audio and `D` opens Diagnostics; Up/Down scroll, `r`
 refreshes and Esc cancels a pending refresh or returns. Diagnostic schema field
@@ -454,9 +471,26 @@ debugfs. An absent socket observation does not prove the channel is free.
 Press `P` on the main screen or choose Multipoint in the `v` page selector.
 This view shows the independently observed dual-device toggle and its read age.
 The peer count and identities remain unknown until HP206 instruction `0x0D` is
-physically verified for the selected firmware. `r` checks availability without
-sending that candidate query; `d` opens the existing dual-device setting without
+physically verified for the selected firmware. `r` refreshes device status and the dual-device toggle over an existing control
+connection without sending the candidate peer query; `d` opens the existing dual-device setting without
 changing it. Host paired devices never fill this list. Remote peer disconnect,
 reconnect and switch remain unsupported; `p` then `h`/`H` only controls this PC's
 host link. See the [capture workflow](reverse-engineering.md) for the evidence
 needed to enable headset peer discovery.
+
+
+A terminal transport failure (EOF, reset, broken pipe or disconnected socket)
+closes the TUI control session. Reconnect explicitly after restoring the host
+Bluetooth link. An uncertain write is never replayed, and reconnecting does not
+clear its write lock; complete an explicit status refresh before another write.
+Read timeouts retain the session and mark the observation stale for review.
+
+
+PipeWire's `api.bluez5.transport` is an internal pointer, not necessarily a D-Bus
+path. Its [native protocol serializer](https://github.com/PipeWire/pipewire/blob/master/src/modules/module-protocol-native/protocol-native.c)
+redacts pointer values to an empty string. The [Bluetooth node producer](https://github.com/PipeWire/pipewire/blob/master/spa/plugins/bluez5/bluez5-device.c)
+sets the transport and codec metadata together. An address-matched observation
+therefore preserves that codec metadata when the pointer is redacted, while
+`transport_path` stays null unless an actual BlueZ path is present. Node activity
+is OS graph activity and does not establish audible playback or vendor codec-query
+verification.

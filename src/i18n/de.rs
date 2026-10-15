@@ -4,6 +4,11 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.cli_json_unsupported = "Dieser Befehl unterstützt --json nicht.";
+    l.status_applying_noack =
+        "Wende {}={} nach Vorprüfung an und prüfe den Rücklesewert (Raumklang ohne Bestätigung)...";
+    l.status_verified_noack =
+        "{}={} durch passenden Rücklesewert bestätigt; Raumklang sendet keine Bestätigung.";
     l.app_title = " UGREEN / Studio Pro-Steuerung ";
     l.connected = "VERBUNDEN";
     l.disconnected = "GETRENNT";
@@ -245,7 +250,16 @@ pub fn catalog() -> L {
     l.cmd_query = "Capture-geschützte Abfrage; auf dieser Firmware nicht verifiziert";
     l.cmd_control = "Capture-geschützte Steuerung; --dry-run gibt Bytes aus";
     l.cmd_find = "Capture-geschützter Suchton";
+    l.navigation = [
+        "Start",
+        "Audio",
+        "Geräte",
+        "Einstellungen",
+        "Diagnose",
+        "Forschung",
+    ];
     l.headset_connections = ["Headset-Verbindungen", "Headset-Verbindungen sind unabhängig von den mit diesem PC gekoppelten Geräten.", "Die HP206-Abfrage (0x0D) benötigt Mitschnitte der offiziellen App für diese Firmware. Keine Abfrage gesendet; Anzahl und Identitäten sind unbekannt.", "Remote-Trennen, Wiederverbinden und Wechseln werden nicht unterstützt. Host-Bluetooth-Aktionen betreffen nur diesen PC.", "r: Verfügbarkeit prüfen · d: Dual-Verbindung · Esc: zurück"];
+    l.headset_connections[4] = "r: Dual-Status aktualisieren · d: Dual-Verbindung · Esc: zurück";
     l.page_labels = [
         "Geräte",
         "Audio",
@@ -413,7 +427,7 @@ pub fn catalog() -> L {
     ];
     l.status_feature_running = "Funktionsoperation wird ausgeführt...";
     l.status_edit_in_settings =
-        "{} ist eine verifizierte Einstellung; bearbeiten im Einstellungsbildschirm (s).";
+        "{} ist eine verifizierte Einstellung; bearbeiten im Einstellungsbildschirm (F4).";
     l.codec_unverified = "Abfrage nicht verifiziert";
     l.arg_enabled = "Aktiviert";
     l.arg_side = "Seite";

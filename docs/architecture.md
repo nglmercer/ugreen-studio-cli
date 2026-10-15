@@ -2,16 +2,20 @@
 
 [Documentation index](README.md) · [Protocol](protocol.md) · [Verification](verification.md)
 
-The project separates local presentation and validation from the Bluetooth transport. The core uses the Rust standard library. The default-enabled `tui` feature adds terminal libraries without replacing the scriptable CLI.
+The project separates local presentation and validation from the Bluetooth transport. The protocol and transport are synchronous Rust; JSON uses `serde_json` and Linux native bindings use pinned `libc`. The default-enabled `tui` feature adds terminal libraries without replacing the scriptable CLI.
 
 ## Source map
 
 | Source | Responsibility |
 | --- | --- |
-| `src/main.rs` | CLI parsing, command dispatch, bounded profile-file reads, output and exit status |
+| `src/main.rs` | Thin executable entry, library dispatch and exit status |
+| `src/cli/` | Declarative command/access/JSON metadata, parsing, help and interface handlers |
+| `src/application.rs` | Shared canonical-setting validation, exact-firmware capability authorization, readable preflight fields and status JSON |
 | `src/tui/mod.rs` | Feature-gated terminal lifecycle, event loop and dispatch |
 | `src/tui/state.rs` | Local proposals, per-address target/model selection and stale/busy state |
-| `src/tui/view.rs` | Panels, dialogs (including the paired-device list with link/model rows), small-terminal fallback and safe rendered text |
+| `src/tui/view.rs` and `src/tui/view/` | Shared geometry and safe rendered text; separate header, screens, feature browser and dialogs |
+| `src/tui/routing.rs` | Persistent six-page routing with modal/busy protection |
+| `src/tui/state/forms.rs` | Typed drafts, feature activation and setting selection |
 | `src/tui/worker.rs` | Single-owner device session, bounded work queue, cancellation barriers and write lockout |
 | `src/settings.rs` | Studio Pro keys, byte mappings, `StudioProState` device-info interpretation, profile parsing/export |
 | `src/models/` | Model identity and per-model capability bits; a model is user-confirmed, never detected |
@@ -33,9 +37,9 @@ A CLI setting request follows this path:
 1. Parse options and validate `Setting`; for profiles, validate every line before connecting
 2. Require an explicit address and `studio-pro` protocol selection
 3. Open an RFCOMM connection on the chosen channel, wrapped in the recording tee
-4. Read a valid device-info response as preflight
+4. Read exact firmware, authorize every requested capability, and require every requested field in preflight device info
 5. Encode the selected instruction and payload using request MODBUS CRC
-6. Use `write_all`; wait for a CRC-valid response with matching instruction and a nonzero success byte
+6. Use `write_all`; wait for a matching CRC-valid acknowledgement where the setting expects one (spatial audio uses readback without acknowledgement)
 7. Query device info again; compare the requested value with the relevant field
 8. Report verified success only if readback matches
 
@@ -89,7 +93,7 @@ Profiles have sequential, best-effort application with verification per setting.
 
 ## Capture-gated TUI operations
 
-The `F` feature panel parses typed operations in `src/tui/features.rs`.
+The everyday feature browser and Research page derive typed operations from `src/features.rs`.
 Both the state machine and session-owning worker check capture-backed
 capabilities. Queries run on the worker; controls require local review
 and confirmation plus worker preflight. Acknowledgement-only and
@@ -116,4 +120,34 @@ selection is blocked during a session or work, and uncertain setting writes
 require a successful explicit refresh. CLI/TUI production setting authorization
 requires actual firmware 0.2.5. The low-level public transport APIs remain
 caller-managed for compatibility. See [feature matrix](feature-matrix.md) for
-unimplemented signal listeners, fallback providers and SDK limitations.
+platform/hardware validation limits and SDK boundaries.
+
+## Application and configuration audit
+
+The shared application policy validates the entire setting packet against the
+registry, not just its display key. CLI writes, TUI preflight and the evidence-aware
+SDK use the same firmware/capability and readable-field checks. Profiles validate
+all requested fields before the first write, then each operation rechecks firmware
+and preflight through the evidence-aware client. The low-level `request` API stays
+caller-managed; `set`/`send` require a canonical setting even on that path.
+
+Queries/controls remain blocked before I/O while their historical capability bits
+are unset. A future promotion also requires live exact-firmware authorization;
+changing a model metadata bit alone does not bypass firmware permission checks.
+
+`CommandSpec.supports_json` is the parser/help authority for versioned JSON support.
+JSON keys and protocol values are stable across locales; status addresses are
+canonical and the selected model is labelled `user_selected`. Host audio-output
+inventory has the same schema through `audio devices` and `audio-devices`.
+
+Configuration reads stop after 64 KiB plus one byte. Atomic writes use exclusive,
+process/counter-specific temporary files and preserve the previous file on error.
+Unknown sections cannot change global preferences. Native Windows paths use
+`APPDATA`, then `USERPROFILE/AppData/Roaming`; Linux uses `XDG_CONFIG_HOME`, then
+`HOME/.config`. `UGREEN_STATE_FILE` explicitly overrides either platform.
+
+Locale selection no longer mutates process environment in unit tests. Live language
+changes propagate to worker configuration and admission errors; translated footer
+and tab hitboxes use terminal-cell widths. Config edits already submitted to the
+worker finish before another edit. English remains the documented fallback for
+technical protocol/OS error details, not a claim of machine-translated OS messages.

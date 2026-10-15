@@ -1,39 +1,23 @@
 //! Device-facing commands: status, discovery,
 //! session capture and the capture-gated queries.
 use crate::cli::context::{connect, fill, terminal_text, Invocation};
-use crate::models::Capabilities as C;
+use crate::features::{FeatureId, Operation};
 use crate::settings;
-
-/// Which capture-gated query a feature command runs.
-enum FeatureQuery {
-    Peers,
-    Codec,
-    Id,
-    Color,
-    BoxMac,
-}
 
 /// Shared path for the capture-gated queries: the
 /// capability gate refuses before any connection.
-fn feature(invocation: &Invocation, query: FeatureQuery) -> Result<(), String> {
-    let (bit, feature) = match query {
-        FeatureQuery::Peers => (C::MULTIPOINT_PEERS, "multipoint peer list"),
-        FeatureQuery::Codec => (C::CODEC_STATUS, "codec status"),
-        FeatureQuery::Id => (C::HEADPHONE_ID, "headphone ID"),
-        FeatureQuery::Color => (C::HEADPHONE_COLOR, "headphone color"),
-        FeatureQuery::BoxMac => (C::BOX_MAC, "box MAC"),
-    };
+fn feature(invocation: &Invocation, id: FeatureId) -> Result<(), String> {
+    let spec = crate::features::lookup(id).ok_or("feature is not registered")?;
+    let query = spec.operation(&[])?;
     if invocation.options.dry_run {
         return Err("use candidate for offline static query packets".into());
     }
-    if !crate::models::Model::StudioPro.capabilities().contains(bit) {
-        return Err(format!(
-            "{feature} is not verified for Studio Pro; official-app capture required"
-        ));
-    }
+    query
+        .check(crate::models::Model::StudioPro.capabilities())
+        .map_err(|error| error.to_string())?;
     let mut client = connect(&invocation.options)?;
     match query {
-        FeatureQuery::Peers => {
+        Operation::Peers => {
             let peers = client.peers().map_err(|e| e.to_string())?;
             for peer in peers.slots.into_iter().flatten() {
                 println!(
@@ -44,41 +28,42 @@ fn feature(invocation: &Invocation, query: FeatureQuery) -> Result<(), String> {
                 );
             }
         }
-        FeatureQuery::Codec => {
+        Operation::Codec => {
             println!("codecs={:?}", client.codecs().map_err(|e| e.to_string())?)
         }
-        FeatureQuery::Id => {
+        Operation::Id => {
             println!("id={}", client.headphone_id().map_err(|e| e.to_string())?)
         }
-        FeatureQuery::Color => println!(
+        Operation::Color => println!(
             "color={}",
             client.headphone_color().map_err(|e| e.to_string())?
         ),
-        FeatureQuery::BoxMac => {
+        Operation::BoxMac => {
             println!("box_mac={}", client.box_mac().map_err(|e| e.to_string())?)
         }
+        _ => return Err("registered query is not a device read".into()),
     }
     Ok(())
 }
 
 pub fn peers(invocation: &Invocation) -> Result<(), String> {
-    feature(invocation, FeatureQuery::Peers)
+    feature(invocation, FeatureId::MultipointPeers)
 }
 
 pub fn codec(invocation: &Invocation) -> Result<(), String> {
-    feature(invocation, FeatureQuery::Codec)
+    feature(invocation, FeatureId::CodecStatus)
 }
 
 pub fn id(invocation: &Invocation) -> Result<(), String> {
-    feature(invocation, FeatureQuery::Id)
+    feature(invocation, FeatureId::HeadphoneId)
 }
 
 pub fn color(invocation: &Invocation) -> Result<(), String> {
-    feature(invocation, FeatureQuery::Color)
+    feature(invocation, FeatureId::HeadphoneColor)
 }
 
 pub fn box_mac(invocation: &Invocation) -> Result<(), String> {
-    feature(invocation, FeatureQuery::BoxMac)
+    feature(invocation, FeatureId::BoxMac)
 }
 
 pub fn status(invocation: &Invocation) -> Result<(), String> {
@@ -87,16 +72,29 @@ pub fn status(invocation: &Invocation) -> Result<(), String> {
         return Err("status cannot be combined with --dry-run; use decode for offline data".into());
     }
     let mut client = connect(&invocation.options)?;
-    let info = client.info().map_err(|e| format!("status failed: {e}"))?;
+    let info = client
+        .info_in(invocation.lang())
+        .map_err(|e| fill(t.cli_preflight_fail, &[&e.to_string()]))?;
     if invocation.options.json {
-        let firmware = client.firmware().map_err(|e| e.to_string())?;
-        let values: serde_json::Map<String, serde_json::Value> = settings::KEYS
-            .iter()
-            .map(|key| ((*key).into(), serde_json::json!(info.value(key))))
-            .collect();
+        let firmware = client
+            .firmware_in(invocation.lang())
+            .map_err(|e| e.to_string())?;
+        let address = crate::bluetooth::BluetoothAddress::parse(
+            invocation
+                .options
+                .address
+                .as_deref()
+                .ok_or(t.cli_need_address)?,
+        )
+        .map_err(|error| error.to_string())?;
         println!(
             "{}",
-            serde_json::json!({"schema_version":1,"kind":"status","address":invocation.options.address,"model":"studio-pro","firmware":firmware,"battery_percent":info.battery(),"settings":values,"raw_device_info":crate::protocol::hex(&info.raw)})
+            crate::application::status_json(
+                &address,
+                crate::models::Model::StudioPro,
+                &firmware,
+                &info
+            )
         );
         return Ok(());
     }
@@ -114,7 +112,7 @@ pub fn status(invocation: &Invocation) -> Result<(), String> {
         );
     }
     let firmware = client
-        .firmware()
+        .firmware_in(invocation.lang())
         .map_err(|e| fill(t.cli_firmware_fail, &[&e.to_string()]))?;
     println!("firmware={firmware}");
     println!("raw_device_info={}", crate::protocol::hex(&info.raw));
@@ -163,8 +161,8 @@ pub fn capture(invocation: &Invocation) -> Result<(), String> {
     // Record the whole session even when a query fails: a
     // failed capture is exactly when the bytes matter most.
     // stdout stays pure fixture hex; context goes to stderr.
-    let info = client.info();
-    let firmware = client.firmware();
+    let info = client.info_in(invocation.lang());
+    let firmware = client.firmware_in(invocation.lang());
     let (_transport, log) = client.into_inner().into_inner_and_log();
     let export = log
         .lock()

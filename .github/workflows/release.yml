@@ -1,0 +1,62 @@
+name: Release bundles
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            variant: tui
+            executable: ugreen
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            variant: cli-only
+            executable: ugreen
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            variant: tui
+            executable: ugreen.exe
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            variant: cli-only
+            executable: ugreen.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          targets: ${{ matrix.target }}
+      - name: Validate bundle tooling
+        run: python -m unittest discover -s scripts -p "test_*.py"
+      - name: Test TUI
+        if: matrix.variant == 'tui'
+        run: cargo test --locked --all-targets --target ${{ matrix.target }}
+      - name: Build TUI
+        if: matrix.variant == 'tui'
+        run: cargo build --locked --release --target ${{ matrix.target }}
+      - name: Test CLI only
+        if: matrix.variant == 'cli-only'
+        run: cargo test --locked --all-targets --no-default-features --target ${{ matrix.target }}
+      - name: Build CLI only
+        if: matrix.variant == 'cli-only'
+        run: cargo build --locked --release --no-default-features --target ${{ matrix.target }}
+      - name: Offline Linux terminal checks
+        if: runner.os == 'Linux' && matrix.variant == 'tui'
+        run: python scripts/test_tui_pty.py target/${{ matrix.target }}/release/ugreen
+      - name: Package deterministic archive and checksums
+        run: python scripts/package_release.py target/${{ matrix.target }}/release/${{ matrix.executable }} --target ${{ matrix.target }} --variant ${{ matrix.variant }} --output target/release-bundles
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ugreen-${{ matrix.target }}-${{ matrix.variant }}
+          path: target/release-bundles/*
+          if-no-files-found: error

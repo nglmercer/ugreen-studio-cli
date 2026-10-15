@@ -4,6 +4,10 @@ use super::{ShortcutSection, L};
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.cli_json_unsupported = "Este comando no admite --json.";
+    l.status_applying_noack = "Aplicando {}={} tras la comprobación previa y verificando la lectura (audio espacial sin confirmación)...";
+    l.status_verified_noack =
+        "Verificado {}={} por lectura coincidente; el audio espacial no envía confirmación.";
     l.app_title = " UGREEN / control Studio Pro ";
     l.connected = "CONECTADO";
     l.disconnected = "DESCONECTADO";
@@ -309,7 +313,15 @@ pub fn catalog() -> L {
     l.cmd_query = "Consulta con puerta de enlace; sin verificar en este firmware";
     l.cmd_control = "Control con puerta de enlace; --dry-run imprime los bytes";
     l.cmd_find = "Tono de búsqueda con puerta de enlace";
-    l.headset_connections = ["Conexiones del auricular", "Son los dispositivos conectados al auricular, distintos de los emparejados con este PC.", "La consulta de pares HP206 (0x0D) necesita capturas de la aplicación oficial para este firmware. No se envió ninguna consulta; la cantidad y las identidades son desconocidas.", "Desconectar, reconectar y cambiar pares remotos no está soportado. Las acciones Bluetooth del host solo afectan a este PC.", "r: comprobar disponibilidad · d: conexión dual · Esc: volver"];
+    l.navigation = [
+        "Inicio",
+        "Audio",
+        "Dispositivos",
+        "Ajustes",
+        "Diagnóstico",
+        "Investigación",
+    ];
+    l.headset_connections = ["Conexiones del auricular", "Son los dispositivos conectados al auricular, distintos de los emparejados con este PC.", "La consulta de pares HP206 (0x0D) necesita capturas de la aplicación oficial para este firmware. No se envió ninguna consulta; la cantidad y las identidades son desconocidas.", "Desconectar, reconectar y cambiar pares remotos no está soportado. Las acciones Bluetooth del host solo afectan a este PC.", "r: actualizar estado dual · d: conexión dual · Esc: volver"];
     l.page_labels = [
         "Dispositivos",
         "Audio",
@@ -478,7 +490,7 @@ pub fn catalog() -> L {
     ];
     l.status_feature_running = "Ejecutando operación de funciones...";
     l.status_edit_in_settings =
-        "{} es un ajuste verificado; edítalo en la pantalla de Ajustes (s).";
+        "{} es un ajuste verificado; edítalo en la pantalla de Ajustes (F4).";
     l.codec_unverified = "consulta no verificada";
     l.arg_enabled = "Activado";
     l.arg_side = "Lado";

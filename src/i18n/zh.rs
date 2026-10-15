@@ -4,6 +4,9 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.cli_json_unsupported = "此命令不支持 --json。";
+    l.status_applying_noack = "预检后应用 {}={}，再核对回读（空间音频不返回确认）...";
+    l.status_verified_noack = "已通过回读匹配验证 {}={}；空间音频不返回确认。";
     l.app_title = " UGREEN / Studio Pro 控制 ";
     l.connected = "已连接";
     l.disconnected = "未连接";
@@ -232,6 +235,7 @@ pub fn catalog() -> L {
     l.cmd_query = "捕获门控查询；在本固件上未验证";
     l.cmd_control = "捕获门控控制；--dry-run 打印字节";
     l.cmd_find = "捕获门控查找音";
+    l.navigation = ["首页", "音频", "设备", "设置", "诊断", "研究"];
     l.headset_connections = [
         "耳机连接",
         "这些是耳机的连接设备，与此电脑的配对设备列表不同。",
@@ -239,6 +243,7 @@ pub fn catalog() -> L {
         "不支持远程设备断开、重连和切换。主机蓝牙操作仅影响此电脑。",
         "r: 检查支持情况 · d: 双设备连接 · Esc: 返回",
     ];
+    l.headset_connections[4] = "r: 刷新双设备状态 · d: 双设备连接 · Esc: 返回";
     l.page_labels = ["设备", "音频", "耳机设置", "多点连接", "实验功能", "诊断"];
     l.page_hint = "↑/↓ Enter: 打开 · r: 刷新 · Esc: 返回";
     l.host_commands = [
@@ -394,7 +399,7 @@ pub fn catalog() -> L {
         ],
     ];
     l.status_feature_running = "正在执行功能操作...";
-    l.status_edit_in_settings = "{} 是已验证设置；请在“设置”屏幕中编辑 (s)。";
+    l.status_edit_in_settings = "{} 是已验证设置；请在“设置”屏幕中编辑 (F4)。";
     l.codec_unverified = "查询未验证";
     l.arg_enabled = "启用";
     l.arg_side = "侧";

@@ -287,12 +287,15 @@ impl Setting {
         let Some(actual) = info.raw.get(spec.readback_index as usize).copied() else {
             return false;
         };
-        match (spec.nibble_masked, self.payload[0] & 15) {
+        let [expected] = self.payload.as_slice() else {
+            return false;
+        };
+        match (spec.nibble_masked, expected & 15) {
             // Off/ambient preserve the device's previous ANC
             // depth on some firmware, so the high nibble may
             // differ; ultra shares its nibble and matches exactly.
             (true, nibble) if nibble != 1 => actual & 15 == nibble,
-            _ => actual == self.payload[0],
+            _ => actual == *expected,
         }
     }
 }
@@ -461,6 +464,19 @@ mod tests {
         let info = StudioProState::new(raw).unwrap();
         for setting in parse_profile(&info.profile()).unwrap() {
             assert!(setting.matches(&info));
+        }
+    }
+    #[test]
+    fn exported_profiles_roundtrip_identically_in_every_locale() {
+        let mut raw = vec![0; 30];
+        raw[3] = 0xa0;
+        let state = StudioProState::new(raw).unwrap();
+        let profile = state.profile();
+        let expected = parse_profile(&profile).unwrap();
+        for lang in crate::i18n::Lang::ALL {
+            assert_eq!(parse_profile_in(lang, &profile).unwrap(), expected);
+            assert!(parse_profile_in(lang, "model=studio-pro\ngame=on\ngame=off").is_err());
+            assert!(parse_profile_in(lang, "model=other\ngame=on").is_err());
         }
     }
 }

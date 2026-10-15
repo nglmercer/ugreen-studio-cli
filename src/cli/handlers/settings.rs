@@ -10,7 +10,11 @@ use crate::settings::{self, Setting};
 /// preflight info read, then write and verify each
 /// setting by acknowledgement and readback.
 fn apply(options: &crate::cli::context::Options, settings_list: &[Setting]) -> Result<(), String> {
-    let t = txt(options.lang.unwrap_or_else(crate::i18n::Lang::detect));
+    let lang = options.lang.unwrap_or_else(crate::i18n::Lang::detect);
+    let t = txt(lang);
+    for setting in settings_list {
+        crate::application::validate_setting(setting).map_err(|error| error.to_string())?;
+    }
     if options.dry_run {
         for setting in settings_list {
             println!(
@@ -25,30 +29,39 @@ fn apply(options: &crate::cli::context::Options, settings_list: &[Setting]) -> R
     }
     let mut client = connect(options)?;
     let firmware = client
-        .firmware()
-        .map_err(|e| format!("firmware preflight failed: {e}"))?;
-    crate::models::require_verified_firmware(
-        Some(crate::models::Model::StudioPro),
-        Some(&firmware),
-    )
-    .map_err(|e| e.to_string())?;
-    // Initial query must be understood before the first setting write.
-    client
-        .info()
+        .firmware_in(lang)
         .map_err(|e| fill(t.cli_preflight_fail, &[&e.to_string()]))?;
+    for setting in settings_list {
+        crate::application::authorize_setting(
+            Some(crate::models::Model::StudioPro),
+            Some(&firmware),
+            setting,
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    // Initial query must be understood before the first setting write.
+    let before = client
+        .info_in(lang)
+        .map_err(|e| fill(t.cli_preflight_fail, &[&e.to_string()]))?;
+    for setting in settings_list {
+        crate::application::validate_preflight(&before, setting)
+            .map_err(|error| fill(t.cli_preflight_fail, &[&error.to_string()]))?;
+    }
     for (index, setting) in settings_list.iter().enumerate() {
-        client.set(setting).map_err(|e| {
-            fill(
-                t.cli_apply_fail,
-                &[
-                    &index,
-                    &settings_list.len(),
-                    &setting.key,
-                    &setting.value,
-                    &e.to_string(),
-                ],
-            )
-        })?;
+        client
+            .set_for_model_in(lang, Some(crate::models::Model::StudioPro), setting)
+            .map_err(|e| {
+                fill(
+                    t.cli_apply_fail,
+                    &[
+                        &index,
+                        &settings_list.len(),
+                        &setting.key,
+                        &setting.value,
+                        &e.to_string(),
+                    ],
+                )
+            })?;
         println!("{}", fill(t.cli_verified, &[&setting.key, &setting.value]));
     }
     Ok(())
@@ -83,7 +96,13 @@ pub fn profile_export(invocation: &Invocation) -> Result<(), String> {
         );
     }
     let mut client = connect(&invocation.options)?;
-    print!("{}", client.info().map_err(|e| e.to_string())?.profile());
+    print!(
+        "{}",
+        client
+            .info_in(invocation.lang())
+            .map_err(|e| e.to_string())?
+            .profile()
+    );
     Ok(())
 }
 
