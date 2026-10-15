@@ -4,6 +4,17 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.device_ui = [
+        "Device features",
+        "Available",
+        "Unavailable",
+        "P: connected devices",
+        "No matching features. Change category or search.",
+        "Requires Studio Pro firmware 0.2.5.",
+        "Optionale Socket-Übersicht",
+        "Nicht verfügbar; blockiert die Steuerung nicht",
+        "Verfügbare Steuerungen",
+    ];
     l.cli_json_unsupported = "Dieser Befehl unterstützt --json nicht.";
     l.status_applying_noack =
         "Wende {}={} nach Vorprüfung an und prüfe den Rücklesewert (Raumklang ohne Bestätigung)...";
@@ -328,6 +339,7 @@ pub fn catalog() -> L {
         "Capture-Dekodierer",
         "Capture-Analyse",
         "Paketvorschau",
+        "Gerät trennen und Dualmodus ausschalten",
     ];
     l.feature_descriptions = [
         "Tiefe der aktiven Geräuschunterdrückung. Verifizierte Einstellung; bearbeiten im Einstellungsbildschirm.",
@@ -361,6 +373,7 @@ pub fn catalog() -> L {
         "Erfasste Antwort-Bytes offline dekodieren; kein Bluetooth-Zugriff.",
         "Einen vollständigen Capture-Stream offline interpretieren; kein Bluetooth-Zugriff.",
         "Das statische Paket ausgeben, das eine Steuerung senden würde; wird nie übertragen.",
+        "Trennt das gewählte Gerät und deaktiviert den Dualmodus. Experimentell; Steckplatz und MAC mit neuer Abfrage bestätigen.",
     ];
     l.feature_available = "Verfügbar";
     l.feature_pending = "Verifizierung ausstehend";
@@ -457,5 +470,6 @@ pub fn catalog() -> L {
     l.status_reset_done = "Zurücksetzen bestätigt; Host-Pairing und gespeichertes Gerät entfernt.";
     l.status_inflight_write =
         "Eine laufende Schreibung wurde möglicherweise abgeschlossen; aktualisiere nach dem Neustart.";
+    l.page_labels[4] = l.navigation[5];
     l
 }

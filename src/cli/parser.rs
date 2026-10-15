@@ -50,6 +50,7 @@ pub fn parse(args: Vec<String>) -> Result<Invocation, String> {
             }
             "--autoconnect" => options.autoconnect = Some(true),
             "--no-autoconnect" => options.autoconnect = Some(false),
+            "--experimental" => {} // Compatibility alias; implemented operations are now standard.
             "--json" => options.json = true,
             "--dry-run" => options.dry_run = true,
             "--help" | "-h" => {

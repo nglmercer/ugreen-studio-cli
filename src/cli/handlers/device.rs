@@ -13,12 +13,28 @@ fn feature(invocation: &Invocation, id: FeatureId) -> Result<(), String> {
         return Err("use candidate for offline static query packets".into());
     }
     query
-        .check(crate::models::Model::StudioPro.capabilities())
+        .check(crate::models::supported_capabilities())
         .map_err(|error| error.to_string())?;
     let mut client = connect(&invocation.options)?;
     match query {
         Operation::Peers => {
             let peers = client.peers().map_err(|e| e.to_string())?;
+            if invocation.options.json {
+                let rows: Vec<_> = peers.slots.iter().flatten().map(|peer| serde_json::json!({
+                    "index": peer.index, "address": peer.address.as_str(), "name": peer.name,
+                    "connected": true
+                })).collect();
+                println!(
+                    "{}",
+                    serde_json::json!({"schema_version": 1, "kind": "peers",
+                    "model": "studio-pro", "model_source": "user_selected",
+                    "evidence_source": "device_reply", "complete": peers.complete, "peers": rows})
+                );
+                return Ok(());
+            }
+            if peers.slots.iter().all(Option::is_none) {
+                println!("Headset reports no connected peers");
+            }
             for peer in peers.slots.into_iter().flatten() {
                 println!(
                     "peer={} address={} name={}",

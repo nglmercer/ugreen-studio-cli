@@ -36,6 +36,26 @@ ugreen discover
 ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status
 ```
 
+## Device features
+
+Peer discovery, codec/ID/color/box-MAC reads, LDAC, volume/channel, button and AI
+controls, audio sharing and targeted peer closing are available in the normal
+CLI and TUI. No mode switch or extra flag is required. Select Studio Pro and
+connect; firmware `0.2.5` is checked before device operations.
+
+```sh
+ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro peers
+ugreen --json --address AA:BB:CC:DD:EE:FF --model studio-pro peers
+ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro codec
+ugreen tui
+```
+
+Press `P` for headset-connected peers or browse Multipoint in the normal feature
+categories. Closing a peer also disables dual mode and requires confirmation in
+the TUI. Reset, Finder, independent reconnect/switch and the speculative one-byte
+high-quality command remain unavailable. See [device operations](docs/usage.md#supported-device-operations)
+and [release readiness](docs/release-readiness.md) for validation scope.
+
 ## Terminal interface or CLI
 
 The default `tui` Cargo feature uses Ratatui 0.30.2 and Crossterm 0.29.0. `ugreen tui` opens the interface explicitly. Running with no arguments opens it only when both stdin and stdout are terminals; otherwise it prints help. Explicit CLI commands stay scriptable.
@@ -87,10 +107,10 @@ Profiles are UTF-8 `key=value` text, at most 16 KiB, with mandatory `model=studi
 
 - Hardware requests need an explicit address and Studio Pro protocol selection. Model selection is not device-identity detection
 - `discover` reads cached paired devices. There is no active scan, pairing, or automatic target choice; the TUI only ever reconnects to your last confirmed device (on by default, `--no-autoconnect` opts out) and never picks an unknown device
-- Multipoint peer management (list, disconnect, reconnect, switch) is refused before any byte is sent until a verified Studio Pro capture exists; the dual toggle is a separate verified setting
+- Peer reads and targeted dual-close are normal operations; independent reconnect/switch remain unavailable. Targeted close also disables dual mode
 - Actual firmware `0.2.5` and a valid device-info preflight are required before CLI/TUI setting writes; matching readback is required to report success
 - Writes are not automatically retried. A timeout may mean a setting changed but its acknowledgement was lost; query status before trying again
-- No firmware updates, factory reset, raw-transmit command, find-headphones sound, actual volume changes, or ANC-button remapping
+- No firmware updates, factory reset, raw-transmit command or Finder. Mapped volume/button controls use the normal firmware-checked operation path
 - No telemetry, network service, account, or stored credentials; local Bluetooth control only
 
 A phone app may already occupy the RFCOMM control channel. Close its control session before retrying; do not reset or unpair the headphones merely because a request fails. Read [Troubleshooting](docs/troubleshooting.md) before repeated writes.
@@ -121,7 +141,7 @@ or Windows config directory. JSON output also supports `audio devices` and its
 
 A fresh read-only Linux session returned firmware 0.2.5 and CRC-valid core replies;
 the [redacted evidence](docs/evidence/core-read-2026-10-14.json) records its limited
-scope. Vendor codec/peer queries and advanced controls remain capture-gated.
+scope. Mapped operations are enabled by default; source provenance and independent hardware evidence remain documented separately.
 
 ## Documentation and verification
 
@@ -159,4 +179,4 @@ vendor codec, and never infer a codec from advertised support. Missing transport
 properties remain unknown. [The feature matrix](docs/feature-matrix.md) records
 implemented parts, missing work and physical-validation limits.
 
-Press `P` for Headset Connections: dual-device state and observation age are shown; peer discovery remains capture-gated. Host paired devices are a separate list.
+Press `P` for Headset Connections: dual-device state and observation age are shown; peer discovery is available by default. Host paired devices are a separate list.

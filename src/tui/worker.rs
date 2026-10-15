@@ -98,6 +98,9 @@ pub(super) trait Backend: Send + 'static {
 }
 struct Native;
 impl Backend for Native {
+    fn capabilities(&self) -> crate::models::Capabilities {
+        crate::models::supported_capabilities()
+    }
     fn host_connection(&mut self, address: &BluetoothAddress, connected: bool) -> io::Result<()> {
         bluetooth::set_host_connection(address, connected)
     }

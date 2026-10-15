@@ -141,8 +141,7 @@ pub(super) fn render(frame: &mut Frame<'_>, app: &App) {
         );
     } else if app.options {
         // App settings: language, channel, timeout and
-        // target. Channel and timeout apply to the next
-        // connection; every change is remembered.
+        // target. Channel and timeout apply to the next connection.
         let rows = [
             (t.options_language, app.lang.name().to_string()),
             (t.options_channel, app.channel.to_string()),

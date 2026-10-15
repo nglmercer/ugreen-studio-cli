@@ -74,6 +74,13 @@ pub fn collect(
 }
 impl DoctorReport {
     pub fn json(&self) -> Value {
+        self.json_with_session(None, false)
+    }
+    /// Host-only diagnostics cannot infer firmware. A TUI may add an observed
+    /// firmware from its same-target active session without opening another socket.
+    pub fn json_with_session(&self, firmware: Option<&str>, connected: bool) -> Value {
+        let firmware = if connected { firmware } else { None };
+        let write_capabilities = crate::models::capabilities_for(self.model, firmware).bits();
         let selected = self
             .address
             .as_ref()
@@ -98,7 +105,7 @@ impl DoctorReport {
             }
             SocketCollision::Unavailable(error) => error.json(),
         };
-        json!({"schema_version":1,"kind":"doctor","host_enumeration_error":self.device_error.as_ref().map(|e|&e.message),"device_count":self.devices.len(),"selected_address":self.address.as_ref().map(|a|a.as_str()),"selected_paired":selected.map(|d|d.paired),"selected_host_link":selected.map(|d|d.connected.as_str()),"selected_model":self.model.map(Model::as_str),"rfcomm_channel":self.channel,"adapters":adapters,"audio":audio,"rfcomm_collision_check":collision,"firmware_evidence":"unknown_until_read","write_capabilities":0,"hardware_modified":false})
+        json!({"schema_version":1,"kind":"doctor","host_enumeration_error":self.device_error.as_ref().map(|e|&e.message),"device_count":self.devices.len(),"selected_address":self.address.as_ref().map(|a|a.as_str()),"selected_paired":selected.map(|d|d.paired),"selected_host_link":selected.map(|d|d.connected.as_str()),"selected_model":self.model.map(Model::as_str),"rfcomm_channel":self.channel,"adapters":adapters,"audio":audio,"rfcomm_collision_check":collision,"firmware_evidence":if firmware.is_some(){"session_read"}else{"unknown_until_read"},"observed_firmware":firmware,"control_session":if connected{"connected"}else{"disconnected"},"write_capabilities":write_capabilities,"hardware_modified":false})
     }
 }
 fn check_socket_collision(address: &BluetoothAddress, channel: u8) -> SocketCollision {
@@ -205,5 +212,40 @@ mod tests {
         assert_eq!(json["adapters"]["host_write_permissions"], "not_probed");
         assert_eq!(json["write_capabilities"], 0);
         assert_eq!(json["hardware_modified"], false);
+    }
+    #[test]
+    fn session_firmware_context_does_not_change_host_only_diagnostics() {
+        let report = DoctorReport {
+            address: Some(BluetoothAddress::parse("AA:BB:CC:DD:EE:FF").unwrap()),
+            channel: 1,
+            model: Some(Model::StudioPro),
+            host: Ok(HostSnapshot::default()),
+            devices: vec![],
+            device_error: None,
+            audio: None,
+            collision: SocketCollision::Unavailable(
+                io::Error::from(io::ErrorKind::PermissionDenied).into(),
+            ),
+        };
+        assert_eq!(report.json()["firmware_evidence"], "unknown_until_read");
+        assert_eq!(
+            report.json_with_session(Some("0.2.5"), false)["write_capabilities"],
+            0
+        );
+        let active = report.json_with_session(Some("0.2.5"), true);
+        assert_eq!(active["firmware_evidence"], "session_read");
+        assert_eq!(active["observed_firmware"], "0.2.5");
+        assert_eq!(
+            active["write_capabilities"],
+            Model::StudioPro.capabilities().bits()
+        );
+        assert_eq!(
+            active["rfcomm_collision_check"]["error_kind"],
+            "PermissionDenied"
+        );
+        assert_eq!(
+            report.json_with_session(Some("0.2.6"), true)["write_capabilities"],
+            0
+        );
     }
 }

@@ -98,6 +98,8 @@ def main():
         ('research candidate gate', ['tui'], [b'v', b'\x1b[B', b'\x1b[B', b'\x1b[B', b'\x1b[B', b'\r', b'LDAC', b'\r', b'\x1b', b'q']),
         ('small-screen resize recovery', ['tui'], [(8, 24), b'j', (30, 110), b'q']),
         ('headset connections gate and navigation', ['tui'], [b'P', b'r', b'd', b'q']),
+        ('peers stay offline when disconnected', ['tui'], [b'P', b'r', b'1', b'R', b'd', b'q']),
+        ('normal multipoint category is accessible', ['tui'], [b'F', b'\t\t\t\t\t\t', b'\x1b', b'q']),
         ('address edit cancellation', ['tui'], [b'a', b'AA:BB:CC:DD:EE:FF', b'\x1b', b'q']),
     ]
     for name, args, actions in scenarios:

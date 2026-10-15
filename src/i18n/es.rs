@@ -4,6 +4,17 @@ use super::{ShortcutSection, L};
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.device_ui = [
+        "Funciones del dispositivo",
+        "Disponibles",
+        "No disponibles",
+        "P: dispositivos conectados",
+        "Sin coincidencias. Cambia la categoría o la búsqueda.",
+        "Requiere Studio Pro con firmware 0.2.5.",
+        "Comprobación de sockets",
+        "No disponible (diagnóstico opcional)",
+        "Controles disponibles",
+    ];
     l.cli_json_unsupported = "Este comando no admite --json.";
     l.status_applying_noack = "Aplicando {}={} tras la comprobación previa y verificando la lectura (audio espacial sin confirmación)...";
     l.status_verified_noack =
@@ -390,6 +401,7 @@ pub fn catalog() -> L {
         "Decodificador de capturas",
         "Análisis de capturas",
         "Vista previa de paquete",
+        "Cerrar dispositivo y desactivar dual",
     ];
     l.feature_descriptions = [
         "Profundidad de cancelación activa de ruido. Ajuste verificado; edítalo en la pantalla de Ajustes.",
@@ -423,6 +435,7 @@ pub fn catalog() -> L {
         "Decodificar bytes de respuesta capturados sin conexión; sin acceso Bluetooth.",
         "Interpretar un flujo de captura completo sin conexión; sin acceso Bluetooth.",
         "Imprimir el paquete estático que enviaría un control; nunca se transmite.",
+        "Cierra el dispositivo seleccionado y desactiva el modo dual. Confirma la ranura y la MAC mediante una consulta reciente.",
     ];
     l.feature_available = "Disponible";
     l.feature_pending = "Pendiente de verificación";
@@ -521,5 +534,6 @@ pub fn catalog() -> L {
         "Restablecimiento confirmado; se quitaron el emparejamiento del host y el dispositivo guardado.";
     l.status_inflight_write =
         "Una escritura en curso puede haberse completado; actualiza después de reiniciar.";
+    l.page_labels[4] = l.navigation[5];
     l
 }

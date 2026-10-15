@@ -57,7 +57,25 @@ The native transport gives connect/read/write operations deadlines. `read_exact`
 
 The wire protocol has no request sequence number here. Correlation is by instruction, and this implementation performs requests sequentially. A CRC-valid acknowledgement alone does not establish the desired final state; readback is essential. Incompatible firmware or delayed same-instruction responses cannot be ruled out by the framing layer alone.
 
-Multipoint peer operations are the same story one level up: `Client::peers` and `Client::multipoint_peers` check the model capability before I/O; the peer disconnect/reconnect/switch methods return `UnsupportedFeature` before assembling any frame. No model capability verifies a peer-management protocol yet, so a refusal is final and immediate, not a timeout, and the `peers` subcommand refuses before connecting. The gated collector supports fragmented and coalesced peer responses and requires explicit completion. Codec, ID, color and box-MAC queries have separate capture gates.
+Peer, codec, ID, color and box-MAC queries use the supported operation set and
+require exact firmware preflight. The peer collector accepts fragmented and
+coalesced responses and requires explicit completion. Independent peer
+disconnect/reconnect/switch methods remain unsupported; targeted dual-close is a
+separate operation that also disables dual mode.
+
+## Supported operation policy
+
+`models::supported_capabilities()` lists implemented operations for Studio Pro.
+The CLI, TUI and client use it by default. Historical hardware evidence remains
+in `capabilities_for` and registry provenance; runtime availability does not
+rewrite that evidence. The client queries actual firmware before a device
+operation. Unknown firmware remains blocked.
+
+The worker owns the active session. Structured `PeerList` results reach the UI
+without parsing display strings. Request IDs reject stale replies; queries,
+writes and session/target changes invalidate old peers. Targeted dual-close checks
+current slot/MAC and verifies dual-off and peer absence. Unsupported reset,
+Finder and independent reconnect/switch stay outside the implementation set.
 
 ## Platform implementation
 
@@ -87,14 +105,17 @@ The FFI definitions deliberately preserve SDK layout details, particularly the p
 
 ## Deliberate boundaries
 
-The core has one model mapping, not a universal UGREEN protocol abstraction. Adding another model requires separate researched mappings and tests, not an alias. There is no codec inference, firmware updater, factory reset, arbitrary raw write, audible locator, actual-volume adjustment or ANC-button remapping. Multipoint peer management (list, disconnect, reconnect, switch) stays refused until a Studio Pro capture from the official app verifies those frames; the verified dual-device toggle (`dual`, instruction `0x06`) is a separate two-radio switch and proves nothing about a peer protocol.
+The core has one model mapping. Adding another model requires separate researched
+mappings and tests. Firmware updates, factory reset, audible locator and independent
+peer reconnect/switch/disconnect remain unavailable. Peer discovery, targeted
+close, volume and button operations use the implemented Studio Pro mappings.
 
 Profiles have sequential, best-effort application with verification per setting. Automatic retries and rollback are deliberately absent because acknowledgement loss leaves device state uncertain. See [Usage](usage.md) for recovery after partial application.
 
-## Capture-gated TUI operations
+## TUI operation checks
 
 The everyday feature browser and Research page derive typed operations from `src/features.rs`.
-Both the state machine and session-owning worker check capture-backed
+Both the state machine and session-owning worker check supported
 capabilities. Queries run on the worker; controls require local review
 and confirmation plus worker preflight. Acknowledgement-only and
 unconfirmed controls retain uncertain-write lockout until explicit

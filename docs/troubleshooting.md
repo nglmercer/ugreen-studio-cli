@@ -1,5 +1,23 @@
 # Troubleshooting
 
+## Device features missing
+
+Run the rebuilt executable. Implemented operations, including Multipoint, are
+available by default in normal feature categories. `P` queries headset peers;
+`r` refreshes them. No flag or mode switch is needed. A previously running TUI
+must be restarted to load a new executable. Firmware `0.2.5` is required.
+Research lists offline tools and unsupported operations; see
+[device operations](usage.md#supported-device-operations).
+
+## Diagnostics show a socket-inventory permission error
+
+The read-only Linux RFCOMM inventory uses a kernel debugfs file that is often
+restricted. `PermissionDenied` for this optional inventory does not mean the
+already connected control session is denied. The TUI marks the check optional
+and shows a concise summary with firmware read from the same active session.
+The standalone CLI `doctor` stays host-only and reports firmware unknown until
+it has session context; it does not open an extra control socket to discover it.
+
 [Documentation index](README.md) · [Usage](usage.md) · [Build guide](building.md)
 
 Start with `ugreen --help`, `ugreen models`, and `ugreen --dry-run set game on`. These are offline checks. Do not use repeated setting writes as a connection diagnostic.

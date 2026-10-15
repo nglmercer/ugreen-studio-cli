@@ -14,7 +14,7 @@ impl App {
             return self.open_page(3);
         }
         let t = self.t();
-        if !spec.verified(Model::StudioPro.capabilities()) {
+        if !spec.verified(self.operation_capabilities()) {
             // Pending verification never opens a live
             // operation; the explanation says so.
             self.status = format!("{} - {}", t.feature_pending, t.feature_pending_reason);
@@ -79,9 +79,9 @@ impl App {
     /// Submit a typed feature operation through the same
     /// guards the settings screen uses: capability, model
     /// confirmation, connection, busy and write lockout.
-    pub(super) fn submit_feature(&mut self, operation: Operation) -> Intent {
+    pub(in crate::tui) fn submit_feature(&mut self, operation: Operation) -> Intent {
         let t = self.t();
-        if let Err(error) = operation.check(Model::StudioPro.capabilities()) {
+        if let Err(error) = operation.check(self.operation_capabilities()) {
             self.status = error.to_string();
             return Intent::None;
         }

@@ -178,8 +178,8 @@ fn candidate_commands_cover_static_instruction_map_without_hardware() {
         (vec!["find", "left", "on"], 7, vec![1, 1]),
         (vec!["find", "right", "off"], 7, vec![0, 2]),
         (vec!["ldac", "on"], 11, vec![1]),
-        (vec!["ldac", "on", mac], 11, vec![1, 1, 2, 3, 4, 5, 6]),
-        (vec!["ldac", "off", mac], 11, vec![0; 7]),
+        (vec!["ldac", "on", mac], 30, vec![1, 1, 2, 3, 4, 5, 6]),
+        (vec!["ldac", "off", mac], 30, vec![0; 7]),
         (vec!["high-quality", "off"], 30, vec![0]),
         (vec!["volume", "8"], 16, vec![8]),
         (vec!["channel", "mono"], 25, vec![0]),
@@ -238,24 +238,16 @@ fn candidate_commands_cover_static_instruction_map_without_hardware() {
 }
 
 #[test]
-fn unverified_queries_refuse_before_connecting() {
+fn queries_require_explicit_target_before_connecting() {
     for command in ["peers", "codec", "id", "color", "box-mac"] {
-        let output = run(&[
-            "--address",
-            "01:02:03:04:05:06",
-            "--model",
-            "studio-pro",
-            command,
-        ]);
+        let output = run(&[command]);
         assert!(!output.status.success());
-        let error = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            error.contains("official-app capture required"),
-            "{command}: {error}"
-        );
-        assert!(!error.contains("Connecting"));
+        assert!(!output.stderr.is_empty());
         assert!(output.stdout.is_empty());
         assert!(!run(&[command, "extra"]).status.success());
+        let output = run(&["--dry-run", command]);
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
     }
 }
 
@@ -296,17 +288,11 @@ fn controls_refuse_before_connect_and_dry_run_remains_offline() {
         vec!["find", "left", "on"],
         vec!["high-quality", "off"],
     ] {
-        let mut live = vec![
-            "--address",
-            "01:02:03:04:05:06",
-            "--model",
-            "studio-pro",
-            "control",
-        ];
+        let mut live = vec!["control"];
         live.extend_from_slice(&args);
         let output = run(&live);
         assert!(!output.status.success());
-        assert!(String::from_utf8_lossy(&output.stderr).contains("official-app capture required"));
+        assert!(!output.stderr.is_empty());
         assert!(output.stdout.is_empty());
         let mut offline = vec!["--dry-run", "control"];
         offline.extend_from_slice(&args);
@@ -327,6 +313,50 @@ fn controls_refuse_before_connect_and_dry_run_remains_offline() {
 }
 
 #[test]
+fn normal_device_access_and_unsupported_operations_are_explicit() {
+    let help = run(&["--help"]);
+    assert!(!String::from_utf8_lossy(&help.stdout).contains("--experimental"));
+    for args in [
+        vec!["--experimental", "control", "factory-reset"],
+        vec!["--experimental", "control", "high-quality", "on"],
+    ] {
+        let out = run(&args);
+        assert!(!out.status.success());
+        assert!(!String::from_utf8_lossy(&out.stderr).contains("RFCOMM"));
+    }
+    let out = run(&[
+        "--experimental",
+        "--dry-run",
+        "control",
+        "close-peer",
+        "2",
+        "01:02:03:04:05:06",
+    ]);
+    assert!(out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).contains("AA BB CC 06 08 00 02 01 02 03 04 05 06"));
+    let out = run(&["--experimental", "--json", "peers"]);
+    assert!(!out.status.success());
+    // Parsing accepts JSON peers; a missing explicit model/address still refuses.
+    assert!(!String::from_utf8_lossy(&out.stderr).contains("JSON"));
+    let out = run(&["--json", "capabilities"]);
+    assert!(out.status.success());
+    let value: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert!(value.get("experimental").is_none());
+    let features = value["features"].as_array().unwrap();
+    for (id, permitted) in [
+        ("MultipointPeers", true),
+        ("ClosePeer", true),
+        ("FactoryReset", false),
+        ("FindLeft", false),
+    ] {
+        let entry = features.iter().find(|f| f["id"] == id).unwrap();
+        assert_eq!(entry["available_after_firmware_preflight"], permitted);
+        assert_eq!(entry["operation_authorized"], false);
+        assert_ne!(entry["evidence_status"], "verified");
+    }
+}
+
+#[test]
 fn finder_refuses_unverified_packets_before_audio_or_connection() {
     let target = if cfg!(target_os = "windows") {
         "0"
@@ -336,7 +366,7 @@ fn finder_refuses_unverified_packets_before_audio_or_connection() {
     let output = run(&["find", "left", "1", target]);
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("official-app capture required"));
+    assert!(!output.stderr.is_empty());
     for args in [
         vec!["find", "both", "1", "sink"],
         vec!["find", "right", "0", "sink"],

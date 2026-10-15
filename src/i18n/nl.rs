@@ -4,6 +4,17 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.device_ui = [
+        "Device features",
+        "Available",
+        "Unavailable",
+        "P: connected devices",
+        "No matching features. Change category or search.",
+        "Requires Studio Pro firmware 0.2.5.",
+        "Optioneel socketoverzicht",
+        "Niet beschikbaar; blokkeert de bediening niet",
+        "Beschikbare bediening",
+    ];
     l.cli_json_unsupported = "Deze opdracht ondersteunt --json niet.";
     l.status_applying_noack = "{}={} toepassen na voorcontrole en teruglezing controleren (ruimtelijke audio zonder bevestiging)...";
     l.status_verified_noack = "{}={} geverifieerd door overeenkomende teruglezing; ruimtelijke audio verzendt geen bevestiging.";
@@ -332,6 +343,7 @@ pub fn catalog() -> L {
         "Capture-decoder",
         "Capture-analyse",
         "Pakketvoorbeeld",
+        "Apparaat verbreken en dubbele modus uit",
     ];
     l.feature_descriptions = [
         "Diepte van actieve geluidsonderdrukking. Geverifieerde instelling; bewerk in het Instellingen-scherm.",
@@ -365,6 +377,7 @@ pub fn catalog() -> L {
         "Opgevangen antwoord-bytes offline decoderen; geen Bluetooth-toegang.",
         "Een complete capture-stream offline interpreteren; geen Bluetooth-toegang.",
         "Het statische pakket afdrukken dat een besturing zou verzenden; het wordt nooit verzonden.",
+        "Verbreekt het gekozen apparaat en schakelt dubbele modus uit. Experimenteel; bevestig positie en MAC met een nieuwe opvraag.",
     ];
     l.feature_available = "Beschikbaar";
     l.feature_pending = "Verificatie in behandeling";
@@ -463,5 +476,6 @@ pub fn catalog() -> L {
         "Terugzetten bevestigd; host-koppeling en opgeslagen apparaat verwijderd.";
     l.status_inflight_write =
         "Een lopende schrijfbewerking is mogelijk voltooid; ververs na herstart.";
+    l.page_labels[4] = l.navigation[5];
     l
 }

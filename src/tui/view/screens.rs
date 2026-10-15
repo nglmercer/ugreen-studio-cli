@@ -128,6 +128,32 @@ pub(super) fn render_observation(
                 Line::from(t.headset_connections[3]),
                 Line::from(t.headset_connections[4]),
             ];
+            {
+                lines.truncate(5);
+                lines.push(Line::from("Connected devices (last query)"));
+                match &app.peers {
+                    Some(peers) if peers.slots.iter().all(Option::is_none) => {
+                        lines.push(Line::from("Headset reports no connected peers"))
+                    }
+                    Some(peers) => {
+                        for peer in peers.slots.iter().flatten() {
+                            lines.push(Line::from(format!(
+                                "{}: {}  {}",
+                                peer.index,
+                                clean(&peer.name),
+                                peer.address
+                            )));
+                        }
+                    }
+                    None => lines.push(Line::from(t.unknown)),
+                }
+                lines.push(Line::from(
+                    "r: query peers | 1/2: review close + dual off | d: dual | Esc: back",
+                ));
+                lines.push(Line::from(
+                    "R: refresh core status / clear uncertain-write lock",
+                ));
+            }
         }
         ObservationView::Audio => {
             if let Some(observations) = &app.audio {
@@ -135,12 +161,18 @@ pub(super) fn render_observation(
                     lines.push(Line::from(t.unknown));
                 }
                 for observation in observations {
-                    for line in serde_json::to_string_pretty(&observation.json())
-                        .unwrap_or_default()
-                        .lines()
-                    {
-                        lines.push(Line::from(clean(line)));
-                    }
+                    lines.push(Line::from(format!(
+                        "{} / {} / {}",
+                        observation.profile.label(),
+                        clean(
+                            observation
+                                .codec
+                                .as_ref()
+                                .map(|codec| codec.label())
+                                .unwrap_or(t.unknown)
+                        ),
+                        observation.activity.label()
+                    )));
                 }
             } else {
                 lines.push(Line::from(t.unknown));
@@ -148,12 +180,115 @@ pub(super) fn render_observation(
         }
         ObservationView::Diagnostics => {
             if let Some(report) = &app.diagnostics {
-                for line in serde_json::to_string_pretty(&report.json())
-                    .unwrap_or_default()
-                    .lines()
-                {
-                    lines.push(Line::from(clean(line)));
+                let same_target = report
+                    .address
+                    .as_ref()
+                    .is_some_and(|address| app.address.eq_ignore_ascii_case(address.as_str()));
+                let connected = same_target && app.control_state.is_connected();
+                let firmware = if connected {
+                    app.firmware.as_deref()
+                } else {
+                    None
+                };
+                let data = report.json_with_session(firmware, connected);
+                lines = vec![
+                    Line::from(clean(&app.address)),
+                    Line::from(format!(
+                        "{}{}",
+                        t.control,
+                        if connected {
+                            t.connected
+                        } else {
+                            t.disconnected
+                        }
+                    )),
+                    Line::from(format!("{}{}", t.firmware, firmware.unwrap_or(t.unknown))),
+                    Line::from(format!(
+                        "{}{}",
+                        t.protocol,
+                        report
+                            .model
+                            .map(|m| m.to_string())
+                            .unwrap_or_else(|| t.unknown.into())
+                    )),
+                    Line::from(format!("RFCOMM: {}", report.channel)),
+                    Line::from(format!(
+                        "{}: {}",
+                        t.device_ui[8],
+                        if data["write_capabilities"].as_u64().unwrap_or(0) != 0 {
+                            crate::features::FEATURES
+                                .iter()
+                                .filter(|spec| {
+                                    matches!(
+                                        spec.kind,
+                                        FeatureKind::VerifiedSetting | FeatureKind::DeviceControl
+                                    ) && spec.verified(crate::models::supported_capabilities())
+                                })
+                                .count()
+                        } else {
+                            0
+                        }
+                    )),
+                    Line::from(""),
+                ];
+                match &report.host {
+                    Ok(host) => lines.push(Line::from(format!(
+                        "Bluetooth: {} adapters / {} devices",
+                        host.adapters.len(),
+                        report.devices.len()
+                    ))),
+                    Err(error) => {
+                        lines.push(Line::from(format!("Bluetooth: {}", clean(&error.message))))
+                    }
                 }
+                use crate::diagnostics::SocketCollision;
+                let socket = match &report.collision {
+                    SocketCollision::NotRequested => t.unknown.to_string(),
+                    SocketCollision::NoObservedSocket => {
+                        "No socket observed (not proof the channel is free)".into()
+                    }
+                    SocketCollision::PossibleCollision { matching_sockets } => {
+                        format!("{matching_sockets} matching sockets (may include this session)")
+                    }
+                    SocketCollision::Unavailable(_) => t.device_ui[7].to_string(),
+                };
+                if !connected {
+                    lines.push(Line::from(format!("{}: {}", t.device_ui[6], socket)));
+                }
+                lines.push(Line::from(""));
+                lines.push(Line::from(t.page_labels[1]));
+                if let Some(audio) = &report.audio {
+                    match audio {
+                        Ok(observations) if observations.is_empty() => {
+                            lines.push(Line::from(t.unknown))
+                        }
+                        Ok(observations) => {
+                            for observation in observations {
+                                lines.push(Line::from(format!(
+                                    "{} / {} / {}",
+                                    observation.profile.label(),
+                                    clean(
+                                        observation
+                                            .codec
+                                            .as_ref()
+                                            .map(|codec| codec.label())
+                                            .unwrap_or(t.unknown)
+                                    ),
+                                    observation.activity.label()
+                                )));
+                                lines.push(Line::from(format!(
+                                    "Source: {}",
+                                    clean(observation.source)
+                                )));
+                            }
+                        }
+                        Err(error) => lines.push(Line::from(clean(&error.message))),
+                    }
+                } else {
+                    lines.push(Line::from(t.unknown));
+                }
+                lines.push(Line::from(""));
+                lines.push(Line::from(t.page_hint));
             } else {
                 lines.push(Line::from(t.unknown));
             }

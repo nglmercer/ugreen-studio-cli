@@ -241,6 +241,78 @@ mod tests {
         // This proves subscription acceptance only. It deliberately does not
         // change radio state to manufacture a PropertiesChanged signal.
     }
+
+    #[test]
+    #[ignore = "requires a selected connected headset and manual power off/on within 60 seconds"]
+    fn live_target_signals_track_disconnect_and_reconnect() {
+        let address = BluetoothAddress::parse(
+            &std::env::var("UGREEN_LIVE_ADDRESS").expect("set UGREEN_LIVE_ADDRESS explicitly"),
+        )
+        .unwrap();
+        let snapshot = host_snapshot().unwrap();
+        assert!(snapshot
+            .devices
+            .iter()
+            .any(|device| { device.address == address && device.connected.is_connected() }));
+        let mut bus = Bus::open().unwrap();
+        // Narrow the production Device1 rule to this address on each adapter.
+        // Subscription success, unrelated traffic and reconnect errors cannot
+        // satisfy the observation flag: only consume() sets it here.
+        for adapter in &snapshot.adapters {
+            let path = format!(
+                "{}/dev_{}",
+                adapter.path,
+                address.as_str().replace(':', "_")
+            );
+            let rule = format!(
+                "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path='{path}',arg0='org.bluez.Device1'"
+            );
+            subscribe(&mut bus, &rule).unwrap();
+        }
+        assert!(!snapshot.adapters.is_empty());
+        bus.stream.set_nonblocking(true).unwrap();
+        eprintln!("Ready: power the selected headset off, then on within 60 seconds.");
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let changed = AtomicBool::new(false);
+        let mut buffer = Vec::new();
+        let mut bytes = [0; 4096];
+        let mut disconnected = false;
+        while Instant::now() < deadline {
+            for _ in 0..16 {
+                match bus.stream.read(&mut bytes) {
+                    Ok(0) => panic!("signal bus closed"),
+                    Ok(count) => {
+                        buffer.extend_from_slice(&bytes[..count]);
+                        consume(&mut buffer, &changed).unwrap();
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(error) => panic!("signal read failed: {error}"),
+                }
+            }
+            if changed.swap(false, Ordering::AcqRel) {
+                let snapshot = host_snapshot().unwrap();
+                let state = snapshot
+                    .devices
+                    .iter()
+                    .find(|device| device.address == address)
+                    .map(|device| device.connected);
+                if state == Some(HostConnectionState::Disconnected) {
+                    disconnected = true;
+                    eprintln!(
+                        "Target signal followed by independently observed disconnected state."
+                    );
+                } else if disconnected && state == Some(HostConnectionState::Connected) {
+                    eprintln!(
+                        "Target signal followed by independently observed reconnected state."
+                    );
+                    return;
+                }
+            }
+            thread::sleep(TICK);
+        }
+        panic!("No signal-backed disconnect/reconnect cycle observed before deadline");
+    }
     fn signal(path: &str, interface: &str, member: &str) -> Vec<u8> {
         let mut bytes = build_method_call(1, path, interface, member, "org.bluez", None).unwrap();
         bytes[1] = 4;

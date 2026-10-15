@@ -169,9 +169,10 @@ pub enum FeatureId {
     OfflineDecode,
     OfflineAnalyze,
     OfflineCandidate,
+    ClosePeer,
 }
 impl FeatureId {
-    pub const ALL: [FeatureId; 31] = [
+    pub const ALL: [FeatureId; 32] = [
         Self::Anc,
         Self::Eq,
         Self::GameMode,
@@ -203,6 +204,7 @@ impl FeatureId {
         Self::OfflineDecode,
         Self::OfflineAnalyze,
         Self::OfflineCandidate,
+        Self::ClosePeer,
     ];
     /// Stable index into the localized name and
     /// description arrays.
@@ -354,6 +356,15 @@ pub const FEATURES: &[FeatureSpec] = &[
         capability: Some(Capabilities::MULTIPOINT_PEERS),
         arguments: &[],
         safety: SafetyLevel::Safe,
+        setting: None,
+    },
+    FeatureSpec {
+        id: FeatureId::ClosePeer,
+        category: FeatureCategory::Multipoint,
+        kind: FeatureKind::DeviceControl,
+        capability: Some(Capabilities::PEER_DISCONNECT),
+        arguments: &[PEER, PEER_MAC],
+        safety: SafetyLevel::Write,
         setting: None,
     },
     FeatureSpec {
@@ -592,7 +603,8 @@ impl FeatureSpec {
     pub fn description(&self, t: &'static L) -> &'static str {
         t.feature_descriptions[self.id.index()]
     }
-    /// True when capture evidence allows a live operation.
+    /// Check the supplied operation-permission set. Historical source/hardware
+    /// provenance is reported independently by historical_evidence().
     pub fn verified(&self, caps: Capabilities) -> bool {
         match self.capability {
             Some(bit) => caps.contains(bit),
@@ -677,6 +689,18 @@ impl FeatureSpec {
                     return Err("sharing needs peer index 1 or 2".into());
                 }
                 Command::SharingPeer {
+                    index,
+                    address: mac(1)?,
+                }
+            }
+            FeatureId::ClosePeer => {
+                let index = value(0)?
+                    .parse::<u8>()
+                    .map_err(|_| "peer index must be 1 or 2")?;
+                if !matches!(index, 1 | 2) {
+                    return Err("peer index must be 1 or 2".into());
+                }
+                Command::ClosePeer {
                     index,
                     address: mac(1)?,
                 }
@@ -767,6 +791,7 @@ pub struct ResultData {
     pub text: String,
     pub info: Option<StudioProState>,
     pub codecs: Option<[(u8, crate::protocol::static_analysis::Codec); 2]>,
+    pub peers: Option<crate::protocol::static_analysis::PeerList>,
     pub reset: bool,
     pub certain: bool,
 }
@@ -860,16 +885,22 @@ impl Operation {
         client: &mut Client<T>,
         cancelled: &dyn Fn() -> bool,
     ) -> io::Result<ResultData> {
-        self.check(Model::StudioPro.capabilities())?;
+        self.check(client.operation_capabilities())?;
         let mut result = ResultData {
             text: String::new(),
             info: None,
             codecs: None,
+            peers: None,
             reset: false,
             certain: true,
         };
         result.text = match self {
-            Self::Peers => format!("Peers: {:?}", client.peers()?),
+            Self::Peers => {
+                let peers = client.peers()?;
+                let count = peers.slots.iter().flatten().count();
+                result.peers = Some(peers);
+                format!("Peer query completed: {count} connected devices")
+            }
             Self::Codec => {
                 let codecs = client.codecs()?;
                 result.codecs = Some(codecs);
@@ -887,7 +918,7 @@ impl Operation {
                 result.certain = false;
                 "Host playback completed; stop sent; device state unconfirmed. Refresh before further writes.".into()
             }
-            Self::Control(command) => match client.control(command)? {
+            Self::Control(command) => match client.control_cancellable(command, cancelled)? {
                 ControlOutcome::Readback(info) => {
                     result.info = Some(info);
                     "Control verified by device-info readback".into()
@@ -912,6 +943,7 @@ fn command_id(command: &Command) -> Option<FeatureId> {
         Command::Ldac { peer: None, .. } => Some(FeatureId::LdacToggle),
         Command::Ldac { peer: Some(_), .. } => Some(FeatureId::LdacPeerToggle),
         Command::HighQualityDecoding(_) => Some(FeatureId::HighQualityDecoding),
+        Command::ClosePeer { .. } => Some(FeatureId::ClosePeer),
         Command::Volume(_) => Some(FeatureId::VolumeCommand),
         Command::Stereo(_) => Some(FeatureId::ChannelMode),
         Command::Buttons(_) => Some(FeatureId::ButtonMapping),

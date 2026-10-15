@@ -1,5 +1,5 @@
 //! Headset multipoint: the verified dual-device toggle and the peer
-//! list of phones/PCs attached to the headset itself (scaffolding).
+//! list of phones/PCs attached to the headset itself.
 //!
 //! Multipoint peers live inside the headset. They are neither paired
 //! host devices ([`crate::bluetooth::HostHeadset`]) nor this
@@ -17,23 +17,21 @@
 //!   nothing about a peer-management protocol. The capability bits
 //!   ([`Capabilities::MULTIPOINT_PEERS`],
 //!   [`Capabilities::PEER_DISCONNECT`], [`Capabilities::PEER_RECONNECT`],
-//!   [`Capabilities::PEER_SWITCH`]) stay unset, every operation fails
-//!   with [`UnsupportedFeature`] before any bytes are written, and the
-//!   `peers` subcommand refuses before opening a connection.
+//!   [`Capabilities::PEER_SWITCH`]) stay unset in verified metadata. Normal
+//!   execution permits peer queries and targeted dual-close through the supported
+//!   operation set with firmware preflight; independent disconnect/reconnect/switch
+//!   methods still refuse.
 
 use crate::{bluetooth::BluetoothAddress, models::Capabilities, settings::StudioProState};
 use std::{error::Error, fmt, io};
 
 /// One multipoint peer slot of the headset.
 ///
-/// The shape exists so a future verified capture has a place to land.
-/// The client constructs this view only after the peer-query capability
-/// has been promoted by official-app capture evidence. The separate
-/// static parser can interpret offline bytes without that promotion.
+/// The client constructs this view from a complete device query. The separate
+/// static parser can interpret offline bytes without granting live permission.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MultipointPeer {
-    /// Peer address as the headset reports it once a verified parser
-    /// exists.
+    /// Peer address as reported by the headset.
     pub address: BluetoothAddress,
     /// Link state as the headset reports it.
     pub connected: bool,
@@ -48,16 +46,15 @@ pub struct MultipointState {
     /// device info has not been read this session, or when the firmware
     /// answered with an out-of-range byte.
     pub dual: Option<bool>,
-    /// Peer list. Stays `None` because the query itself is unverified;
-    /// when a verified query exists, `Some(vec![])` will mean "queried,
-    /// no peers" — a different answer from "never asked".
+    /// Peer list. `Some(vec![])` means explicitly queried with no peers;
+    /// `None` means no complete observation. Core device info cannot supply it.
     pub peers: Option<Vec<MultipointPeer>>,
 }
 
 impl MultipointState {
     /// Dual toggle derived from an already-parsed device-info payload.
     /// The peer list is always left unknown: device info does not carry
-    /// it and no verified query exists.
+    /// it; a separate complete peer query is required.
     pub fn from_device_info(info: &StudioProState) -> Self {
         Self {
             dual: info.value("dual").map(|value| value == "on"),

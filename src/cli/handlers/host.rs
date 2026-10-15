@@ -38,6 +38,7 @@ pub fn capabilities(invocation: &Invocation) -> Result<(), String> {
         "evidence_status":spec.historical_evidence().as_str(),
         "verified_firmware":if spec.historical_evidence()==crate::models::EvidenceStatus::Verified {Some(crate::models::studio_pro::VERIFIED_FIRMWARE)} else {None},
         "operation_authorized":false,
+        "available_after_firmware_preflight": spec.capability.is_some_and(|bit| crate::models::supported_capabilities().contains(bit)),
         "required_capability":spec.capability,
         "execution_scope":if spec.kind==crate::features::FeatureKind::OfflineAnalysis {"offline"} else {"headset"},
     })).collect();

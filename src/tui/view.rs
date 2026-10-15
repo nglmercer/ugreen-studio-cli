@@ -7,7 +7,6 @@ use crate::{
     bluetooth::HostConnectionState,
     features::{lookup, FeatureKind, FeatureSpec, SafetyLevel},
     i18n::{Lang, L},
-    models::{Capabilities, Model},
     settings,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};

@@ -173,13 +173,38 @@ pub fn capabilities_for(model: Option<Model>, firmware: Option<&str>) -> Capabil
         _ => Capabilities::new(),
     }
 }
+/// Implemented operation set for Studio Pro firmware 0.2.5. Source provenance
+/// remains separate from historical hardware evidence in capabilities_for().
+pub fn supported_capabilities() -> Capabilities {
+    let verified = Model::StudioPro.capabilities().bits();
+    let apk = Capabilities::PEER_DISCONNECT
+        | Capabilities::MULTIPOINT_PEERS
+        | Capabilities::CODEC_STATUS
+        | Capabilities::HEADPHONE_ID
+        | Capabilities::HEADPHONE_COLOR
+        | Capabilities::BOX_MAC
+        | Capabilities::BUTTONS
+        | Capabilities::AI_ACTIONS
+        | Capabilities::AI_CONTROL
+        | Capabilities::LDAC
+        | Capabilities::LDAC_PEER
+        | Capabilities::VOLUME
+        | Capabilities::CHANNEL_MODE
+        | Capabilities::AUDIO_SHARING
+        | Capabilities::AUDIO_SHARING_PEER
+        | Capabilities::AUDIO_SHARING_SINGLE;
+    // Reset and Finder are not implemented for the supported model. The scalar 0x1E
+    // hypothesis and unestablished reconnect/switch commands remain excluded.
+    Capabilities::from_bits(verified | apk)
+}
+
 pub fn require_verified_firmware(
     model: Option<Model>,
     firmware: Option<&str>,
 ) -> std::io::Result<()> {
     if capabilities_for(model, firmware).bits() == 0 {
         Err(std::io::Error::new(std::io::ErrorKind::Unsupported,
-            "setting writes require confirmed Studio Pro firmware 0.2.5; unknown firmware has no write evidence"))
+            "device operations require confirmed Studio Pro firmware 0.2.5; unknown firmware is not authorized"))
     } else {
         Ok(())
     }
@@ -187,6 +212,32 @@ pub fn require_verified_firmware(
 #[cfg(test)]
 mod firmware_evidence_tests {
     use super::*;
+    #[test]
+    fn implemented_operations_preserve_hardware_provenance() {
+        let normal = Model::StudioPro.capabilities();
+        let implemented = supported_capabilities();
+        assert_eq!(normal, Model::StudioPro.capabilities());
+        for bit in [
+            Capabilities::MULTIPOINT_PEERS,
+            Capabilities::CODEC_STATUS,
+            Capabilities::LDAC_PEER,
+            Capabilities::PEER_DISCONNECT,
+        ] {
+            assert!(!normal.contains(bit));
+            assert!(implemented.contains(bit));
+            assert!(!capabilities_for(Some(Model::StudioPro), Some("0.2.5")).contains(bit));
+        }
+        for bit in [
+            Capabilities::FACTORY_RESET,
+            Capabilities::FIND_LEFT,
+            Capabilities::FIND_RIGHT,
+            Capabilities::PEER_RECONNECT,
+            Capabilities::PEER_SWITCH,
+            Capabilities::HIGH_QUALITY_DECODING,
+        ] {
+            assert!(!implemented.contains(bit));
+        }
+    }
     #[test]
     fn unknown_model_firmware_and_absent_evidence_never_grant_writes() {
         for model in [None, Some(Model::StudioPro)] {

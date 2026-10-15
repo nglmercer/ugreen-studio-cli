@@ -103,7 +103,11 @@ impl App {
             2 => Intent::None,
             3 => {
                 self.observation_view = Some(ObservationView::Multipoint);
-                Intent::None
+                if self.control_state.is_connected() {
+                    self.submit_feature(crate::features::Operation::Peers)
+                } else {
+                    Intent::None
+                }
             }
             4 => {
                 self.open_features();

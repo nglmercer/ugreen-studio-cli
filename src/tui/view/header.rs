@@ -15,27 +15,24 @@ pub(super) fn render(frame: &mut Frame<'_>, regions: &Regions, app: &App) {
             });
             format!("Codecs (last query): {}/{}", names[0], names[1])
         })
-        .unwrap_or_else(|| {
-            if !Model::StudioPro
-                .capabilities()
-                .contains(Capabilities::CODEC_STATUS)
-            {
-                t.codec_unverified.into()
-            } else {
-                t.codec_line.into()
-            }
-        });
+        .unwrap_or_else(|| t.codec_line.into());
     let codec_line = match &app.audio {
         Some(observations) if !observations.is_empty() => format!(
             "{} | {}",
             observations
                 .iter()
                 .map(|status| format!(
-                    "{}: {:?}/{:?} {:?} ({}s)",
+                    "{}: {}/{} {} ({}s)",
                     t.host_commands[0],
-                    status.profile,
-                    status.codec,
-                    status.activity,
+                    status.profile.label(),
+                    clean(
+                        status
+                            .codec
+                            .as_ref()
+                            .map(|codec| codec.label())
+                            .unwrap_or(t.unknown)
+                    ),
+                    status.activity.label(),
                     status.observed_at.elapsed().unwrap_or_default().as_secs()
                 ))
                 .collect::<Vec<_>>()

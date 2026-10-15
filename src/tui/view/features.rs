@@ -39,8 +39,12 @@ pub(super) fn render_features(frame: &mut Frame<'_>, area: Rect, regions: &Regio
         t.features_title
     };
     let list = app.feature_list();
-    let caps = Model::StudioPro.capabilities();
+    let caps = app.operation_capabilities();
     let mut lines = Vec::new();
+    if list.is_empty() {
+        lines.push(Line::raw(t.device_ui[4]));
+        lines.push(Line::raw(format!("F6 {}", t.navigation[5])));
+    }
     let label_width = list
         .iter()
         .map(|spec| Line::from(spec.name(t)).width())
@@ -134,7 +138,7 @@ pub(super) fn feature_detail_lines(
     width: usize,
 ) -> Vec<Line<'static>> {
     let t = app.t();
-    let caps = Model::StudioPro.capabilities();
+    let caps = app.operation_capabilities();
     let verified = spec.verified(caps);
     let muted = Style::default().fg(MUTED);
     let mut lines: Vec<Line> = vec![

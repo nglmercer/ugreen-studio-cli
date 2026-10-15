@@ -263,10 +263,9 @@ additional battery values remain unknown pending longer-frame captures.
 Reserved instructions, the other chipset dialect, custom EQ and firmware
 updates have no candidate command interface.
 
-Live operations for these static findings remain gated until official-app
-captures satisfy the report's verification requirement. Per-peer
-connection control remains unsupported because no corresponding frame
-was found.
+Implemented APK-derived operations are available normally after exact firmware
+preflight. Offline interpretation still grants no permission to invent packets;
+independent reconnect/switch, reset and Finder remain unavailable.
 
 ### Candidate packets
 
@@ -306,18 +305,20 @@ tap/double/triple/long. AI actions take four values in tap/double/triple/long
 order. Reserved action 10 is rejected. `sharing single` builds the
 single-peer sentinel; explicit sharing takes peer index 1 or 2 and a MAC.
 MAC-bound LDAC disable emits six zero MAC bytes as the app does.
+MAC-bound LDAC uses candidate instruction `0x1E`; the plain toggle uses `0x0B`.
+The separate one-byte `high-quality` candidate remains a hypothesis from
+constants, without a demonstrated send site in the reviewed codec page.
 
-### Capture-gated queries
+### Device queries
 
 `peers`, `codec`, `id`, `color` and `box-mac` have client and CLI
-implementations. Each checks its model capability before connecting or
-sending anything. All five currently refuse with an unverified-feature
-error because official-app hardware captures are missing. Use `candidate`
-to inspect their request frames and `analyze` to inspect captured replies.
+implementations. Each requires an explicit model/address and a successful
+firmware preflight before its query. Use `candidate` to inspect request frames
+and `analyze` to inspect recorded replies.
 `--dry-run` directs users to `candidate` rather than implying a verified query.
 
-After capture-backed promotion, `peers` will query all headset peer slots
-and print each slot's name and address. Names are escaped for terminal
+By default, `peers` queries all headset peer slots
+and prints each slot's name and address. Names are escaped for terminal
 safety. A timeout before an explicit empty list, single-peer absence flag,
 or two populated slots fails the query rather than claiming completion.
 Codec output preserves both type/code pairs and unknown codec values.
@@ -329,13 +330,58 @@ is incomplete; it never implies that the other peer is absent. Explicit
 clear/single-peer absence or both populated slots establish completion
 within the supplied capture only. This remains a static interpretation.
 
-### Capture-gated controls
+### Supported device operations
+
+These operations are part of the normal CLI and TUI. No opt-in mode is required.
+Select the Studio Pro model and target address; a real firmware `0.2.5` response
+is required before the operation packet. Unknown firmware remains blocked.
+The legacy `--experimental` option is accepted as a compatibility no-op.
+
+| Operation | CLI command after address/model options |
+|---|---|
+| Headset-connected peers | `peers` (also supports `--json`) |
+| Codec / ID / color / box MAC | `codec`, `id`, `color`, `box-mac` |
+| LDAC preference | `control ldac on` / `control ldac off` |
+| MAC-bound LDAC | `control ldac on MAC` / `control ldac off MAC` |
+| Buttons / AI actions | `control buttons A,A,A,A,A,A,A,A` / `control ai-actions A,A,A,A` |
+| AI state | `control ai-control on` / `control ai-control off` |
+| Volume / channels | `control volume BYTE` / `control channel mono` / `control channel stereo` |
+| Sharing | `control sharing off` / `control sharing single` / `control sharing INDEX MAC` |
+| Targeted close + dual off | `control close-peer INDEX MAC` |
+
+`--dry-run control ...` remains offline. Action values include 12 (AI dialogue),
+13 (AI chat) and 14 (AI recording); the device must acknowledge/read back the
+requested control before success is reported. Support in app source is distinct
+from independent hardware verification; see [release readiness](release-readiness.md).
+
+```sh
+ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro peers
+ugreen --json --address AA:BB:CC:DD:EE:FF --model studio-pro peers
+ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro control close-peer 2 01:02:03:04:05:06
+ugreen tui
+```
+
+Peer JSON contains `complete`, `evidence_source` and the connected slots. It does
+not substitute host pairing records. An incomplete query fails rather than
+inventing an empty list. In the TUI, `P` queries peers, `r` repeats the query,
+`R` refreshes core status and `1`/`2` opens a targeted-close review. New queries,
+writes and session/target changes invalidate old peer data.
+
+Targeted close validates a fresh slot/MAC match, disables dual mode and verifies
+the selected MAC is absent. Closing the current host may also close control;
+connection loss remains an uncertain outcome and is never automatically retried.
+Independent disconnect while preserving dual mode, reconnect and active-peer
+switching have no established packet mapping. Reset and Finder are unavailable.
+Normal feature categories list implemented operations; Research contains offline
+analysis and unsupported features with their reasons.
+
+### Control execution
 
 `ugreen [OPTIONS] control OP [ARGS]` accepts the control forms listed
 under `candidate`: finder, buttons, AI actions, LDAC, high-quality,
 volume, channel, AI control, sharing and factory reset. Query forms are
-rejected. Every live control currently refuses before connecting because
-its official-app capture gate is unset. `--dry-run control ...` prints
+rejected. Implemented controls use the firmware-checked path above; unsupported
+controls refuse before connecting. `--dry-run control ...` prints
 an explicitly unverified candidate and never opens Bluetooth.
 
 After capture-backed promotion, the executor checks echoed values before
@@ -441,9 +487,8 @@ open a live form. `F` opens the workspace; Esc backs out of narrow details befor
 closing it. The historical free-text feature panel has been replaced by those
 forms; the library compatibility parser remains available for offline callers.
 
-`F` lists historically supported controls and offline tools. Protocol candidates
-are kept in the Experimental Features page (`v`), with their explanations and
-live-operation guards intact. Search and category tabs apply within each page.
+`F` lists implemented controls. Unavailable operations and offline tools
+are kept in the Research page (`v`), with their explanations. Search and category tabs apply within each page.
 Browsing a historically supported control does not authorize a write: the live
 session must still pass model and firmware checks.
 
@@ -459,7 +504,7 @@ once per second while idle). A five-second refresh fallback remains active if
 signals are unavailable. Listener failures retry with bounded backoff; signals
 never stand in for exact-address enumeration or headset peer discovery.
 
-Use `v` to select Devices, Audio, Headset Settings, Multipoint, Experimental Features
+Use `v` to select Devices, Audio, Headset Settings, Multipoint, Research
 or Diagnostics. `A` opens Audio and `D` opens Diagnostics; Up/Down scroll, `r`
 refreshes and Esc cancels a pending refresh or returns. Diagnostic schema field
 names remain stable technical identifiers. Doctor reports adapter power and read
@@ -470,13 +515,13 @@ debugfs. An absent socket observation does not prove the channel is free.
 
 Press `P` on the main screen or choose Multipoint in the `v` page selector.
 This view shows the independently observed dual-device toggle and its read age.
-The peer count and identities remain unknown until HP206 instruction `0x0D` is
-physically verified for the selected firmware. `r` refreshes device status and the dual-device toggle over an existing control
-connection without sending the candidate peer query; `d` opens the existing dual-device setting without
-changing it. Host paired devices never fill this list. Remote peer disconnect,
-reconnect and switch remain unsupported; `p` then `h`/`H` only controls this PC's
-host link. See the [capture workflow](reverse-engineering.md) for the evidence
-needed to enable headset peer discovery.
+Opening the page queries peer names, MACs and slots over an existing control
+connection after firmware preflight. `r` refreshes peers; `R` refreshes core status.
+`d` opens the dual-device setting. `1`/`2` review targeted close for a current slot;
+confirmation validates its MAC again and also disables dual mode. Host paired
+devices never fill this list. Independent peer disconnect, reconnect and switch
+remain unsupported; `p` then `h`/`H` only controls this PC's host link.
+
 
 
 A terminal transport failure (EOF, reset, broken pipe or disconnected socket)

@@ -2,10 +2,7 @@
 //! Historical evidence determines where a feature is discoverable; the worker
 //! still checks the connected model and firmware before any live operation.
 use super::state::App;
-use crate::{
-    features::{self, FeatureSpec},
-    models::Model,
-};
+use crate::features::{self, FeatureSpec};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum FeatureScope {
@@ -14,7 +11,8 @@ pub(super) enum FeatureScope {
 }
 impl FeatureScope {
     fn includes(self, spec: &FeatureSpec) -> bool {
-        let supported = spec.verified(Model::StudioPro.capabilities());
+        let supported = spec.kind != features::FeatureKind::OfflineAnalysis
+            && spec.verified(crate::models::supported_capabilities());
         match self {
             Self::Everyday => supported,
             Self::Research => !supported,

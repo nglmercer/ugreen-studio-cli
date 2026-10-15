@@ -4,6 +4,17 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.device_ui = [
+        "Device features",
+        "Available",
+        "Unavailable",
+        "P: connected devices",
+        "No matching features. Change category or search.",
+        "Requires Studio Pro firmware 0.2.5.",
+        "任意のソケット一覧",
+        "利用不可。制御接続は妨げません",
+        "利用可能な制御機能",
+    ];
     l.cli_json_unsupported = "このコマンドは --json に対応していません。";
     l.status_applying_noack =
         "事前確認後に {}={} を適用し、読み戻しを検証します（空間オーディオは確認応答なし）...";
@@ -320,6 +331,7 @@ pub fn catalog() -> L {
         "キャプチャデコーダー",
         "キャプチャ分析",
         "パケットのプレビュー",
+        "機器を切断してデュアル接続をオフ",
     ];
     l.feature_descriptions = [
         "アクティブノイズキャンセリングの深さ。検証済みの設定です。設定画面で編集してください。",
@@ -353,6 +365,7 @@ pub fn catalog() -> L {
         "キャプチャした応答バイトをオフラインでデコードします。Bluetooth アクセスはありません。",
         "完全なキャプチャストリームをオフラインで解釈します。Bluetooth アクセスはありません。",
         "制御が送信する静的パケットを表示します。送信されることはありません。",
+        "選択した機器を切断しデュアル接続をオフにします。実験機能です。最新の照会でスロットと MAC を確認してください。",
     ];
     l.feature_available = "利用可能";
     l.feature_pending = "検証待ち";
@@ -444,5 +457,6 @@ pub fn catalog() -> L {
         "リセットを確認しました。ホストのペアリングと保存済みデバイスを削除しました。";
     l.status_inflight_write =
         "実行中の書き込みが完了した可能性があります。再起動後に更新してください。";
+    l.page_labels[4] = l.navigation[5];
     l
 }

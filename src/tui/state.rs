@@ -40,7 +40,7 @@ pub(super) fn feature_tab_labels(t: &L) -> Vec<&'static str> {
     labels.extend(t.feature_categories.iter().copied());
     labels
 }
-/// App-settings rows: language, channel, timeout, target.
+/// App-settings rows: language, channel, timeout and target.
 const OPTIONS: usize = 4;
 fn fill(template: &str, args: &[&dyn std::fmt::Display]) -> String {
     let mut out = template.to_owned();
@@ -94,6 +94,7 @@ pub(super) struct App {
     pub lang: Lang,
     pub address: String,
     pub model_confirmed: bool,
+    pub peers: Option<crate::protocol::static_analysis::PeerList>,
     pub channel: u8,
     pub timeout_seconds: u64,
     /// Application RFCOMM state, independent of the last OS observation.
@@ -167,6 +168,7 @@ impl App {
             lang: config.lang,
             address: config.address.clone().unwrap_or_default(),
             model_confirmed: config.model_confirmed,
+            peers: None,
             channel: config.channel,
             timeout_seconds: config.timeout.as_secs(),
             control_state: crate::bluetooth::ControlSessionState::Disconnected,
@@ -217,6 +219,9 @@ impl App {
             skip_autoload: config.skip_autoload,
             autoconnect: config.autoconnect,
         }
+    }
+    pub(super) fn operation_capabilities(&self) -> crate::models::Capabilities {
+        crate::models::supported_capabilities()
     }
     pub fn t(&self) -> &'static L {
         crate::i18n::txt(self.lang)
@@ -358,8 +363,15 @@ impl App {
         if matches!(action, Action::Refresh | Action::Set(_)) || action.is_write() {
             self.stale = true;
         }
+        if matches!(
+            action,
+            Action::Feature(Operation::Peers) | Action::Connect { .. }
+        ) {
+            self.peers = None;
+        }
         if action.is_write() {
             self.codecs = None;
+            self.peers = None;
         }
         self.busy = Some((id, action));
     }
@@ -476,6 +488,9 @@ impl App {
                 );
             }
             Ok(Output::Feature(result)) => {
+                if let Some(peers) = result.peers {
+                    self.peers = Some(peers);
+                }
                 if let Some(codecs) = result.codecs {
                     self.codecs = Some(codecs);
                 }
@@ -528,6 +543,7 @@ impl App {
         self.info = None;
         self.firmware = None;
         self.codecs = None;
+        self.peers = None;
         self.observed_at = None;
         self.proposals = Default::default();
         self.stale = false;
@@ -902,6 +918,27 @@ impl App {
                 KeyCode::Down => {
                     self.observation_scroll = self.observation_scroll.saturating_add(1).min(4096)
                 }
+                KeyCode::Char(slot @ ('1' | '2')) if view == ObservationView::Multipoint => {
+                    if self.busy.is_some() {
+                        return Intent::None;
+                    }
+                    let index = slot as usize - '1' as usize;
+                    if let Some(peer) = self.peers.as_ref().and_then(|p| p.slots[index].as_ref()) {
+                        let form = FeatureForm {
+                            id: FeatureId::ClosePeer,
+                            drafts: vec![
+                                Some(peer.index.to_string()),
+                                Some(peer.address.to_string()),
+                            ],
+                            field: 0,
+                        };
+                        self.observation_view = None;
+                        self.features = true;
+                        self.feature_scope = super::workspace::FeatureScope::Research;
+                        self.review = Some(Review::Feature { form });
+                    }
+                    return Intent::None;
+                }
                 KeyCode::Char('d') if view == ObservationView::Multipoint => {
                     self.observation_view = None;
                     self.route = super::routing::Route::Settings;
@@ -909,12 +946,18 @@ impl App {
                     return Intent::None;
                 }
                 KeyCode::Home => self.observation_scroll = 0,
+                KeyCode::Char('R') if view == ObservationView::Multipoint => {
+                    if self.busy.is_none() && self.worker_alive && self.control_state.is_connected()
+                    {
+                        return Intent::Request(Action::Refresh);
+                    }
+                }
                 KeyCode::Char('r') if view == ObservationView::Multipoint => {
                     if self.busy.is_some() || !self.worker_alive {
                         return Intent::None;
                     }
                     if self.control_state.is_connected() {
-                        return Intent::Request(Action::Refresh);
+                        return self.submit_feature(Operation::Peers);
                     }
                     self.status = self.t().status_must_connect.into();
                 }

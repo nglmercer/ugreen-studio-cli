@@ -22,6 +22,16 @@ The historical `Model::capabilities()` is model metadata; use
 low-level `Client::request`, `send` and `set` APIs retain compatibility and require
 caller-managed identity/evidence; they are not safe automatic model detection.
 
+## Current operation availability
+
+Implemented operations are enabled by default for explicitly selected Studio Pro
+firmware 0.2.5. Normal categories include queries, mapped controls and targeted
+dual-close. The historical classifications below describe evidence provenance,
+not a runtime mode switch. Earlier refusal descriptions are superseded for the
+implemented set by [normal device operations](usage.md#supported-device-operations).
+Unsupported reset, Finder and independent reconnect/switch remain excluded.
+See [release readiness](release-readiness.md) for the outstanding completion gates.
+
 ## Inventory
 
 | Feature / operation | Platform | Implementation | Evidence | Provenance / firmware | CLI / TUI | Coverage / limitation |
@@ -44,7 +54,7 @@ caller-managed identity/evidence; they are not safe automatic model detection.
 | Audio sink selection inventory | Linux | tested_mock | unsupported | PipeWire Audio/Sink node names | audio devices, audio-devices | Explicit output name; no default routing fallback; playback preview pending |
 | Audio output inventory / playback | Windows | tested_mock | unsupported | Existing waveOut backend; native validation absent | audio devices, audio-devices / feature form | No audio playback claim |
 | Multipoint list 0x0D | Both | tested_mock | static_candidate | APK hypotheses and synthetic peers; firmware unknown | peers refuses / P Headset Connections | Zero/list completion, fragmentation, CRC, notifications, timeout, parser bounds and dedicated translated page; never substitutes host list |
-| Remote peer disconnect/reconnect/switch | Both | implemented | unsupported | No established independent classic commands | Disabled | Zero-byte refusal; host action scope remains explicit |
+| Remote peer disconnect/reconnect/switch | Both | implemented | unsupported | Static targeted dual-close `0x06 [0,index,mac×6]`; no hardware proof or independent reconnect/switch mapping | Disabled | Zero-byte refusal; one-byte dual toggle grants no extended payload authority; see [APK audit](apk-analysis-2026-10-15.md) |
 | Vendor codec 0x0F, acoustics_code | Both | tested_mock | static_candidate | APK/synthetic layout; firmware unknown | codec refuses, candidate / workspace | Independent of OS codec; no physical capture |
 | ID, color, Box MAC queries | Both | tested_mock | static_candidate | APK/synthetic layout; firmware unknown | id, color, box-mac refuse / workspace | Before-I/O gates and strict parsers |
 | LDAC preference, peer LDAC, high-quality decoding | Both | tested_mock | static_candidate | APK/synthetic layout; firmware unknown | control refuses, candidate / forms | Independent bits, ack/readback scaffolding; never promises negotiation |

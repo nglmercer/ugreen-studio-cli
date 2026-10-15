@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "kind": "experimental_cli_read_observation",
+  "started_at": "2026-10-15T11:48:43.475502+00:00",
+  "finished_at": "2026-10-15T11:48:46.743019+00:00",
+  "platform": "Linux",
+  "model": "studio-pro",
+  "model_source": "user_selected",
+  "physical_retail_label_inspected": false,
+  "experimental": true,
+  "binary_sha256": "15bf28842a283b57fc6c89d4fb1eb923c4191e67ae4f94229750318835d47811",
+  "target_address": "redacted",
+  "controls_executed": false,
+  "capabilities_promoted": false,
+  "official_app_capture": false,
+  "raw_protocol_frames_recorded": false,
+  "private_observation_sha256": "12d63aabb01d59da8cb6fac09153153eba7ae807a7350e27bee11c2376071e59",
+  "exit_codes": {
+    "status": 0,
+    "peers": 0,
+    "codec": 0
+  },
+  "observed_firmware": "0.2.5",
+  "peer_query": {
+    "complete": true,
+    "peers": [
+      {
+        "index": 1,
+        "connected": true,
+        "address": "redacted",
+        "name": "redacted"
+      }
+    ]
+  },
+  "codec_query_output": "codecs=[(1, Sbc), (2, Sbc)]"
+}

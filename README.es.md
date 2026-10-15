@@ -83,14 +83,34 @@ Las opciones van antes del comando. `--channel` acepta 1–30, con 1 por defecto
 
 Los perfiles son archivos UTF-8 con líneas `clave=valor`, de hasta 16 KiB y con `model=studio-pro` obligatorio. Admiten líneas vacías y comentarios que ocupan toda la línea y empiezan por `#`. Las claves duplicadas o desconocidas y los valores inválidos se rechazan antes de acceder a Bluetooth. Los ajustes se aplican secuencialmente y **pueden aplicarse solo en parte**; no hay reversión automática. La [guía de perfiles](docs/usage.md#profiles) incluye las precauciones de codificación para Windows.
 
+## Funciones del dispositivo
+
+La consulta de dispositivos, códec, ID, color y MAC del estuche, LDAC, volumen,
+canales, botones, IA, audio compartido y cierre dirigido están disponibles en
+la CLI y la TUI normales. No se necesita activar otro modo. Selecciona Studio Pro
+y conecta; se comprueba el firmware `0.2.5` antes de ejecutar las operaciones.
+
+```sh
+ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro peers
+ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro codec
+ugreen tui
+```
+
+Pulsa `P` para ver los dispositivos conectados al auricular o abre la categoría
+Multipunto. Cerrar un dispositivo también desactiva el modo dual y requiere una
+confirmación en la TUI. Restablecer, localizar por sonido y reconectar/cambiar
+el dispositivo activo siguen sin estar disponibles. Consulta la
+[lista de operaciones](docs/usage.md#supported-device-operations) y el
+[estado de la entrega](docs/release-readiness.md).
+
 ## Seguridad y límites
 
 - Las solicitudes al dispositivo requieren una dirección y la selección explícita del protocolo Studio Pro. Seleccionar el modelo no verifica la identidad física
 - `discover` consulta dispositivos ya emparejados. No realiza búsquedas activas, emparejamientos ni elección automática de destino; la TUI solo se reconecta a tu último dispositivo confirmado (activado por defecto, `--no-autoconnect` lo desactiva) y nunca elige un dispositivo desconocido
-- La gestión multipunto (lista, desconexión, reconexión y cambio de dispositivo activo) se rechaza antes de enviar ningún byte hasta existir una captura verificada; la conmutación dual es un ajuste distinto y verificado
+- La consulta multipunto y el cierre dirigido están disponibles normalmente. El cierre también desactiva el modo dual; reconectar y cambiar el dispositivo activo siguen sin estar disponibles
 - Antes de escribir se consulta la información del dispositivo; solo se anuncia éxito cuando la lectura posterior coincide
 - No se reintentan escrituras automáticamente. Un tiempo de espera agotado puede indicar que el ajuste cambió, pero se perdió la respuesta; consulta el estado antes de repetir
-- No hay actualización de firmware, restablecimiento de fábrica, envío de bytes arbitrarios, sonido de localización, cambio del volumen real ni reasignación del botón ANC
+- No hay actualización de firmware, restablecimiento de fábrica, envío de bytes arbitrarios ni localización por sonido. Los controles de volumen y botones usan la comprobación normal de firmware
 - Sin telemetría, servicio de red, cuenta ni credenciales guardadas; el control es local mediante Bluetooth
 
 Una aplicación del móvil puede ocupar el canal de control RFCOMM. Cierra esa sesión antes de reintentar; un error no justifica restablecer ni desemparejar los auriculares. Lee la [guía de problemas](docs/troubleshooting.md) antes de repetir escrituras.

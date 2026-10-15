@@ -5,6 +5,7 @@ use super::{
     worker::{Action, Backend, Engine, Output, Reply, Request, Session, Snapshot, Worker},
     Config,
 };
+use crate::features::Operation;
 use crate::{
     bluetooth::{BluetoothAddress, HostConnectionState, HostHeadset},
     models::Model,
@@ -525,7 +526,7 @@ fn default_render_truthfully_shows_missing_data() {
     assert!(text.contains("Bluetooth: UNKNOWN"));
     assert!(text.contains("Control:   DISCONNECTED"));
     assert!(text.contains("Battery: unavailable"));
-    assert!(text.contains("query not verified"));
+    assert!(text.contains("Codec: not detected"));
 }
 #[test]
 fn paired_rows_show_link_state_and_confirmed_model() {
@@ -1007,7 +1008,7 @@ impl Backend for FakeBackend {
             .lock()
             .unwrap()
             .feature_caps
-            .unwrap_or_else(|| Model::StudioPro.capabilities())
+            .unwrap_or_else(crate::models::supported_capabilities)
     }
     fn reset_cleanup(&mut self, address: &BluetoothAddress) -> io::Result<()> {
         let mut s = self.0.lock().unwrap();
@@ -1062,6 +1063,7 @@ impl Session for FakeSession {
             } else {
                 None
             },
+            peers: None,
             reset: op.is_reset(),
             certain,
         })
@@ -1552,7 +1554,7 @@ fn feature_workspace_gates_candidates_before_worker_submission() {
     app.feature_index = app
         .feature_list()
         .iter()
-        .position(|spec| spec.id == crate::features::FeatureId::LdacToggle)
+        .position(|spec| spec.id == crate::features::FeatureId::FactoryReset)
         .unwrap();
     assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
     assert!(app.feature_form.is_none());
@@ -1619,6 +1621,7 @@ fn feature_worker_gates_before_preflight_and_blocks_uncertain_outcomes() {
     use crate::features::Operation;
     use crate::models::Capabilities as C;
     let (mut engine, state) = connected_engine();
+    state.lock().unwrap().feature_caps = Some(Model::StudioPro.capabilities());
     let op = Operation::parse("control volume 8").unwrap();
     assert!(engine
         .execute(request(Action::Feature(op.clone())))
@@ -1714,6 +1717,7 @@ fn feature_panel_busy_escape_cancels_and_results_follow_request_ids() {
             text: "stale".into(),
             codecs: None,
             info: None,
+            peers: None,
             reset: false,
             certain: true,
         })),
@@ -1727,6 +1731,7 @@ fn feature_panel_busy_escape_cancels_and_results_follow_request_ids() {
             text: "Peer phone".into(),
             codecs: None,
             info: None,
+            peers: None,
             reset: false,
             certain: true,
         })),
@@ -1804,6 +1809,7 @@ fn codec_query_result_updates_header_and_writes_invalidate_it() {
             text: "Codecs queried".into(),
             info: None,
             codecs: Some([(1, Codec::Sbc), (2, Codec::Ldac)]),
+            peers: None,
             reset: false,
             certain: true,
         })),
@@ -1988,19 +1994,22 @@ fn observation_pages_render_small_terminals_and_cancel_refresh() {
 }
 
 #[test]
-fn headset_connections_never_substitute_host_devices_or_send_candidate_query() {
+fn headset_connections_query_headset_and_never_substitute_host_devices() {
     use super::state::ObservationView;
     let mut app = ready();
-    assert!(matches!(app.key(key(KeyCode::Char('P'))), Intent::None));
+    assert!(matches!(
+        app.key(key(KeyCode::Char('P'))),
+        Intent::Request(Action::Feature(Operation::Peers))
+    ));
     assert_eq!(app.observation_view, Some(ObservationView::Multipoint));
     app.paired = Some(vec![device("00:11:22:33:44:55", "HOST_ONLY_SECRET")]);
     let text = render(&app, 100, 30);
     assert!(text.contains("Headset connections"));
-    assert!(text.contains("No query was sent"));
+    assert!(text.contains("Connected devices"));
     assert!(!text.contains("HOST_ONLY_SECRET"));
     assert!(matches!(
         app.key(key(KeyCode::Char('r'))),
-        Intent::Request(Action::Refresh)
+        Intent::Request(Action::Feature(Operation::Peers))
     ));
     assert!(matches!(app.key(key(KeyCode::Char('d'))), Intent::None));
     assert_eq!(settings::KEYS[app.selected], "dual");
@@ -2064,20 +2073,21 @@ fn multipoint_page_does_not_accept_stale_audio_or_doctor_replies() {
 
 #[test]
 fn everyday_and_research_browsers_partition_the_registry() {
-    use crate::{features::FEATURES, models::Model};
+    use crate::features::FEATURES;
     let mut app = ready();
     app.open_features();
     let everyday = app.feature_list();
     assert!(!everyday.is_empty());
     assert!(everyday
         .iter()
-        .all(|spec| spec.verified(Model::StudioPro.capabilities())));
+        .all(|spec| spec.verified(crate::models::supported_capabilities())));
     app.open_page(4);
     let research = app.feature_list();
     assert!(!research.is_empty());
-    assert!(research
-        .iter()
-        .all(|spec| !spec.verified(Model::StudioPro.capabilities())));
+    assert!(research.iter().all(
+        |spec| spec.kind == crate::features::FeatureKind::OfflineAnalysis
+            || !spec.verified(crate::models::supported_capabilities())
+    ));
     assert_eq!(everyday.len() + research.len(), FEATURES.len());
     app.open_features();
     assert_eq!(app.feature_list().len(), everyday.len());
@@ -2088,6 +2098,9 @@ fn research_search_and_categories_never_expose_live_forms() {
     let mut app = ready();
     app.open_page(4);
     app.feature_search = "LDAC".into();
+    let list = app.feature_list();
+    assert!(list.is_empty());
+    app.feature_search = "reset".into();
     let list = app.feature_list();
     assert!(!list.is_empty());
     for index in 0..list.len() {
@@ -2103,11 +2116,11 @@ fn research_search_and_categories_never_expose_live_forms() {
 fn multipoint_refresh_updates_dual_and_preserves_unknown_peers() {
     let mut app = ready();
     app.key(key(KeyCode::Char('P')));
-    let Intent::Request(action @ Action::Refresh) = app.key(key(KeyCode::Char('r'))) else {
+    let Intent::Request(action @ Action::Refresh) = app.key(key(KeyCode::Char('R'))) else {
         panic!("multipoint refresh must request the verified snapshot");
     };
     app.accepted(75, action);
-    assert!(matches!(app.key(key(KeyCode::Char('r'))), Intent::None));
+    assert!(matches!(app.key(key(KeyCode::Char('R'))), Intent::None));
     assert!(matches!(app.key(key(KeyCode::Esc)), Intent::Cancel));
     let mut raw = info().raw;
     raw[5] = 1;
@@ -2127,7 +2140,7 @@ fn multipoint_refresh_updates_dual_and_preserves_unknown_peers() {
     );
     assert!(!app.stale);
     assert!(app.observed_at.is_some());
-    assert!(render(&app, 110, 32).contains("identities are unknown"));
+    assert!(app.peers.is_none());
 }
 
 #[test]
@@ -2138,6 +2151,112 @@ fn disconnected_multipoint_refresh_explains_connection_requirement() {
     assert_eq!(app.status, app.t().status_must_connect);
     assert!(app.busy.is_none());
     assert!(app.info.is_none());
+}
+
+#[test]
+fn normal_peer_page_queries_renders_and_reviews_targeted_close() {
+    use crate::features::ResultData;
+    use crate::protocol::static_analysis::{Command, PeerList, PeerUpdate};
+    let mut app = ready();
+    assert!(matches!(
+        app.open_page(3),
+        Intent::Request(Action::Feature(Operation::Peers))
+    ));
+    let mut peers = PeerList::default();
+    peers
+        .apply(PeerUpdate::parse(&[1, 1, b'P', b'C', 1, 2, 3, 4, 5, 6]).unwrap())
+        .unwrap();
+    app.accepted(20, Action::Feature(Operation::Peers));
+    app.receive(Reply {
+        id: 20,
+        result: Ok(Output::Feature(ResultData {
+            text: "peer query completed".into(),
+            info: None,
+            codecs: None,
+            peers: Some(peers),
+            reset: false,
+            certain: true,
+        })),
+        connected: true,
+        writes_blocked: false,
+    });
+    let screen = render(&app, 110, 32);
+    assert!(screen.contains("PC"));
+    assert!(screen.contains("01:02:03:04:05:06"));
+    for lang in crate::i18n::Lang::ALL {
+        app.lang = lang;
+        for width in [56, 110] {
+            let screen = render(&app, width, 32);
+            assert!(screen.contains("PC"));
+            assert!(screen.contains("01:02:03:04:05:06"));
+        }
+    }
+    app.lang = crate::i18n::Lang::En;
+    assert!(matches!(app.key(key(KeyCode::Char('1'))), Intent::None));
+    assert!(app.review.is_some());
+    assert!(render(&app, 110, 32).contains("Close peer and disable dual"));
+    assert!(matches!(
+        app.key(key(KeyCode::Enter)),
+        Intent::Request(Action::Feature(Operation::Control(Command::ClosePeer {
+            index: 1,
+            ..
+        })))
+    ));
+    app.accepted(21, Action::Set(Setting::parse("dual", "off").unwrap()));
+    assert!(app.peers.is_none());
+}
+
+#[test]
+fn peer_query_failure_does_not_preserve_a_stale_list() {
+    let mut app = ready();
+    app.peers = Some(crate::protocol::static_analysis::PeerList::default());
+    app.accepted(22, Action::Feature(Operation::Peers));
+    assert!(app.peers.is_none());
+    app.receive(Reply {
+        id: 22,
+        result: Err("peer query failed".into()),
+        connected: true,
+        writes_blocked: false,
+    });
+    assert!(app.peers.is_none());
+    assert!(app.status.contains("peer query failed"));
+}
+
+#[test]
+fn diagnostics_show_session_firmware_and_optional_inventory_failure() {
+    let mut app = ready();
+    app.observation_view = Some(super::state::ObservationView::Diagnostics);
+    app.firmware = Some("0.2.5".into());
+    app.diagnostics = Some(crate::diagnostics::DoctorReport {
+        address: Some(BluetoothAddress::parse(&app.address).unwrap()),
+        channel: 1,
+        model: Some(Model::StudioPro),
+        host: Ok(crate::bluetooth::HostSnapshot::default()),
+        devices: vec![],
+        device_error: None,
+        audio: Some(Ok(vec![crate::audio::AudioStatus {
+            address: BluetoothAddress::parse(&app.address).unwrap(),
+            profile: crate::audio::Profile::A2dp,
+            codec: Some(crate::audio::Codec::Aac),
+            activity: crate::audio::Activity::Active,
+            source: "pipewire_node_transport",
+            observed_at: std::time::SystemTime::now(),
+            transport_id: 1,
+            transport_path: None,
+        }])),
+        collision: crate::diagnostics::SocketCollision::Unavailable(
+            io::Error::from(io::ErrorKind::PermissionDenied).into(),
+        ),
+    });
+    let screen = render(&app, 110, 36);
+    assert!(screen.contains("0.2.5"));
+    assert!(screen.contains("A2DP / AAC / Active"));
+    assert!(!screen.contains("Some("));
+    assert!(!screen.contains("Experimental"));
+    assert!(screen.contains("Available controls: 20"));
+    assert!(!screen.contains("PermissionDenied"));
+    assert!(!screen.contains("unknown_until_read"));
+    assert!(!screen.contains("\"write_capabilities\": 0"));
 }
 
 #[test]
@@ -2206,10 +2325,9 @@ fn audio_navigation_shows_verified_controls_and_research_stays_separate() {
         .all(|spec| spec.category == crate::features::FeatureCategory::Audio));
     assert!(!app.feature_list().is_empty());
     app.navigate(Route::Research);
-    assert!(app
-        .feature_list()
-        .iter()
-        .all(|spec| !spec.verified(crate::models::Model::StudioPro.capabilities())));
+    assert!(app.feature_list().iter().all(|spec| spec.kind
+        == crate::features::FeatureKind::OfflineAnalysis
+        || !spec.verified(crate::models::supported_capabilities())));
     app.navigate(Route::Home);
     assert!(!app.features);
     assert!(app.observation_view.is_none());
@@ -2235,11 +2353,34 @@ fn export_navigation_previews() {
         }
     }
     for (width, height) in [(56, 24), (110, 35)] {
-        for route in Route::ALL {
+        for index in 0..9 {
             let mut app = ready();
-            app.navigate(route);
-            if route == Route::Devices {
-                app.paired = Some(vec![device("AA:BB:CC:DD:EE:FF", "HP206 (offline fixture)")]);
+            if let Some(route) = Route::ALL.get(index) {
+                app.navigate(*route);
+                if *route == Route::Devices {
+                    app.paired = Some(vec![device("AA:BB:CC:DD:EE:FF", "HP206 (offline fixture)")]);
+                }
+            } else {
+                app.lang = crate::i18n::Lang::Es;
+                app.firmware = Some("0.2.5".into());
+                if index < 8 {
+                    app.navigate(Route::Audio);
+                    app.feature_tab = crate::features::FeatureCategory::Multipoint.index() + 1;
+                } else {
+                    app.navigate(Route::Diagnostics);
+                    app.diagnostics = Some(crate::diagnostics::DoctorReport {
+                        address: Some(BluetoothAddress::parse(&app.address).unwrap()),
+                        channel: 1,
+                        model: Some(Model::StudioPro),
+                        host: Ok(crate::bluetooth::HostSnapshot::default()),
+                        devices: vec![],
+                        device_error: None,
+                        audio: None,
+                        collision: crate::diagnostics::SocketCollision::Unavailable(
+                            io::Error::from(io::ErrorKind::PermissionDenied).into(),
+                        ),
+                    });
+                }
             }
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
             terminal.draw(|frame| view::render(frame, &app)).unwrap();
@@ -2265,7 +2406,7 @@ fn export_navigation_previews() {
             }
             svg.push_str("</svg>");
             std::fs::write(
-                std::path::Path::new(&directory).join(format!("{}-{width}.svg", route.index())),
+                std::path::Path::new(&directory).join(format!("{index}-{width}.svg")),
                 svg,
             )
             .unwrap();

@@ -1,0 +1,471 @@
+{
+  "android_metadata": {
+    "manifest": {
+      "compileSdkVersion": 37,
+      "compileSdkVersionCodename": "17",
+      "package": "com.ugreen.iot",
+      "platformBuildVersionCode": 37,
+      "platformBuildVersionName": 17,
+      "versionCode": 933,
+      "versionName": "2.6.0.933"
+    },
+    "uses-sdk": {
+      "minSdkVersion": 24,
+      "targetSdkVersion": 37
+    }
+  },
+  "apk_sha256": "b2ed391d9c0a94769cb00a1f8a35a2bb8461b8d084721c66988ca011d1a2f45b",
+  "apk_size_bytes": 329173903,
+  "capabilities_promoted": false,
+  "dex_sha256": {
+    "classes.dex": "18a8773c56fa9a4b2c7c2442638115d5ac8d6b693fb737e9bf855d88bcedb234",
+    "classes10.dex": "3760e901f74c584f021bd46421b6a639655aa47f561e1ad558dda558b6c1674c",
+    "classes2.dex": "1b3dfd61ef847e6a0842b111693d589d3bb325359afbbcfcdfedc25a1759933a",
+    "classes3.dex": "9ba84b8d36b90e28d8873023b9c70be833cbf8842bb88712e402fd3c07cc5a6e",
+    "classes4.dex": "2fa35dd2e90abe2d8a90e83cd9cc962d6f06cb7c3325606dd8ea714ffdfec14e",
+    "classes5.dex": "b850b8837f9715e87f32d084b91dc7dfa255760cd4b7766313fcb770d6b93f06",
+    "classes6.dex": "32824160b852e4e69f5f7586392fdfcacdf0423e66ae5d83016bb28a65e91199",
+    "classes7.dex": "488f4b5c18c62b0327a0daf68cd343d65d0b2ce83c02ab51e015cb3c69354f6e",
+    "classes8.dex": "f884ebb623c7d82d2a83393a67de4aa04acce99622c41f0f74768c5d0f5f4e79",
+    "classes9.dex": "8e41438c0ea03e13a44ed90ba6f76ff1361e5b2c69b04ab757c863ce111b4ed2"
+  },
+  "hardware_validation": false,
+  "kind": "apk_static_analysis",
+  "native_libraries": [
+    "lib/arm64-v8a/libBleLib.so",
+    "lib/arm64-v8a/libDspConfig.so",
+    "lib/arm64-v8a/libNitroMmkv.so",
+    "lib/arm64-v8a/libNitroModules.so",
+    "lib/arm64-v8a/libThingAudioCodecSDK.so",
+    "lib/arm64-v8a/libThingAudioEngineSDK.so",
+    "lib/arm64-v8a/libThingAudioFileProcessSDK.so",
+    "lib/arm64-v8a/libThingAudioFileRecorderSDK.so",
+    "lib/arm64-v8a/libThingAudioProcessSDK.so",
+    "lib/arm64-v8a/libThingAvLogSDK.so",
+    "lib/arm64-v8a/libThingFFmpegWrapper.so",
+    "lib/arm64-v8a/libThingInferenceSDK.so",
+    "lib/arm64-v8a/libThingMP3CodecSDK.so",
+    "lib/arm64-v8a/libThingMotionDetectSDK.so",
+    "lib/arm64-v8a/libThingOggPackerSDK.so",
+    "lib/arm64-v8a/libThingOnAppAILogSDK.so",
+    "lib/arm64-v8a/libThingSmartLink.so",
+    "lib/arm64-v8a/libThingVideoCodecSDK.so",
+    "lib/arm64-v8a/libapng-drawable.so",
+    "lib/arm64-v8a/libappmodules.so",
+    "lib/arm64-v8a/libavcodec.so",
+    "lib/arm64-v8a/libavfilter.so",
+    "lib/arm64-v8a/libavformat.so",
+    "lib/arm64-v8a/libavutil.so",
+    "lib/arm64-v8a/libc++_shared.so",
+    "lib/arm64-v8a/libconscrypt_jni.so",
+    "lib/arm64-v8a/libcrypto.1.1.so",
+    "lib/arm64-v8a/libdatastore_shared_counter.so",
+    "lib/arm64-v8a/libdfmlp.so",
+    "lib/arm64-v8a/libe4424af5f_v105_aee.so",
+    "lib/arm64-v8a/libe584ea011_v104_aee.so",
+    "lib/arm64-v8a/libe91d6e122_v100_aee.so",
+    "lib/arm64-v8a/libedge.so",
+    "lib/arm64-v8a/libfbjni.so",
+    "lib/arm64-v8a/libgesturehandler.so",
+    "lib/arm64-v8a/libgnustl_shared.so",
+    "lib/arm64-v8a/libhermestooling.so",
+    "lib/arm64-v8a/libhermesvm.so",
+    "lib/arm64-v8a/libhte-native-lib.so",
+    "lib/arm64-v8a/libimagepipeline.so",
+    "lib/arm64-v8a/libjl_auth.so",
+    "lib/arm64-v8a/libjl_bmp_convert.so",
+    "lib/arm64-v8a/libjl_crc.so",
+    "lib/arm64-v8a/libjl_enc.so",
+    "lib/arm64-v8a/libjl_fatfs.so",
+    "lib/arm64-v8a/libjl_gif.so",
+    "lib/arm64-v8a/libjl_ota_auth.so",
+    "lib/arm64-v8a/libjl_pack_format.so",
+    "lib/arm64-v8a/libjsi.so",
+    "lib/arm64-v8a/libmarsxlog.so",
+    "lib/arm64-v8a/libmmkv.so",
+    "lib/arm64-v8a/libnative-filters.so",
+    "lib/arm64-v8a/libnative-imagetranscoder.so",
+    "lib/arm64-v8a/libnetwork-android.so",
+    "lib/arm64-v8a/liboboe.so",
+    "lib/arm64-v8a/libopenh264.so",
+    "lib/arm64-v8a/libopus.so",
+    "lib/arm64-v8a/libopusJni.so",
+    "lib/arm64-v8a/libpdfium.so",
+    "lib/arm64-v8a/libpdfiumandroid.so",
+    "lib/arm64-v8a/libreact_codegen_rnscreens.so",
+    "lib/arm64-v8a/libreact_codegen_rnsvg.so",
+    "lib/arm64-v8a/libreact_codegen_safeareacontext.so",
+    "lib/arm64-v8a/libreactnative.so",
+    "lib/arm64-v8a/libreanimated.so",
+    "lib/arm64-v8a/librnscreens.so",
+    "lib/arm64-v8a/libssl.1.1.so",
+    "lib/arm64-v8a/libst_gif.so",
+    "lib/arm64-v8a/libswresample.so",
+    "lib/arm64-v8a/libswscale.so",
+    "lib/arm64-v8a/libthing_j2v8.so",
+    "lib/arm64-v8a/libthing_security.so",
+    "lib/arm64-v8a/libthing_security_algorithm.so",
+    "lib/arm64-v8a/libthingmmkv.so",
+    "lib/arm64-v8a/libti_tflite_plugin.so",
+    "lib/arm64-v8a/libv8android.so",
+    "lib/arm64-v8a/libv8wrapper.so",
+    "lib/arm64-v8a/libworklets.so",
+    "lib/arm64-v8a/libyuv.so",
+    "lib/armeabi-v7a/libBleLib.so",
+    "lib/armeabi-v7a/libDspConfig.so",
+    "lib/armeabi-v7a/libNitroMmkv.so",
+    "lib/armeabi-v7a/libNitroModules.so",
+    "lib/armeabi-v7a/libThingAudioCodecSDK.so",
+    "lib/armeabi-v7a/libThingAudioEngineSDK.so",
+    "lib/armeabi-v7a/libThingAudioFileProcessSDK.so",
+    "lib/armeabi-v7a/libThingAudioFileRecorderSDK.so",
+    "lib/armeabi-v7a/libThingAudioProcessSDK.so",
+    "lib/armeabi-v7a/libThingAvLogSDK.so",
+    "lib/armeabi-v7a/libThingFFmpegWrapper.so",
+    "lib/armeabi-v7a/libThingInferenceSDK.so",
+    "lib/armeabi-v7a/libThingMP3CodecSDK.so",
+    "lib/armeabi-v7a/libThingMotionDetectSDK.so",
+    "lib/armeabi-v7a/libThingOggPackerSDK.so",
+    "lib/armeabi-v7a/libThingOnAppAILogSDK.so",
+    "lib/armeabi-v7a/libThingSmartLink.so",
+    "lib/armeabi-v7a/libThingVideoCodecSDK.so",
+    "lib/armeabi-v7a/libapng-drawable.so",
+    "lib/armeabi-v7a/libappmodules.so",
+    "lib/armeabi-v7a/libavcodec.so",
+    "lib/armeabi-v7a/libavfilter.so",
+    "lib/armeabi-v7a/libavformat.so",
+    "lib/armeabi-v7a/libavutil.so",
+    "lib/armeabi-v7a/libc++_shared.so",
+    "lib/armeabi-v7a/libconscrypt_jni.so",
+    "lib/armeabi-v7a/libcrypto.1.1.so",
+    "lib/armeabi-v7a/libdatastore_shared_counter.so",
+    "lib/armeabi-v7a/libdfmlp.so",
+    "lib/armeabi-v7a/libe4424af5f_v105_aee.so",
+    "lib/armeabi-v7a/libe584ea011_v104_aee.so",
+    "lib/armeabi-v7a/libe91d6e122_v100_aee.so",
+    "lib/armeabi-v7a/libedge.so",
+    "lib/armeabi-v7a/libfbjni.so",
+    "lib/armeabi-v7a/libgesturehandler.so",
+    "lib/armeabi-v7a/libgnustl_shared.so",
+    "lib/armeabi-v7a/libhermestooling.so",
+    "lib/armeabi-v7a/libhermesvm.so",
+    "lib/armeabi-v7a/libhte-native-lib.so",
+    "lib/armeabi-v7a/libimagepipeline.so",
+    "lib/armeabi-v7a/libjl_auth.so",
+    "lib/armeabi-v7a/libjl_bmp_convert.so",
+    "lib/armeabi-v7a/libjl_crc.so",
+    "lib/armeabi-v7a/libjl_enc.so",
+    "lib/armeabi-v7a/libjl_fatfs.so",
+    "lib/armeabi-v7a/libjl_gif.so",
+    "lib/armeabi-v7a/libjl_ota_auth.so",
+    "lib/armeabi-v7a/libjl_pack_format.so",
+    "lib/armeabi-v7a/libjsi.so",
+    "lib/armeabi-v7a/libmarsxlog.so",
+    "lib/armeabi-v7a/libmmkv.so",
+    "lib/armeabi-v7a/libnative-filters.so",
+    "lib/armeabi-v7a/libnative-imagetranscoder.so",
+    "lib/armeabi-v7a/libnetwork-android.so",
+    "lib/armeabi-v7a/liboboe.so",
+    "lib/armeabi-v7a/libopenh264.so",
+    "lib/armeabi-v7a/libopus.so",
+    "lib/armeabi-v7a/libopusJni.so",
+    "lib/armeabi-v7a/libpdfium.so",
+    "lib/armeabi-v7a/libpdfiumandroid.so",
+    "lib/armeabi-v7a/libreact_codegen_rnscreens.so",
+    "lib/armeabi-v7a/libreact_codegen_rnsvg.so",
+    "lib/armeabi-v7a/libreact_codegen_safeareacontext.so",
+    "lib/armeabi-v7a/libreactnative.so",
+    "lib/armeabi-v7a/libreanimated.so",
+    "lib/armeabi-v7a/librnscreens.so",
+    "lib/armeabi-v7a/libssl.1.1.so",
+    "lib/armeabi-v7a/libst_gif.so",
+    "lib/armeabi-v7a/libswresample.so",
+    "lib/armeabi-v7a/libswscale.so",
+    "lib/armeabi-v7a/libthing_j2v8.so",
+    "lib/armeabi-v7a/libthing_security.so",
+    "lib/armeabi-v7a/libthing_security_algorithm.so",
+    "lib/armeabi-v7a/libthingmmkv.so",
+    "lib/armeabi-v7a/libti_tflite_plugin.so",
+    "lib/armeabi-v7a/libv8android.so",
+    "lib/armeabi-v7a/libv8wrapper.so",
+    "lib/armeabi-v7a/libworklets.so",
+    "lib/armeabi-v7a/libyuv.so"
+  ],
+  "schema_version": 1,
+  "sources": {
+    "assets/static/device/assets/acoustics-code-GbTtk_At.js": {
+      "anchors": {
+        "addressed_disable": {
+          "byte_offset": 2099,
+          "needle": "new Uint8Array([y.CLOSE,0,0,0,0,0,0])",
+          "occurrences": 1
+        },
+        "addressed_enable": {
+          "byte_offset": 1918,
+          "needle": "new Uint8Array([y.OPEN,...t])",
+          "occurrences": 1
+        },
+        "addressed_import": {
+          "byte_offset": 159,
+          "needle": "aU as y",
+          "occurrences": 1
+        },
+        "main_import": {
+          "byte_offset": 188,
+          "needle": "./index-D9whH_hy.js",
+          "occurrences": 1
+        },
+        "plain_enable": {
+          "byte_offset": 1994,
+          "needle": "d.$keyVoiceStatusChange(E.INSTRUCTION,E.OPEN)",
+          "occurrences": 1
+        },
+        "plain_import": {
+          "byte_offset": 167,
+          "needle": "aV as E",
+          "occurrences": 1
+        },
+        "retry_bounds": {
+          "byte_offset": 634,
+          "needle": "ve=3,he=2e3",
+          "occurrences": 1
+        }
+      },
+      "sha256": "b475377dd43b9396d6fd55b85d7177fe45a17131284c2d27913d74f911e5f646",
+      "size_bytes": 4625
+    },
+    "assets/static/device/assets/audio-share-DSkfrSYZ.js": {
+      "anchors": {
+        "local_wind_state": {
+          "byte_offset": 1442,
+          "needle": "t.setDeviceInfo({windNoise:!1})",
+          "occurrences": 1
+        },
+        "single_peer_sharing": {
+          "byte_offset": 1348,
+          "needle": "new Uint8Array([l.OPEN,255,255,255,255,255,255,255])",
+          "occurrences": 1
+        },
+        "targeted_sharing": {
+          "byte_offset": 1262,
+          "needle": "new Uint8Array([l.OPEN,s,...a])",
+          "occurrences": 1
+        }
+      },
+      "sha256": "19076a6f58dbbdf364c654166701dfff22e600ba307715d599fabc3cebd16584",
+      "size_bytes": 2986
+    },
+    "assets/static/device/assets/double-link-B1wNDsyj.js": {
+      "anchors": {
+        "dual_import": {
+          "byte_offset": 144,
+          "needle": "aE as v",
+          "occurrences": 1
+        },
+        "lanxun_close_call": {
+          "byte_offset": 2177,
+          "needle": "p(H,{value:b})",
+          "occurrences": 1
+        },
+        "main_import": {
+          "byte_offset": 188,
+          "needle": "./index-D9whH_hy.js",
+          "occurrences": 1
+        },
+        "peer_refresh_delay": {
+          "byte_offset": 1358,
+          "needle": "await N(200)",
+          "occurrences": 2
+        },
+        "peer_slot_selection": {
+          "byte_offset": 1647,
+          "needle": "O=l.phoneBleName===e.deviceInfo.mobilePhoneName1?2:1",
+          "occurrences": 1
+        },
+        "targeted_close": {
+          "byte_offset": 2218,
+          "needle": "new Uint8Array([...v.CLOSE,O,...d])",
+          "occurrences": 1
+        },
+        "targeted_send": {
+          "byte_offset": 2254,
+          "needle": "m.$keyVoiceStatusChange(v.INSTRUCTION,b)",
+          "occurrences": 1
+        }
+      },
+      "sha256": "2d95683045b456f4a3446dfacfe65eea9f3450ea5c3a8894fbdcdcefffd7ea0e",
+      "size_bytes": 4750
+    },
+    "assets/static/device/assets/headphone-finder-DBnHuGCY.js": {
+      "anchors": {
+        "finder_send": {
+          "byte_offset": 2036,
+          "needle": "w.$keyVoiceStatusChange(f.INSTRUCTION",
+          "occurrences": 2
+        }
+      },
+      "sha256": "e58028dc8800669470d0954bd0e822a81eac267232dc861dc8683ca571ebb6ea",
+      "size_bytes": 5788
+    },
+    "assets/static/device/assets/index-D9whH_hy.js": {
+      "anchors": {
+        "addressed_ldac_constant": {
+          "byte_offset": 879289,
+          "needle": "gU={INSTRUCTION:30,OPEN:1,CLOSE:0}",
+          "occurrences": 1
+        },
+        "addressed_ldac_export": {
+          "byte_offset": 1343695,
+          "needle": "gU as aU",
+          "occurrences": 1
+        },
+        "codec_constant": {
+          "byte_offset": 878834,
+          "needle": "yU={INSTRUCTION:15,CMD_DATA:[0]",
+          "occurrences": 1
+        },
+        "codec_route": {
+          "byte_offset": 733,
+          "needle": "./acoustics-code-GbTtk_At.js",
+          "occurrences": 2
+        },
+        "config_merge": {
+          "byte_offset": 868504,
+          "needle": "setConfig(e){this.config=Object.assign({},this.config,e)}",
+          "occurrences": 1
+        },
+        "crc_modbus": {
+          "byte_offset": 1307622,
+          "needle": "s&1?s=s>>1^40961:s=s>>1",
+          "occurrences": 1
+        },
+        "default_protocol": {
+          "byte_offset": 862556,
+          "needle": "protocol_type:Qs.UGREEN_Universal",
+          "occurrences": 1
+        },
+        "dual_constants": {
+          "byte_offset": 876079,
+          "needle": "eU={INSTRUCTION:6,OPEN:[1],CLOSE:[0]}",
+          "occurrences": 1
+        },
+        "dual_export": {
+          "byte_offset": 1343551,
+          "needle": "eU as aE",
+          "occurrences": 1
+        },
+        "dual_route": {
+          "byte_offset": 662,
+          "needle": "./double-link-B1wNDsyj.js",
+          "occurrences": 2
+        },
+        "finder_route": {
+          "byte_offset": 945,
+          "needle": "./headphone-finder-DBnHuGCY.js",
+          "occurrences": 2
+        },
+        "frame_builder": {
+          "byte_offset": 1307656,
+          "needle": "buildPacket(e,s){const a=[170,187,204]",
+          "occurrences": 1
+        },
+        "in_box_constant": {
+          "byte_offset": 878981,
+          "needle": "lU={INSTRUCTION:17,BACK_INSTRUCTION:23}",
+          "occurrences": 1
+        },
+        "in_box_response_case": {
+          "byte_offset": 1311637,
+          "needle": "case cU.INSTRUCTION:s.state&&(s.ear_Phone_in_box=e[6])",
+          "occurrences": 1
+        },
+        "lanxun_close": {
+          "byte_offset": 1190616,
+          "needle": "case S4:y=Af.length+7,r=[ui,Af.CMD,1,0,y,3,6,...a]",
+          "occurrences": 1
+        },
+        "master_slave_event": {
+          "byte_offset": 1313249,
+          "needle": "ot.emit(\"switchMasterSlave\")",
+          "occurrences": 1
+        },
+        "notification_offset": {
+          "byte_offset": 1312960,
+          "needle": "parsePacketHardware(e){let s={};switch(e[4])",
+          "occurrences": 1
+        },
+        "peer_clear_parser": {
+          "byte_offset": 1310875,
+          "needle": "_e===0&&",
+          "occurrences": 1
+        },
+        "peer_name_parser": {
+          "byte_offset": 1310824,
+          "needle": "new TextDecoder(\"utf-8\").decode(q)",
+          "occurrences": 1
+        },
+        "peers_constant": {
+          "byte_offset": 878768,
+          "needle": "rU={INSTRUCTION:13,CMD_DATA:[0]}",
+          "occurrences": 1
+        },
+        "plain_ldac_constant": {
+          "byte_offset": 878673,
+          "needle": "aU={INSTRUCTION:11,OPEN:[1],CLOSE:[0]}",
+          "occurrences": 1
+        },
+        "plain_ldac_export": {
+          "byte_offset": 1343704,
+          "needle": "aU as aV",
+          "occurrences": 1
+        },
+        "protocol_ids": {
+          "byte_offset": 861668,
+          "needle": "const Qs={UGREEN_Universal:1,Zhongke_Lanxun:2}",
+          "occurrences": 1
+        },
+        "sharing_route": {
+          "byte_offset": 428,
+          "needle": "./audio-share-DSkfrSYZ.js",
+          "occurrences": 2
+        },
+        "studio_pro_config": {
+          "byte_offset": 1165073,
+          "needle": "case\"UGREEN Studio Pro\":",
+          "occurrences": 1
+        },
+        "volume_constant": {
+          "byte_offset": 878950,
+          "needle": "cU={INSTRUCTION:16,CMD_DATA:0}",
+          "occurrences": 1
+        },
+        "volume_response_case": {
+          "byte_offset": 1311580,
+          "needle": "case lU.INSTRUCTION:s.state&&(s.sound_volume=e[6])",
+          "occurrences": 1
+        }
+      },
+      "sha256": "fcbf9a788851e45de03a39ec256ebba9bfec311e7fccb9dd3fe51b06c65987c8",
+      "size_bytes": 1344570
+    },
+    "assets/static/device/index.html": {
+      "anchors": {
+        "modern_entry": {
+          "byte_offset": 416,
+          "needle": "./assets/index-D9whH_hy.js",
+          "occurrences": 1
+        }
+      },
+      "sha256": "ad1e4be81b6c4de96e89d9fb21e3583985aec5b55ab93ad164150aeaaeabd830",
+      "size_bytes": 2073
+    }
+  },
+  "studio_pro_local_config": {
+    "is_audio_sharing_available": "!0",
+    "is_dual_device_pairing_enabled": "!0",
+    "is_headphone_finder_enabled": "!1",
+    "is_high_quality_decoding_enabled": "!0",
+    "is_ldac_mac_address": "not_overridden_in_local_model_config",
+    "protocol_type": "not_overridden_in_local_model_config"
+  }
+}

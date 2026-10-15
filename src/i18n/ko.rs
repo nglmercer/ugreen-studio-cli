@@ -4,6 +4,17 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.device_ui = [
+        "Device features",
+        "Available",
+        "Unavailable",
+        "P: connected devices",
+        "No matching features. Change category or search.",
+        "Requires Studio Pro firmware 0.2.5.",
+        "선택적 소켓 목록",
+        "사용 불가; 제어 연결을 차단하지 않음",
+        "사용 가능한 제어 기능",
+    ];
     l.cli_json_unsupported = "이 명령은 --json을 지원하지 않습니다.";
     l.status_applying_noack =
         "사전 확인 후 {}={} 적용, 다시 읽은 값 확인 중(공간 오디오는 확인 응답 없음)...";
@@ -323,6 +334,7 @@ pub fn catalog() -> L {
         "캡처 디코더",
         "캡처 분석",
         "패킷 미리보기",
+        "기기 연결 해제 및 듀얼 모드 끄기",
     ];
     l.feature_descriptions = [
         "능동 소음 제거 깊이. 검증된 설정입니다. 설정 화면에서 편집하세요.",
@@ -356,6 +368,7 @@ pub fn catalog() -> L {
         "캡처한 응답 바이트를 오프라인에서 디코딩합니다. Bluetooth 접근 없이 동작합니다.",
         "완전한 캡처 스트림을 오프라인에서 해석합니다. Bluetooth 접근 없이 동작합니다.",
         "제어가 보낼 정적 패킷을 출력합니다. 전송되지 않습니다.",
+        "선택한 기기를 해제하고 듀얼 모드를 끕니다. 실험 기능이며 최신 조회로 슬롯과 MAC을 확인하세요.",
     ];
     l.feature_available = "사용 가능";
     l.feature_pending = "검증 대기";
@@ -445,5 +458,6 @@ pub fn catalog() -> L {
     l.status_reset_done = "초기화가 확인되었습니다. 호스트 페어링과 저장된 기기를 제거했습니다.";
     l.status_inflight_write =
         "진행 중인 쓰기가 완료되었을 수 있습니다. 다시 시작한 후 새로고침하세요.";
+    l.page_labels[4] = l.navigation[5];
     l
 }

@@ -4,6 +4,17 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.device_ui = [
+        "Device features",
+        "Available",
+        "Unavailable",
+        "P: connected devices",
+        "No matching features. Change category or search.",
+        "Requires Studio Pro firmware 0.2.5.",
+        "可选套接字清单",
+        "不可用；不影响控制连接",
+        "可用控制功能",
+    ];
     l.cli_json_unsupported = "此命令不支持 --json。";
     l.status_applying_noack = "预检后应用 {}={}，再核对回读（空间音频不返回确认）...";
     l.status_verified_noack = "已通过回读匹配验证 {}={}；空间音频不返回确认。";
@@ -305,6 +316,7 @@ pub fn catalog() -> L {
         "捕获解码器",
         "捕获分析",
         "数据包预览",
+        "断开设备并关闭双设备模式",
     ];
     l.feature_descriptions = [
         "主动降噪深度。已验证设置；请在“设置”屏幕中编辑。",
@@ -338,6 +350,7 @@ pub fn catalog() -> L {
         "离线解码捕获的响应字节；不访问蓝牙。",
         "离线解读完整的捕获流；不访问蓝牙。",
         "打印控制将发送的静态数据包；从不传输。",
+        "断开所选设备并关闭双设备模式。实验功能；请通过最新查询确认槽位和 MAC 地址。",
     ];
     l.feature_available = "可用";
     l.feature_pending = "待验证";
@@ -426,5 +439,6 @@ pub fn catalog() -> L {
     l.status_reset_unavailable = "重置目标不可用";
     l.status_reset_done = "重置已确认；主机配对和已保存设备已移除。";
     l.status_inflight_write = "进行中的写入可能已完成；重启后请刷新。";
+    l.page_labels[4] = l.navigation[5];
     l
 }

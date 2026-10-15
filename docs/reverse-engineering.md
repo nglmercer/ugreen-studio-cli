@@ -2,15 +2,31 @@
 
 This report records what the official **UGREEN Audio** app
 (`ugreen-audio-overseas-prod-v260933933-20260930197-ed209d775.apk`,
-version 260933933, build 20260930197) reveals about the Studio Pro
+filename build 20260930197; Android version **2.6.0.933**, version code **933**) reveals about the Studio Pro
 control protocol, and how each finding maps onto this CLI.
+
+The [October 15 re-audit](apk-analysis-2026-10-15.md) corrects the earlier
+peer-control, MAC-bound LDAC and finder conclusions using the exact APK bytes.
+Its [machine-readable evidence](evidence/apk-static-2026-10-15.json) records
+hashes and byte offsets; those findings remain static, not hardware validation.
 
 **Status of every item is stated explicitly.** The project rule is
 unchanged: a frame is only *verified* after a live capture from the
 official app proves it. Everything below marked **static** was extracted
 from the APK and cross-checked against the already-verified instruction
 set, but has **not** been captured on hardware yet. Nothing marked
-static may be sent to a headset until Phase-3 verification promotes it.
+static may be sent in default mode until Phase-3 verification promotes it.
+Explicit experimental opt-in is described below.
+
+## Runtime opt-in after this analysis
+
+The user subsequently requested [experimental mode](usage.md#supported-device-operations).
+That mode can send a reviewed subset of APK-derived operations on explicitly
+selected Studio Pro firmware 0.2.5. This changes runtime permission, not static
+source provenance or verified capability bits. A
+[Linux observation](evidence/experimental-reads-2026-10-15.json) records successful
+peer and codec reads; no new write or official-app capture is claimed. The
+report's default-mode capture gates still apply without explicit opt-in.
 
 ## Method
 
@@ -34,10 +50,13 @@ static may be sent to a headset until Phase-3 verification promotes it.
   `00001101-0000-1000-8000-00805F9B34FB`
   (`com/ugreen/unisdk/bluetooth/SPPUtil.smali`, `BTSocket.smali`).
   This matches the CLI's channel-1 default.
-- The Kotlin bridge (`com/ugreen/rnmodule/ear/UGRNBluetoothBridge`,
-  `UGRNUniversalModule`) relays base64 byte buffers between the JS
-  pages and the socket; the JS sends via
+- The JS sends base64 byte buffers through
   `uni.postMessage({type:"earphoneDetailMessage", payload:{dataBuffer}})`.
+  In the existing native decompilation, `WebCommandDispatcher` dispatches
+  that message to `BluetoothController.writeBuffer`, which chooses BLE or
+  `SPPUtil` according to the model. These classes are under
+  `com/ugreen/webview/refactor/`; the earlier RN-only bridge attribution
+  did not identify the active device-page path.
 - The Studio Pro's device config sets `protocol_type: Qs.UGREEN_Universal`
   (= **1**). The other family, `Zhongke_Lanxun` (= 2), is a different
   frame dialect used by other chipsets (documented at the end for
@@ -73,12 +92,12 @@ from the page send-sites and the `parsePacketApp` response parser.
 | 3 | `0x03` | `[0]` | headphone color query | `[color]` | static |
 | 4 | `0x04` | `[0]` | device info query | 31-byte payload, see below | **verified** |
 | 5 | `0x05` | `[mode]` | EQ preset | `[EQ_mode]` | **verified** |
-| 6 | `0x06` | `[1]`/`[0]` | dual device on/off | `[double_link_mode]` | **verified** |
+| 6 | `0x06` | `[1]`/`[0]`; static extended close `[0,peerIdx,mac×6]` | dual device on/off; targeted close candidate | `[double_link_mode]` | **verified** only for one-byte toggle; extended close static |
 | 7 | `0x07` | `[1,1]`/`[1,2]`/`[0,1]`/`[0,2]` | find headphones start/stop left/right | none (state via notification event 9) | static |
 | 8 | `0x08` | `[1]`/`[0]` | game mode | via notification event 4 | **verified** |
 | 9 | `0x09` | `[depth]` | ANC mode | `[noise_mode]` | **verified** |
 | 10 | `0x0A` | 8 bytes: tap/double/triple/long × left/right | button control | none | static |
-| 11 | `0x0B` | `[1]`/`[0]`, or `[1,mac×6]`/`[0,0×6]` | high-quality decoding (LDAC) on/off | `acousticsResponse{state, value=[p0]}` | static |
+| 11 | `0x0B` | `[1]`/`[0]` | plain high-quality decoding (LDAC) on/off | `acousticsResponse{state, value=[p0]}` | static |
 | 12 | `0x0C` | `[0]` voice / `[2]` beeps | prompt sound type | `[sound_type]` | **verified** |
 | 13 | `0x0D` | `[0]` | **connected device info (multipoint peer) query** | `[flag][peerIdx][name UTF-8][mac×6]` | static |
 | 14 | `0x0E` | `[0]` | factory reset | logs 恢复出厂设置成功, then unpair+delete | static |
@@ -96,7 +115,7 @@ from the page send-sites and the `parsePacketApp` response parser.
 | 26 | `0x1A` | `[1]`/`[0]` | reserved (no response case) | — | static |
 | 27 | `0x1B` | `[1]`/`[0]` | AI control state | `[ai_control_state]` | static |
 | 29 | `0x1D` | `[1]`/`[0]` | reserved (no response case) | — | static |
-| 30 | `0x1E` | `[1]`/`[0]` | high-quality decoding (alt path) | `highAudioDecodingResponse{state,value}` | static |
+| 30 | `0x1E` | `[1,mac×6]`/`[0,0×6]` | MAC-bound high-quality decoding | `highAudioDecodingResponse{state,value}` | static; scalar constants alone do not prove a one-byte send path |
 | 31 | `0x1F` | `[0]` | box MAC query | `[mac×6]` (reversed) | static |
 
 ### Device-info payload (instruction 4 response, 31 bytes)
@@ -172,12 +191,16 @@ the app are populated from these responses. The device emits one
 response per connected peer, so a full list is one query plus the
 frames that follow.
 
-**No per-peer disconnect/reconnect/switch frame exists in this
-protocol family.** The app manages peers with the dual-mode toggle
-(instruction 6, already implemented as `dual`) and relies on
-OS-level Bluetooth reconnection for switching. `peer_disconnect`,
-`peer_reconnect` and `peer_switch` therefore stay `UnsupportedFeature`
-— not a gap in the analysis, a gap in the headset's exposed protocol.
+The original claim that no per-peer disconnect format exists was incorrect.
+When disabling dual mode with a second peer present, the app confirms the
+other device and constructs instruction **6** with
+`[0, peerIdx, mac0..mac5]`. It then waits 200 ms and queries instruction 13.
+This combines dual-mode disable with a selected peer; it is not evidence of
+an independent disconnect that preserves dual mode. Reconnect and arbitrary
+active-peer switching send paths were not established by this re-audit.
+`peer_disconnect`, `peer_reconnect` and `peer_switch` remain
+`UnsupportedFeature` pending separate HP206 hardware evidence. The one-byte
+`dual off` capability does not authorize the extended payload.
 
 ### 2. Find-headphones sound — instruction 7
 
@@ -185,12 +208,13 @@ OS-level Bluetooth reconnection for switching. `peer_disconnect`,
 `[0x00,0x01]` stop left · `[0x00,0x02]` stop right. State is
 reported through notification kind 9
 (`is_headphone_finder_left`, `is_headphone_finder_right`). The
-"ring" sound itself is played by the phone app
-(`libhte-native-lib.so`, an Oboe player, `assets/example_audio.mp3`)
-— i.e. the classic "phone rings the earbuds" model, not a tone stored
-in the headset.
+tone source is **not established** by this page. The earlier attribution to
+`libhte-native-lib.so` and `assets/example_audio.mp3` was unsupported: the
+existing native decompilation associates that MP3 with Mimi personalized
+hearing playback. The local Studio Pro configuration explicitly disables
+finder. Shared finder code is not evidence that HP206 implements the feature.
 
-### 3. Codec status/control — instructions 15 and 11
+### 3. Codec status/control — instructions 15, 11 and 30
 
 - **Read:** query instruction 15 (`[0]`) for the `[type,code]` pairs,
   or read offset 7 of the device-info response (instruction 4) — the
@@ -199,7 +223,8 @@ in the headset.
 - **Control (LDAC):** instruction 11. Plain enable/disable is
   `[1]`/`[0]`. When the config flag `is_ldac_mac_address` is set, the
   app binds LDAC to the peer that should use it:
-  `[0x01, mac0..mac5]` (7 bytes) to enable, `[0x00, 0×6]` to disable.
+  **instruction 30 (`0x1E`)**, `[0x01, mac0..mac5]` (7 bytes) to enable,
+  `[0x00, 0×6]` to disable. The plain toggle uses instruction 11 (`0x0B`).
   The MAC is taken from the instruction-13 peer list. The app retries
   up to 3 times at 2 s intervals, waiting for `acousticsResponse` /
   `highAudioDecodingResponse`.
@@ -209,8 +234,9 @@ in the headset.
 - **Audio sharing** (instruction 22): enable to a peer
   `[1, peerIdx, mac×6]`, or `[1, FF×7]` when only one peer is
   connected; disable `[0]`. `peerIdx` is 2 when the phone is peer 1
-  (share *to* the other peer), else 1. Enabling forces wind noise
-  off.
+  (share *to* the other peer), else 1. The page sets its local wind-noise
+  state to off; it does not separately send a wind-noise instruction in
+  that handler. Device-side side effects need hardware readback.
 - **Factory reset** (instruction 14): `[0]`; the app then unpairs and
   deletes the device.
 - **Volume** (instruction 16): `[volume]`; response echoes
@@ -272,8 +298,9 @@ instruction 13. Documented so the two dialects are never confused.
 
 ## What this analysis does **not** unlock (yet)
 
-- **Per-peer disconnect/reconnect/switch** — no classic-protocol frame
-  exists; only the dual-mode toggle (already implemented).
+- **Per-peer disconnect/reconnect/switch** — targeted dual-close has a
+  static format, but its HP206 behavior is unverified. Independent disconnect,
+  reconnect and arbitrary active-peer switching remain unestablished.
 - **Custom EQ curves** — the app exposes presets only (instruction 5 /
   CMD 32 list); no curve-upload frame was found.
 - **Firmware update** — handled by the separate `jl_bt_ota`
@@ -282,13 +309,12 @@ instruction 13. Documented so the two dialects are never confused.
 
 ## Interoperability and licensing
 
-Findings are protocol *facts* (instruction IDs, payload layouts, CRC
-behaviour) extracted for interoperability; no application code was
-copied — this is a clean-room reimplementation, consistent with the
-project's MIT-only provenance policy. Before shipping anything derived
-from this analysis, check the UGREEN Audio app's EULA: reverse
-engineering for interoperability is permitted in some jurisdictions
-(e.g. EU, US DMCA 1201(f)) but the app's terms may restrict it.
+The repository retains protocol descriptions, independently written tools and
+short source locators for interoperability. The proprietary APK and extracted
+application bundles are not redistributed. Static analysis of application code
+is not an independent clean-room certification; the earlier blanket claim was
+too strong. Preserve the distinction between app source evidence, synthetic
+fixtures and independently observed headset behavior.
 
 ## Phase-3 verification recipe (live hardware)
 

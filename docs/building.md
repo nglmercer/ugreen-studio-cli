@@ -95,6 +95,7 @@ After a fresh locked build from a clean checkout, package the exact executable:
 
 ```sh
 python3 scripts/package_release.py target/release/ugreen --target x86_64-unknown-linux-gnu --variant tui --output target/release-bundles
+python3 scripts/verify_release.py target/release-bundles --require-clean --binary target/release/ugreen
 ```
 
 For Windows, use the `.exe` path and `--target x86_64-pc-windows-msvc`. For CLI-only
@@ -102,6 +103,14 @@ builds, use `--variant cli-only`. The packager includes license notices, Markdow
 documentation, public evidence records, Rust source/tests, build scripts, the lockfile and a manifest recording source commit, compiler,
 variant, target and SHA-256 for every bundled file. It refuses to overwrite an
 archive. `--allow-dirty` is only for development artifacts and records that state.
+
+The verifier accepts a ZIP or a directory of ZIPs and checks the outer checksum,
+manifest inventory, every file hash, executable identity and fixed ZIP metadata
+without extracting or executing files. The release workflow also requires clean
+provenance and an exact match to its source revision before upload. When checking
+a downloaded bundle, pass `--source-commit` with an independently trusted full
+revision. Checksums alone do not authenticate a publisher. For a development
+bundle, omit `--require-clean`; this does not change its recorded dirty status.
 
 ZIP order, timestamps, permissions and uncompressed storage are fixed, so identical
 inputs yield byte-identical bundles independently of host timestamps or zlib

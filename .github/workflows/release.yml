@@ -55,6 +55,8 @@ jobs:
         run: python scripts/test_tui_pty.py target/${{ matrix.target }}/release/ugreen
       - name: Package deterministic archive and checksums
         run: python scripts/package_release.py target/${{ matrix.target }}/release/${{ matrix.executable }} --target ${{ matrix.target }} --variant ${{ matrix.variant }} --output target/release-bundles
+      - name: Verify finished bundle integrity and build identity
+        run: python scripts/verify_release.py target/release-bundles --source-commit ${{ github.sha }} --require-clean --binary target/${{ matrix.target }}/release/${{ matrix.executable }}
       - uses: actions/upload-artifact@v4
         with:
           name: ugreen-${{ matrix.target }}-${{ matrix.variant }}

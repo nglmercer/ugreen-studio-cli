@@ -383,3 +383,101 @@ capture or audible playback test. Internal pointer redaction is preserved withou
 inventing a transport path. No vendor codec query, peer query, setting write,
 reset, unpair or host disconnect was sent for these checks. No new capability bit
 or native Windows hardware claim follows from them.
+
+## Physical BlueZ signal check
+
+An additional opt-in check waits for a manual power cycle of an initially
+connected headset. Run it with the selected headset address, then power that
+headset off and back on after the ready message:
+
+```sh
+UGREEN_LIVE_ADDRESS=YOUR_HEADSET_MAC cargo test live_target_signals_track_disconnect_and_reconnect -- --ignored --nocapture
+```
+
+The observation window is 60 seconds. The check uses the production signal
+decoder with Device1 subscriptions restricted to the selected address on the
+enumerated adapters. Each accepted transition requires both an actual signal and
+an independent exact-address host snapshot: disconnected first, then connected.
+Subscription acceptance alone, listener errors, unrelated device traffic, unknown
+state and missing devices cannot pass. It sends no headset packets and makes no
+host connection changes. A passing run covers delivery and decoding for that
+physical cycle; it does not validate candidate protocol operations or Windows.
+This check has not yet been executed against a physical power cycle.
+
+## APK static re-audit — 2026-10-15
+
+The [re-audit](apk-analysis-2026-10-15.md) and its
+[evidence record](evidence/apk-static-2026-10-15.json) identify the supplied APK by
+SHA-256, decode the manifest and locate the active device-page source anchors.
+The record reproduces byte-for-byte. MAC-bound LDAC offline candidates now use
+instruction `0x1E`, while plain LDAC remains `0x0B`; regression checks cover both
+instructions and the unchanged before-I/O refusal.
+
+Default-feature Rust tests: 325 passed, four opt-in checks ignored. CLI-only:
+202 passed, one live check ignored. Strict default-feature Clippy, formatting,
+18 Python checks, documentation links and diff whitespace pass. These runs sent
+no Bluetooth packets. The targeted dual-close format is static evidence only;
+finder tone sourcing and all previously outstanding hardware requirements remain
+unverified.
+
+## Experimental peer recognition — 2026-10-15
+
+After explicit user opt-in, the CLI's native Linux backend successfully read
+status, peers and codecs on the selected Studio Pro, firmware 0.2.5. The peer
+response completed with one named peer and its MAC in slot 1. Codec output was
+`[(1, Sbc), (2, Sbc)]`; those codec slots alone do not prove two connected peers.
+The [public record](evidence/experimental-reads-2026-10-15.json) redacts peer
+identity and preserves the debug binary hash. Raw protocol bytes were not
+recorded, and this was not an official-app capture. No controls were sent.
+
+New offline regressions cover explicit experimental permissions without evidence
+promotion, unknown-firmware refusal before candidate packets, slot/MAC changes
+before close, dual-mode and peer-absence readback, cancellation during preflight,
+structured TUI peer rendering/close review and stale-list invalidation. The CLI
+accepts schema-v1 JSON peer results. The separate experimental mode is documented
+in [usage](usage.md#supported-device-operations).
+
+The rebuilt release TUI also connected, opened `P`, displayed the reported peer
+name/MAC, and quit with restored terminal attributes. The
+[redacted record](evidence/experimental-tui-2026-10-15.json) identifies the exact
+release binary and read-only actions. Ten offline PTY lifecycle scenarios pass,
+including experimental peer navigation while disconnected. Current Rust suites:
+333 default-feature tests and 208 CLI-only tests pass. Both strict Clippy variants
+and Windows MSVC all-target source checks pass; this is not native Windows runtime
+validation. No peer-close or other experimental control was hardware-tested.
+
+## Screenshot regression fixes — TUI feature access and diagnostics
+
+Experimental permissions can be toggled on the current TUI session with `Ctrl+E`
+or App Settings. Worker tests verify that the backend and existing session both
+receive the change, peer operations become available and disabling the mode blocks
+them again without reconnecting. UI tests cover the formerly empty Multipoint
+category, its explanatory state and mode-enabled registry entries. Contextual
+diagnostics tests keep standalone host-only firmware unknown, use observed firmware
+only for an active same-target session and retain zero verified permissions for
+unknown firmware. Optional socket-inventory errors do not imply a control failure.
+
+The default suite passes 337 tests and CLI-only passes 209. Eleven offline PTY
+scenarios cover terminal restoration and toggling mode while browsing categories.
+Spanish mode-off/mode-on and diagnostic SVG previews were exported at 56/110
+columns for visual review. These checks use synthetic device state; no new
+hardware-control validation follows from them.
+
+## Standard feature access and release candidate — October 15
+
+This update supersedes the earlier experimental-mode UI and permission policy.
+Implemented operations are available by default, including peers and targeted
+dual-close; exact firmware preflight and uncertain-write recovery remain active.
+Historical evidence metadata is unchanged. The legacy CLI flag is a no-op.
+Diagnostics hide optional socket inventory failures during an active session,
+show available controls, and render audio labels without Rust debug wrappers.
+
+Validation: 335 default-feature Rust tests and 209 CLI-only tests pass; strict
+Clippy and Windows MSVC all-target source checks pass for both variants. All 18
+Python tests pass. Eleven offline PTY scenarios exercise the optimized release
+binary. Synthetic Spanish Multipoint and Diagnostics previews were visually
+reviewed at 110 columns, with previews also exported at 56 columns. Formatting,
+local documentation links and whitespace checks pass. Linux TUI and CLI-only
+binaries build with Rust 1.88.0. No new hardware controls were sent. Native
+Windows runtime and per-control physical validation remain open; see
+[release readiness](release-readiness.md).

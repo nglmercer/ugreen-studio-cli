@@ -29,6 +29,9 @@ impl<T: Read + Write> Client<T> {
             timeout,
         }
     }
+    pub fn operation_capabilities(&self) -> crate::models::Capabilities {
+        crate::models::supported_capabilities()
+    }
     pub fn request(&mut self, instruction: u8, payload: &[u8]) -> io::Result<ResponseFrame> {
         self.request_in(Lang::En, instruction, payload)
     }
@@ -186,24 +189,45 @@ impl<T: Read + Write> Client<T> {
             .write_all(&protocol::request(setting.instruction, &setting.payload)?)?;
         self.io.flush()
     }
-    /// Execute a typed control only after the model capability is promoted.
+    /// Execute an implemented typed control after firmware preflight.
     /// Writes are never retried implicitly, including LDAC and resets.
     pub fn control(
         &mut self,
         command: &protocol::static_analysis::Command,
     ) -> io::Result<ControlOutcome> {
-        command.check_control()?;
+        self.control_cancellable(command, &|| false)
+    }
+    pub fn control_cancellable(
+        &mut self,
+        command: &protocol::static_analysis::Command,
+        cancelled: &dyn Fn() -> bool,
+    ) -> io::Result<ControlOutcome> {
+        if cancelled() {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "control cancelled",
+            ));
+        }
+        command.packet()?;
         self.require_capture(
-            command
-                .control_capability()
-                .expect("checked control capability"),
+            command.control_capability().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "query is not a control")
+            })?,
             "control",
         )?;
-        self.control_verified(command)
+        self.control_verified_cancellable(command, cancelled)
     }
+    #[cfg(test)]
     fn control_verified(
         &mut self,
         command: &protocol::static_analysis::Command,
+    ) -> io::Result<ControlOutcome> {
+        self.control_verified_cancellable(command, &|| false)
+    }
+    fn control_verified_cancellable(
+        &mut self,
+        command: &protocol::static_analysis::Command,
+        cancelled: &dyn Fn() -> bool,
     ) -> io::Result<ControlOutcome> {
         use protocol::static_analysis::Command as C;
         let packet = command.packet()?;
@@ -216,6 +240,25 @@ impl<T: Read + Write> Client<T> {
         }
         let instruction = packet[3];
         let payload = &packet[5..packet.len() - 2];
+        if let C::ClosePeer { index, address } = command {
+            let peers = self.collect_peers()?;
+            if peers.slots[usize::from(*index - 1)]
+                .as_ref()
+                .map(|p| &p.address)
+                != Some(address)
+            {
+                return Err(invalid_data(
+                    "selected peer slot/MAC changed; refresh before closing",
+                ));
+            }
+        }
+        // Cancellation during firmware/peer preflight must stop the write.
+        if cancelled() {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "control cancelled before write",
+            ));
+        }
         let send_only = matches!(command, C::Buttons(_) | C::Find { .. });
         let ack = if send_only {
             self.io.write_all(&packet).and_then(|_| self.io.flush()).map_err(|e|
@@ -236,12 +279,17 @@ impl<T: Read + Write> Client<T> {
             }
             Some(ack)
         };
+        if cancelled() {
+            return Err(io::Error::new(io::ErrorKind::Interrupted,
+                "control may have been sent; cancelled before readback; inspect state before retrying"));
+        }
         if matches!(command, C::Find { .. }) {
             // The verified six-byte decoder lacks the finder-right byte.
             // A sent control cannot claim a confirmed finder state or audio.
             return Ok(ControlOutcome::SentUnconfirmed);
         }
         let readback = match command {
+            C::ClosePeer { .. } => Some((5, &payload[..1], false)),
             C::Buttons(_) => Some((8, payload, false)),
             C::AiActions(_) => Some((26, payload, false)),
             C::Volume(_) => Some((19, &payload[..1], false)),
@@ -265,6 +313,17 @@ impl<T: Read + Write> Client<T> {
                     "control readback does not match; inspect state before retrying",
                 ));
             }
+            if let C::ClosePeer { address, .. } = command {
+                // Match the app's settling interval before querying changed links.
+                std::thread::sleep(Duration::from_millis(200));
+                let peers = self.collect_peers().map_err(|error| io::Error::new(error.kind(),
+                    format!("dual-close sent; peer readback failed: {error}; inspect before retrying")))?;
+                if peers.slots.iter().flatten().any(|p| &p.address == address) {
+                    return Err(invalid_data(
+                        "dual-close acknowledged but selected peer is still connected",
+                    ));
+                }
+            }
             return Ok(ControlOutcome::Readback(info));
         }
         Ok(ControlOutcome::Acknowledged(ack.expect(
@@ -272,7 +331,7 @@ impl<T: Read + Write> Client<T> {
         )))
     }
     /// Read all headset peer slots, including UTF-8 names and slot indices.
-    /// Static evidence is insufficient: the model gate is checked before I/O.
+    /// Available by default, with exact firmware preflight before the query.
     pub fn peers(&mut self) -> io::Result<protocol::static_analysis::PeerList> {
         self.require_capture(
             crate::models::Capabilities::MULTIPOINT_PEERS,
@@ -293,20 +352,20 @@ impl<T: Read + Write> Client<T> {
             .collect())
     }
     fn require_capture(&mut self, bit: u32, feature: &str) -> io::Result<()> {
-        // Candidates still refuse before any I/O. If evidence later promotes a
-        // bit, the live firmware must independently authorize the operation.
-        if !crate::models::Model::StudioPro.capabilities().contains(bit) {
+        // Unsupported operations refuse before I/O. Implemented operations still
+        // require exact firmware preflight before their first packet.
+        if !self.operation_capabilities().contains(bit) {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 format!("{feature} is not verified for Studio Pro; official-app capture required"),
             ));
         }
         let firmware = self.firmware()?;
-        crate::application::authorize_capability(
+        crate::models::require_verified_firmware(
             Some(crate::models::Model::StudioPro),
             Some(&firmware),
-            bit,
-        )
+        )?;
+        Ok(())
     }
     pub fn codecs(&mut self) -> io::Result<[(u8, protocol::static_analysis::Codec); 2]> {
         self.require_capture(crate::models::Capabilities::CODEC_STATUS, "codec status")?;
@@ -389,15 +448,15 @@ impl<T: Read + Write> Client<T> {
             }
         }
     }
-    /// Refused before any write, like [`Self::multipoint_peers`].
+    /// Independent peer management is unavailable; targeted dual-close is a distinct control.
     pub fn peer_disconnect(&mut self, _peer: &MultipointPeer) -> io::Result<()> {
         Err(UnsupportedFeature::PeerDisconnect.into())
     }
-    /// Refused before any write, like [`Self::multipoint_peers`].
+    /// Independent peer management is unavailable; targeted dual-close is a distinct control.
     pub fn peer_reconnect(&mut self, _peer: &MultipointPeer) -> io::Result<()> {
         Err(UnsupportedFeature::PeerReconnect.into())
     }
-    /// Refused before any write, like [`Self::multipoint_peers`].
+    /// Independent peer management is unavailable; targeted dual-close is a distinct control.
     pub fn peer_switch(&mut self, _peer: &MultipointPeer) -> io::Result<()> {
         Err(UnsupportedFeature::PeerSwitch.into())
     }
@@ -605,7 +664,6 @@ mod tests {
             connected: true,
         };
         for result in [
-            c.multipoint_peers().map(|_| ()),
             c.peer_disconnect(&peer),
             c.peer_reconnect(&peer),
             c.peer_switch(&peer),
@@ -618,7 +676,7 @@ mod tests {
         assert!(c.into_inner().written.is_empty());
     }
     #[test]
-    fn static_queries_refuse_before_io() {
+    fn queries_require_successful_firmware_preflight() {
         let mut c = Client::new(Mock::default(), Duration::from_secs(1));
         for result in [
             c.peers().map(|_| ()),
@@ -627,9 +685,192 @@ mod tests {
             c.headphone_color().map(|_| ()),
             c.box_mac().map(|_| ()),
         ] {
-            assert_eq!(result.unwrap_err().kind(), io::ErrorKind::Unsupported);
+            assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
         }
+        assert_eq!(
+            c.into_inner().written,
+            protocol::request(1, &[0]).unwrap().repeat(5)
+        );
+    }
+    #[test]
+    fn peers_are_available_by_default_after_firmware_preflight() {
+        let mut c = Client::new(
+            Mock {
+                read: vec![
+                    response(1, 1, &[0, 2, 5, 0, 0, 0]),
+                    response(13, 1, &[1, 1, b'P', b'C', 1, 2, 3, 4, 5, 6]),
+                ]
+                .into(),
+                ..Default::default()
+            },
+            Duration::from_secs(1),
+        );
+        let peers = c.peers().unwrap();
+        assert!(peers.complete);
+        assert_eq!(peers.slots[0].as_ref().unwrap().name, "PC");
+        assert_eq!(
+            c.into_inner().written,
+            [
+                protocol::request(1, &[0]).unwrap(),
+                protocol::request(13, &[0]).unwrap()
+            ]
+            .concat()
+        );
+        let mut c = Client::new(
+            Mock {
+                read: vec![response(1, 1, &[0, 2, 6, 0, 0, 0])].into(),
+                ..Default::default()
+            },
+            Duration::from_secs(1),
+        );
+        assert!(c.peers().is_err());
+        assert_eq!(c.into_inner().written, protocol::request(1, &[0]).unwrap());
+    }
+    #[test]
+    fn unestablished_controls_still_refuse_before_io() {
+        use protocol::static_analysis::Command as C;
+        for command in [
+            C::FactoryReset,
+            C::HighQualityDecoding(true),
+            C::Find {
+                enabled: true,
+                side: protocol::static_analysis::Side::Left,
+            },
+        ] {
+            let mut c = Client::new(Mock::default(), Duration::from_secs(1));
+            assert_eq!(
+                c.control(&command).unwrap_err().kind(),
+                io::ErrorKind::Unsupported
+            );
+            assert!(c.into_inner().written.is_empty());
+        }
+        let mut c = Client::new(Mock::default(), Duration::from_secs(1));
+        assert_eq!(
+            c.control(&C::Peers).unwrap_err().kind(),
+            io::ErrorKind::InvalidInput
+        );
         assert!(c.into_inner().written.is_empty());
+    }
+    #[test]
+    fn targeted_dual_close_checks_slot_before_write_and_both_readbacks() {
+        use protocol::static_analysis::Command as C;
+        let command = C::ClosePeer {
+            index: 1,
+            address: crate::bluetooth::BluetoothAddress::from_octets([1, 2, 3, 4, 5, 6]),
+        };
+        let before = response(13, 1, &[1, 1, b'P', 1, 2, 3, 4, 5, 6]);
+        let mut raw = vec![0; 31];
+        raw[5] = 0;
+        for after in [response(13, 1, &[0, 0]), before.clone()] {
+            let mut c = Client::new(
+                Mock {
+                    read: vec![
+                        response(1, 1, &[0, 2, 5, 0, 0, 0]),
+                        before.clone(),
+                        response(6, 1, &[0]),
+                        response(4, 1, &raw),
+                        after.clone(),
+                    ]
+                    .into(),
+                    ..Default::default()
+                },
+                Duration::from_secs(1),
+            );
+            let result = c.control(&command);
+            assert_eq!(result.is_ok(), after == response(13, 1, &[0, 0]));
+            assert_eq!(
+                c.into_inner().written,
+                [
+                    protocol::request(1, &[0]).unwrap(),
+                    protocol::request(13, &[0]).unwrap(),
+                    command.packet().unwrap(),
+                    protocol::request(4, &[0]).unwrap(),
+                    protocol::request(13, &[0]).unwrap()
+                ]
+                .concat()
+            );
+        }
+        let mut c = Client::new(
+            Mock {
+                read: vec![
+                    response(1, 1, &[0, 2, 5, 0, 0, 0]),
+                    response(13, 1, &[0, 0]),
+                ]
+                .into(),
+                ..Default::default()
+            },
+            Duration::from_secs(1),
+        );
+        assert!(c
+            .control(&command)
+            .unwrap_err()
+            .to_string()
+            .contains("slot/MAC changed"));
+        assert_eq!(
+            c.into_inner().written,
+            [
+                protocol::request(1, &[0]).unwrap(),
+                protocol::request(13, &[0]).unwrap()
+            ]
+            .concat()
+        );
+    }
+    #[test]
+    fn cancellation_during_peer_preflight_prevents_targeted_close() {
+        use std::sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        };
+        struct CancelOnPeer {
+            inner: Mock,
+            cancelled: Arc<AtomicBool>,
+        }
+        impl Read for CancelOnPeer {
+            fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+                let n = self.inner.read(output)?;
+                if n >= 4 && output[..4] == [0xdd, 0xee, 0xff, 13] {
+                    self.cancelled.store(true, Ordering::SeqCst);
+                }
+                Ok(n)
+            }
+        }
+        impl Write for CancelOnPeer {
+            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+                self.inner.write(bytes)
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                self.inner.flush()
+            }
+        }
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let io = CancelOnPeer {
+            inner: Mock {
+                read: vec![
+                    response(1, 1, &[0, 2, 5, 0, 0, 0]),
+                    response(13, 1, &[1, 1, b'P', 1, 2, 3, 4, 5, 6]),
+                ]
+                .into(),
+                ..Default::default()
+            },
+            cancelled: cancelled.clone(),
+        };
+        let mut c = Client::new(io, Duration::from_secs(1));
+        let command = protocol::static_analysis::Command::ClosePeer {
+            index: 1,
+            address: crate::bluetooth::BluetoothAddress::from_octets([1, 2, 3, 4, 5, 6]),
+        };
+        let error = c
+            .control_cancellable(&command, &|| cancelled.load(Ordering::SeqCst))
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::Interrupted);
+        assert_eq!(
+            c.into_inner().inner.written,
+            [
+                protocol::request(1, &[0]).unwrap(),
+                protocol::request(13, &[0]).unwrap()
+            ]
+            .concat()
+        );
     }
     #[test]
     fn peer_collection_handles_fragmented_and_coalesced_responses() {
@@ -688,7 +929,7 @@ mod tests {
         }
     }
     #[test]
-    fn all_static_controls_are_gated_before_io() {
+    fn controls_require_firmware_before_any_setting_write() {
         use protocol::static_analysis::{Action, Command as C, Side};
         let mac = crate::bluetooth::BluetoothAddress::from_octets([1; 6]);
         let commands = [
@@ -722,14 +963,28 @@ mod tests {
                 side: Side::Right,
             },
         ];
-        let mut c = Client::new(Mock::default(), Duration::from_secs(1));
         for command in commands {
+            let supported = crate::models::supported_capabilities()
+                .contains(command.control_capability().unwrap());
+            let mut c = Client::new(Mock::default(), Duration::from_secs(1));
+            let error = c.control(&command).unwrap_err();
             assert_eq!(
-                c.control(&command).unwrap_err().kind(),
-                io::ErrorKind::Unsupported
+                error.kind(),
+                if supported {
+                    io::ErrorKind::TimedOut
+                } else {
+                    io::ErrorKind::Unsupported
+                }
+            );
+            assert_eq!(
+                c.into_inner().written,
+                if supported {
+                    protocol::request(1, &[0]).unwrap()
+                } else {
+                    vec![]
+                }
             );
         }
-        assert!(c.into_inner().written.is_empty());
     }
     #[test]
     fn controls_validate_echo_and_never_retry() {

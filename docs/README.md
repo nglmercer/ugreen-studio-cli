@@ -14,6 +14,8 @@ The application and primary documentation use English. The Spanish README covers
 
 - [Architecture](architecture.md): module responsibilities, transport boundaries, validation and write flow
 - [Protocol and provenance](protocol.md): model-specific mapping, frame layout, CRC evidence, upstream references and notices
+- [APK re-audit](apk-analysis-2026-10-15.md): reproducible static peer, codec and finder findings from the supplied UGREEN Audio app
+- [Release readiness](release-readiness.md): normal feature availability, candidate artifacts and outstanding native/hardware release gates
 - [Implementation progress](implementation-progress.md): completed work and outstanding acceptance evidence
 - [Feature matrix](feature-matrix.md): per-operation implementation, evidence and remaining milestones
 - [Verification](verification.md): reproducible checks, current results, historical baseline and untested behavior
@@ -23,7 +25,7 @@ The application and primary documentation use English. The Spanish README covers
 
 Studio Pro HP206 is the reference protocol; historical physical verification covers HP206 firmware 0.2.5; the October 14 follow-up adds only read-only core replies and OS observations, documented separately in Verification. A familiar device name and a successful connection are not proof that the command mapping is correct. Do not apply this protocol to HiTune Max5c, which has conflicting instruction IDs.
 
-Start with offline commands, pair in OS settings, then request status before attempting a single reversible setting. Firmware flashing and arbitrary raw writes are unavailable. Reset, Finder and actual-volume commands have offline candidates and disabled live gates. A valid acknowledgement plus matching readback establishes the result of that operation, not universal compatibility.
+Start with offline commands, pair in OS settings, then request status before attempting a single reversible setting. Firmware flashing and arbitrary raw writes are unavailable. Reset and Finder remain disabled. Mapped volume, peer and advanced controls are [normal device operations](usage.md#supported-device-operations). A valid acknowledgement plus matching readback establishes the result of that operation, not universal compatibility.
 
 ## Documentation maintenance
 

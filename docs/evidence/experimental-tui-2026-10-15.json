@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "kind": "experimental_live_tui_read_observation",
+  "platform": "Linux",
+  "model_source": "user_selected",
+  "firmware_scope": "0.2.5",
+  "experimental": true,
+  "binary_sha256": "d0d5db5e683edac543961a226e477a55b73a1c58a4b42cb3585247d63a811555",
+  "actions": [
+    "connect_control",
+    "open_peer_page",
+    "quit"
+  ],
+  "peer_name_and_mac_rendered": true,
+  "exit_code": 0,
+  "terminal_restored": true,
+  "controls_executed": false,
+  "raw_protocol_frames_recorded": false,
+  "target_and_peer_identity": "redacted"
+}

@@ -35,6 +35,42 @@ pub enum Activity {
     Idle,
     Unknown,
 }
+impl Profile {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::A2dp => "A2DP",
+            Self::Hfp => "HFP",
+            Self::Hsp => "HSP",
+            Self::LeAudio => "LE Audio",
+            Self::Unknown => "Unknown",
+        }
+    }
+}
+impl Codec {
+    pub fn label(&self) -> &str {
+        match self {
+            Self::Sbc => "SBC",
+            Self::SbcXq => "SBC-XQ",
+            Self::Aac => "AAC",
+            Self::Aptx => "aptX",
+            Self::AptxHd => "aptX HD",
+            Self::AptxLl => "aptX LL",
+            Self::AptxAdaptive => "aptX Adaptive",
+            Self::Ldac => "LDAC",
+            Self::Lc3 => "LC3",
+            Self::Unknown(name) => name,
+        }
+    }
+}
+impl Activity {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Active => "Active",
+            Self::Idle => "Idle",
+            Self::Unknown => "Unknown",
+        }
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AudioStatus {
     pub address: BluetoothAddress,

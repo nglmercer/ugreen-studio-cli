@@ -20,6 +20,9 @@ pub enum Action {
     NoiseControl = 8,
     AnswerHangUp = 9,
     LongPressEq = 11,
+    AiDialogue = 12,
+    AiChat = 13,
+    AiRecording = 14,
 }
 impl TryFrom<u8> for Action {
     type Error = String;
@@ -36,6 +39,9 @@ impl TryFrom<u8> for Action {
             8 => Self::NoiseControl,
             9 => Self::AnswerHangUp,
             11 => Self::LongPressEq,
+            12 => Self::AiDialogue,
+            13 => Self::AiChat,
+            14 => Self::AiRecording,
             _ => return Err(format!("unknown button action {v}")),
         })
     }
@@ -65,6 +71,10 @@ pub enum Command {
         peer: Option<BluetoothAddress>,
     },
     HighQualityDecoding(bool),
+    ClosePeer {
+        index: u8,
+        address: BluetoothAddress,
+    },
     Volume(u8),
     Stereo(bool),
     AiControl(bool),
@@ -86,6 +96,7 @@ impl Command {
             Self::Ldac { peer: None, .. } => C::LDAC,
             Self::Ldac { peer: Some(_), .. } => C::LDAC_PEER,
             Self::HighQualityDecoding(_) => C::HIGH_QUALITY_DECODING,
+            Self::ClosePeer { .. } => C::PEER_DISCONNECT,
             Self::Volume(_) => C::VOLUME,
             Self::Stereo(_) => C::CHANNEL_MODE,
             Self::AiControl(_) => C::AI_CONTROL,
@@ -110,7 +121,7 @@ impl Command {
                 "query is not a control; use its query command",
             )
         })?;
-        if crate::models::Model::StudioPro.capabilities().contains(bit) {
+        if crate::models::supported_capabilities().contains(bit) {
             Ok(())
         } else {
             Err(io::Error::new(
@@ -149,6 +160,11 @@ impl Command {
             ["ldac", enabled] => Self::Ldac { enabled: toggle(*enabled)?, peer: None },
             ["ldac", enabled, mac] => Self::Ldac { enabled: toggle(*enabled)?, peer: Some(address(mac)?) },
             ["high-quality", enabled] => Self::HighQualityDecoding(toggle(*enabled)?),
+            ["close-peer", index, mac] => {
+                let index = index.parse::<u8>().map_err(|_| "peer index must be 1 or 2")?;
+                if !matches!(index, 1 | 2) { return Err("peer index must be 1 or 2".into()); }
+                Self::ClosePeer { index, address: address(mac)? }
+            },
             ["volume", value] => Self::Volume(value.parse().map_err(|_| "volume must be a byte (0..255); hardware range unverified")?),
             ["channel", "mono"] => Self::Stereo(false), ["channel", "stereo"] => Self::Stereo(true),
             ["ai-control", enabled] => Self::AiControl(toggle(*enabled)?),
@@ -161,7 +177,7 @@ impl Command {
                 if !matches!(index, 1 | 2) { return Err("sharing needs peer index 1 or 2".into()); }
                 Self::SharingPeer { index, address: address(mac)? }
             }
-            _ => return Err("usage: ugreen candidate firmware|id|color|peers|codec|box-mac|factory-reset; find left|right on|off; ldac on|off [MAC]; high-quality on|off; volume BYTE; channel mono|stereo; ai-control on|off; buttons A,A,A,A,A,A,A,A; ai-actions A,A,A,A; sharing off|single|INDEX MAC".into()),
+            _ => return Err("usage: ugreen candidate firmware|id|color|peers|codec|box-mac|factory-reset; find left|right on|off; close-peer INDEX MAC; ldac on|off [MAC]; high-quality on|off; volume BYTE; channel mono|stereo; ai-control on|off; buttons A,A,A,A,A,A,A,A; ai-actions A,A,A,A; sharing off|single|INDEX MAC".into()),
         })
     }
     /// Build an offline candidate. Never sends it or claims verification.
@@ -191,9 +207,22 @@ impl Command {
                 if let Some(address) = peer {
                     p.extend_from_slice(&if *enabled { address.octets() } else { [0; 6] });
                 }
-                (11, p)
+                // APK aU is the plain toggle (11); gU is MAC-addressed (30).
+                // Both remain independent capture-gated candidates.
+                (if peer.is_some() { 30 } else { 11 }, p)
             }
             Self::HighQualityDecoding(v) => (30, vec![u8::from(*v)]),
+            Self::ClosePeer { index, address } => {
+                if !matches!(index, 1 | 2) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "peer index must be 1 or 2",
+                    ));
+                }
+                let mut payload = vec![0, *index];
+                payload.extend_from_slice(&address.octets());
+                (6, payload)
+            }
             Self::Volume(v) => (16, vec![*v]),
             Self::Stereo(v) => (25, vec![u8::from(*v)]),
             Self::AiControl(v) => (27, vec![u8::from(*v)]),
@@ -388,6 +417,28 @@ mod tests {
     #[test]
     fn candidate_layouts() {
         let mac = BluetoothAddress::from_octets([1, 2, 3, 4, 5, 6]);
+        for enabled in [false, true] {
+            let plain = Command::Ldac {
+                enabled,
+                peer: None,
+            }
+            .packet()
+            .unwrap();
+            let addressed = Command::Ldac {
+                enabled,
+                peer: Some(mac.clone()),
+            }
+            .packet()
+            .unwrap();
+            assert_eq!(&plain[3..5], &[0x0b, 1]);
+            assert_eq!(&addressed[3..5], &[0x1e, 7]);
+            assert!(Command::Ldac {
+                enabled,
+                peer: Some(mac.clone())
+            }
+            .check_control()
+            .is_ok());
+        }
         assert_eq!(
             payload(Command::Ldac {
                 enabled: true,

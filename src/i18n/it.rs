@@ -4,6 +4,17 @@ use super::L;
 
 pub fn catalog() -> L {
     let mut l = super::en::catalog();
+    l.device_ui = [
+        "Device features",
+        "Available",
+        "Unavailable",
+        "P: connected devices",
+        "No matching features. Change category or search.",
+        "Requires Studio Pro firmware 0.2.5.",
+        "Inventario socket facoltativo",
+        "Non disponibile; non blocca il controllo",
+        "Controlli disponibili",
+    ];
     l.cli_json_unsupported = "Questo comando non supporta --json.";
     l.status_applying_noack = "Applicazione di {}={} dopo il controllo preliminare e verifica della rilettura (audio spaziale senza conferma)...";
     l.status_verified_noack =
@@ -337,6 +348,7 @@ pub fn catalog() -> L {
         "Decodificatore di catture",
         "Analisi delle catture",
         "Anteprima del pacchetto",
+        "Disconnetti e disattiva modalità doppia",
     ];
     l.feature_descriptions = [
         "Profondità di riduzione attiva del rumore. Impostazione verificata; modificala nello schermo Impostazioni.",
@@ -370,6 +382,7 @@ pub fn catalog() -> L {
         "Decodificare byte di risposta catturati offline; nessun accesso Bluetooth.",
         "Interpretare un flusso di cattura completo offline; nessun accesso Bluetooth.",
         "Stampare il pacchetto statico che un controllo invierebbe; non viene mai trasmesso.",
+        "Disconnette il dispositivo scelto e disattiva la modalità doppia. Sperimentale; confermare indice e MAC con una nuova lettura.",
     ];
     l.feature_available = "Disponibile";
     l.feature_pending = "Verifica in attesa";
@@ -468,5 +481,6 @@ pub fn catalog() -> L {
         "Ripristino confermato; accoppiamento host e dispositivo salvato rimossi.";
     l.status_inflight_write =
         "Una scrittura in corso potrebbe essere stata completata; aggiorna dopo il riavvio.";
+    l.page_labels[4] = l.navigation[5];
     l
 }

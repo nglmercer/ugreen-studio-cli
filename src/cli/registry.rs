@@ -313,7 +313,7 @@ const PEERS: CommandSpec = CommandSpec {
     about: |t| t.cmd_query,
     category: Category::CaptureGated,
     access: AccessPolicy::CaptureGated,
-    supports_json: false,
+    supports_json: true,
     min_args: 0,
     max_args: 0,
     handler: crate::cli::handlers::device::peers,
