@@ -436,6 +436,12 @@ open a live form. `F` opens the workspace; Esc backs out of narrow details befor
 closing it. The historical free-text feature panel has been replaced by those
 forms; the library compatibility parser remains available for offline callers.
 
+`F` lists historically supported controls and offline tools. Protocol candidates
+are kept in the Experimental Features page (`v`), with their explanations and
+live-operation guards intact. Search and category tabs apply within each page.
+Browsing a historically supported control does not authorize a write: the live
+session must still pass model and firmware checks.
+
 Use `v` to select Devices, Audio, Headset Settings, Multipoint, Experimental Features
 or Diagnostics. `A` opens Audio and `D` opens Diagnostics; Up/Down scroll, `r`
 refreshes and Esc cancels a pending refresh or returns. Diagnostic schema field

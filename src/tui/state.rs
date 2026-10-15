@@ -5,7 +5,7 @@ use super::{
 use crate::{
     bluetooth::{BluetoothAddress, HostConnectionState, HostHeadset},
     device::registry::DeviceRegistry,
-    features::{self, lookup, FeatureId, FeatureKind, FeatureSpec, Operation},
+    features::{self, lookup, FeatureId, FeatureKind, Operation},
     i18n::{Lang, L},
     models::Model,
     settings::{self, Setting, StudioProState},
@@ -87,7 +87,7 @@ pub(super) struct App {
     pub observation_view: Option<ObservationView>,
     pub observation_scroll: u16,
     pub diagnostics: Option<crate::diagnostics::DoctorReport>,
-    pub feature_pending_only: bool,
+    pub feature_scope: super::workspace::FeatureScope,
     pub lang: Lang,
     pub address: String,
     pub model_confirmed: bool,
@@ -159,7 +159,7 @@ impl App {
             observation_view: None,
             observation_scroll: 0,
             diagnostics: None,
-            feature_pending_only: false,
+            feature_scope: super::workspace::FeatureScope::Everyday,
             lang: config.lang,
             address: config.address.clone().unwrap_or_default(),
             model_confirmed: config.model_confirmed,
@@ -245,7 +245,7 @@ impl App {
     /// closes first; the workspace derives its contents
     /// from the shared feature registry.
     pub fn open_features(&mut self) {
-        if self.features {
+        if self.features && self.feature_scope == super::workspace::FeatureScope::Everyday {
             return;
         }
         self.help = false;
@@ -265,31 +265,8 @@ impl App {
         self.feature_tab_scroll = 0;
         self.feature_index = 0;
         self.feature_list_scroll = 0;
-        self.feature_pending_only = false;
+        self.feature_scope = super::workspace::FeatureScope::Everyday;
         self.features = true;
-    }
-    /// The registry entries shown by the active category
-    /// tab and search filter, in listing order.
-    pub(super) fn feature_list(&self) -> Vec<&'static FeatureSpec> {
-        let t = self.t();
-        let search = self.feature_search.to_lowercase();
-        features::FEATURES
-            .iter()
-            .filter(|spec| {
-                let in_category =
-                    self.feature_tab == 0 || spec.category.index() + 1 == self.feature_tab;
-                let matches = search.is_empty()
-                    || spec.name(t).to_lowercase().contains(&search)
-                    || spec.description(t).to_lowercase().contains(&search);
-                in_category
-                    && matches
-                    && (!self.feature_pending_only
-                        || !spec.verified(Model::StudioPro.capabilities()))
-            })
-            .collect()
-    }
-    pub(super) fn selected_feature(&self) -> Option<&'static FeatureSpec> {
-        self.feature_list().get(self.feature_index).copied()
     }
     /// Select one language directly and remember the choice
     /// in the target cache.
@@ -1030,7 +1007,7 @@ impl App {
             }
             4 => {
                 self.open_features();
-                self.feature_pending_only = true;
+                self.feature_scope = super::workspace::FeatureScope::Research;
                 Intent::None
             }
             5 => {

@@ -1539,7 +1539,12 @@ fn feature_workspace_gates_candidates_before_worker_submission() {
     let mut app = ready();
     app.key(key(KeyCode::Char('F')));
     assert!(app.features);
-    app.feature_index = crate::features::FeatureId::LdacToggle.index();
+    app.open_page(4);
+    app.feature_index = app
+        .feature_list()
+        .iter()
+        .position(|spec| spec.id == crate::features::FeatureId::LdacToggle)
+        .unwrap();
     assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
     assert!(app.feature_form.is_none());
     assert!(app.review.is_none());
@@ -1987,7 +1992,7 @@ fn multipoint_page_is_translated_and_safe_in_small_terminals() {
 fn long_feature_names_have_a_visible_separator() {
     let mut app = ready();
     app.lang = crate::i18n::Lang::Es;
-    app.open_features();
+    app.open_page(4);
     let text = render(&app, 94, 45);
     assert!(!text.contains("elegidoPendiente"));
     assert!(!text.contains("calidadPendiente"));
@@ -2010,4 +2015,41 @@ fn multipoint_page_does_not_accept_stale_audio_or_doctor_replies() {
     });
     assert_eq!(render(&app, 100, 30), before);
     assert!(app.audio.is_none());
+}
+
+#[test]
+fn everyday_and_research_browsers_partition_the_registry() {
+    use crate::{features::FEATURES, models::Model};
+    let mut app = ready();
+    app.open_features();
+    let everyday = app.feature_list();
+    assert!(!everyday.is_empty());
+    assert!(everyday
+        .iter()
+        .all(|spec| spec.verified(Model::StudioPro.capabilities())));
+    app.open_page(4);
+    let research = app.feature_list();
+    assert!(!research.is_empty());
+    assert!(research
+        .iter()
+        .all(|spec| !spec.verified(Model::StudioPro.capabilities())));
+    assert_eq!(everyday.len() + research.len(), FEATURES.len());
+    app.open_features();
+    assert_eq!(app.feature_list().len(), everyday.len());
+}
+
+#[test]
+fn research_search_and_categories_never_expose_live_forms() {
+    let mut app = ready();
+    app.open_page(4);
+    app.feature_search = "LDAC".into();
+    let list = app.feature_list();
+    assert!(!list.is_empty());
+    for index in 0..list.len() {
+        app.feature_index = index;
+        assert!(matches!(app.key(key(KeyCode::Enter)), Intent::None));
+        assert!(app.feature_form.is_none());
+        assert!(app.review.is_none());
+        assert!(app.busy.is_none());
+    }
 }

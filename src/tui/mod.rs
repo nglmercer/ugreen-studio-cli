@@ -2,6 +2,7 @@
 mod state;
 mod view;
 mod worker;
+mod workspace;
 
 use crate::device::registry::DeviceRegistry;
 use crate::i18n::Lang;
