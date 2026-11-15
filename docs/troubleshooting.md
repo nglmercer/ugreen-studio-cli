@@ -3,10 +3,10 @@
 ## Device features missing
 
 Run the rebuilt executable. Implemented operations, including Multipoint, are
-available by default in normal feature categories. `P` queries headset peers;
-`r` refreshes them. No flag or mode switch is needed. A previously running TUI
-must be restarted to load a new executable. Firmware `0.2.5` is required.
-Research lists offline tools and unsupported operations; see
+available by default in the Features page (`F3`). The Peers page (`F5`) queries
+headset peers; `r` refreshes them. No flag or mode switch is needed. A previously
+running TUI must be restarted to load a new executable. Firmware `0.2.5` is required.
+Research (`F8`) lists the operations that stay disabled; see
 [device operations](usage.md#supported-device-operations).
 
 ## Diagnostics show a socket-inventory permission error

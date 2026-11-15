@@ -16,6 +16,8 @@ mod ko;
 mod nl;
 mod pt;
 mod ru;
+#[cfg(feature = "tui")]
+pub mod tui;
 mod zh;
 
 use std::{env, sync::OnceLock};

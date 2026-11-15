@@ -40,13 +40,14 @@ ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro status
 
 La característica `tui` está activada por defecto y usa Ratatui 0.30.2 y Crossterm 0.29.0. `ugreen tui` abre la interfaz explícitamente. Sin argumentos, se abre solo cuando la entrada y la salida estándar son terminales; en caso contrario se muestra la ayuda. Los comandos explícitos siguen disponibles para scripts.
 
-- `a`: editar dirección; `p`: cargar dispositivos emparejados; `m` y después `y`: confirmar protocolo
-- `c`: conectar; `r`: actualizar estado; `d`: desconectar
-- Arriba/Abajo: seleccionar ajuste; Izquierda/Derecha: cambiar el valor propuesto
-- Intro: revisar el cambio; Intro otra vez: confirmarlo; Esc: cancelar un diálogo
-- `l`: registro de la sesión; `?`: ayuda; `q`: salir
+- Páginas: `F1` Inicio, `F2` Ajustes, `F3` Funciones, `F4` Dispositivos, `F5` Conexiones, `F6` Audio, `F7` Diagnóstico, `F8` Investigación; `[` / `]` para recorrerlas, o haz clic en la barra
+- `a`: editar dirección; `p`: página Dispositivos; `m` y después `y`: confirmar protocolo; `c`: conectar; `r`: actualizar la página actual; `d`: desconectar
+- Ajustes: Arriba/Abajo selecciona; Izquierda/Derecha propone un valor; Intro revisa e Intro otra vez aplica; Esc descarta
+- Funciones e Investigación: Tab cambia de categoría, `/` inicia una búsqueda, Intro abre (o muestra detalles en terminales estrechos)
+- `s`: opciones; `L`: idioma; `l`: registro de la sesión; `?`: ayuda generada desde el mapa de teclas; `q`: salir
+- El pie de página muestra siempre las teclas de la página o el diálogo actual; puedes hacer clic en ellas
 
-Un valor propuesto no es un valor leído del dispositivo. Solo se considera verificado después de recibir una confirmación válida y comprobar que la lectura posterior coincide. La batería procede de la respuesta de información del dispositivo; los datos ausentes permanecen como desconocidos. Linux permite observar el códec del transporte del sistema mediante `audio status` o `A` en la TUI cuando PipeWire ofrece los datos; la consulta y la selección del auricular siguen bloqueadas. Consulta el [manual de uso](docs/usage.md) para ver el flujo completo y el tratamiento de errores.
+Un valor propuesto no es un valor leído del dispositivo. Solo se considera verificado después de recibir una confirmación válida y comprobar que la lectura posterior coincide. La batería procede de la respuesta de información del dispositivo; los datos ausentes permanecen como desconocidos. Linux permite observar el códec del transporte del sistema mediante `audio status` o la página Audio de la TUI (`F6`) cuando PipeWire ofrece los datos. Consulta el [manual de uso](docs/usage.md) para ver el flujo completo y el tratamiento de errores.
 
 Para conservar solo la CLI sin compilar las dependencias de terminal:
 
@@ -96,8 +97,8 @@ ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro codec
 ugreen tui
 ```
 
-Pulsa `P` para ver los dispositivos conectados al auricular o abre la categoría
-Multipunto. Cerrar un dispositivo también desactiva el modo dual y requiere una
+Abre la página Conexiones (`F5`) para ver los dispositivos conectados al auricular
+o la categoría Multipunto en Funciones (`F3`). Cerrar un dispositivo también desactiva el modo dual y requiere una
 confirmación en la TUI. Restablecer, localizar por sonido y reconectar/cambiar
 el dispositivo activo siguen sin estar disponibles. Consulta la
 [lista de operaciones](docs/usage.md#supported-device-operations) y el
@@ -133,8 +134,9 @@ ugreen decode "$(cat session.hex)"
 `#` inicia un comentario en la entrada hexadecimal. Las [notas del protocolo](docs/protocol.md) detallan las pruebas y los límites del decodificador.
 
 
-Navegación persistente: `F1` Inicio, `F2` Audio, `F3` Dispositivos, `F4` Ajustes,
-`F5` Diagnóstico y `F6` Investigación. Las funciones candidatas quedan en Investigación.
+Navegación persistente: `F1` Inicio, `F2` Ajustes, `F3` Funciones, `F4` Dispositivos,
+`F5` Conexiones, `F6` Audio, `F7` Diagnóstico y `F8` Investigación. Las operaciones no
+habilitadas para ningún firmware solo aparecen en Investigación y nunca abren un formulario real.
 Los cambios de idioma llegan al trabajador y la configuración usa la carpeta nativa
 de Linux o Windows. JSON también admite `audio devices` y su alias `audio-devices`.
 Consulta la [lista de progreso](docs/implementation-progress.md).
@@ -167,10 +169,10 @@ separados; la consulta y los controles del auricular siguen bloqueados.
 
 `host connect` y `host disconnect`, con `--address`, solicitan acciones explícitas
 a BlueZ en Linux. Windows devuelve no compatible y remite a los ajustes del
-sistema. En la TUI, `v` selecciona una vista, `A` abre Audio, `D` abre Diagnóstico, `F` abre las funciones, `p` muestra los
-dispositivos, `h` conecta el enlace del host y `H` lo desconecta. El estado de
+sistema. En la TUI, la página Dispositivos (`F4` o `p`) lista los
+dispositivos; `h` conecta el enlace del host y `H` lo desconecta. El estado de
 Bluetooth observado no sustituye al estado RFCOMM. El worker actualiza el host
-cada cinco segundos cuando está libre. Cambiar destino exige cerrar la sesión.
+cada cinco segundos en segundo plano, sin bloquear la interfaz. Cambiar destino exige cerrar la sesión.
 Enter revisa un cambio y otro Enter lo confirma.
 
 Las escrituras de ajustes en CLI/TUI requieren una respuesta de firmware
@@ -179,4 +181,4 @@ pruebas físicas nuevas ni pruebas nativas de Windows. Consulta la
 [matriz de funciones](docs/feature-matrix.md) para las tareas implementadas,
 las pendientes y los límites de evidencia.
 
-Pulsa `P` para Conexiones del auricular: muestra la conexión dual y la antigüedad de la lectura; la lista de pares sigue bloqueada hasta verificar capturas. Los dispositivos emparejados del host son una lista distinta.
+La página Conexiones (`F5`) muestra la conexión dual y consulta al entrar la lista de dispositivos conectados al auricular; `1`/`2` revisa el cierre de uno. Los dispositivos emparejados del host son una lista distinta (`F4`).

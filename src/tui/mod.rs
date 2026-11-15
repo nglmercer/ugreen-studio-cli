@@ -1,16 +1,15 @@
 //! Optional, explicitly operated terminal interface. Startup is entirely offline.
-mod routing;
-mod state;
+mod app;
+mod input;
+mod keymap;
 mod view;
 mod worker;
 mod workspace;
 
-use crate::device::registry::DeviceRegistry;
 use crate::i18n::Lang;
-use crate::models::Model;
+use app::{App, Intent};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::execute;
-use state::{App, Intent};
 use std::{
     io::{self, IsTerminal},
     time::Duration,
@@ -61,29 +60,9 @@ pub fn run(config: Config) -> io::Result<()> {
         ));
     }
     let mut app = App::new(&config);
-    app.navigate(routing::Route::Home);
     let mut worker = Worker::native(config)?;
-    // Startup stays offline unless auto-connect (on by default) can use
-    // a cached, confirmed target; then it connects directly. Without a
-    // target, the paired list loads for an explicit pick. Failure only
-    // sets status text; startup never writes settings.
-    if !app.config_skip_autoload() {
-        if app.config_autoconnect() && !app.address.is_empty() && app.model_confirmed {
-            let action = worker::Action::Connect {
-                address: app.address.clone(),
-                model_confirmed: true,
-            };
-            match worker.submit(action.clone()) {
-                Ok(id) => app.accepted(id, action),
-                Err(error) => app.status = error,
-            }
-        } else if app.address.is_empty() {
-            match worker.submit(worker::Action::Paired) {
-                Ok(id) => app.accepted_loading(id),
-                Err(error) => app.status = error,
-            }
-        }
-    }
+    let first = app.startup();
+    dispatch(&mut app, &mut worker, first);
     let result = ratatui::run(|terminal| -> io::Result<()> {
         let _stop_worker_on_exit = worker.shutdown_guard();
         // Mouse clicks/wheel need explicit capture; ratatui restores it after
@@ -116,40 +95,32 @@ fn event_loop(
     let host_signals = crate::bluetooth::HostSignalMonitor::start();
     let mut last_host_refresh = std::time::Instant::now();
     loop {
+        // Host link state refreshes in the background while the worker is
+        // free; it never blocks input and yields to user requests.
         if app.busy.is_none()
-            && !app.address.is_empty()
+            && app.queued.is_none()
+            && app.worker_alive
+            && worker::validate_address(&app.address).is_ok()
             && (host_signals.take_changed()
                 || last_host_refresh.elapsed() >= Duration::from_secs(5))
         {
             last_host_refresh = std::time::Instant::now();
+            let address = app.address.clone();
             dispatch(
                 app,
                 worker,
-                Intent::Request(worker::Action::HostRefresh {
-                    address: app.address.clone(),
-                }),
+                Intent::Request(worker::Action::HostRefresh { address }),
             );
         }
         match worker.poll() {
             Ok(Some(reply)) => {
-                let was_connected = app.control_state.is_connected();
                 if let Some(action) = app.receive(reply) {
                     dispatch(app, worker, Intent::Request(action));
                 }
-                // Remember the target that answered, so the next start
-                // can offer it and auto-connect when enabled. The model
-                // is confirmed because this device just talked back.
-                if !was_connected && app.control_state.is_connected() {
-                    let mut registry = DeviceRegistry::load();
-                    if let Ok(address) = crate::bluetooth::BluetoothAddress::parse(&app.address) {
-                        registry.set_selected(&address);
-                        registry.set_model(&address, Some(Model::StudioPro));
+                if app.busy.is_none() {
+                    if let Some(action) = app.queued.take() {
+                        dispatch(app, worker, Intent::Request(action));
                     }
-                    registry.channel = Some(app.channel);
-                    registry.timeout = Some(app.timeout_seconds);
-                    registry.lang = Some(app.lang);
-                    registry.autoconnect = app.config_autoconnect();
-                    registry.save();
                 }
             }
             Ok(None) => {}
@@ -161,47 +132,52 @@ fn event_loop(
         let size = terminal.size()?;
         app.width = size.width;
         app.height = size.height;
-        app.reconcile_scroll();
         app.record_status();
         terminal.draw(|frame| view::render(frame, app))?;
-        if event::poll(Duration::from_millis(50))? {
-            match event::read()? {
-                Event::Key(key) if key.kind == KeyEventKind::Press => {
-                    let area = terminal.size()?;
-                    if (area.width < view::MIN_WIDTH || area.height < view::MIN_HEIGHT)
-                        && !matches!(key.code, KeyCode::Char('q') | KeyCode::Esc)
-                        && !(app.quit_confirmation && key.code == KeyCode::Enter)
-                        && !(key.code == KeyCode::Char('c')
-                            && key.modifiers.contains(KeyModifiers::CONTROL))
-                    {
-                        continue;
-                    }
-                    let intent = app.key(key);
-                    if dispatch(app, worker, intent) {
-                        break;
-                    }
+        if !event::poll(Duration::from_millis(50))? {
+            continue;
+        }
+        let intent = match event::read()? {
+            Event::Key(key) if key.kind == KeyEventKind::Press => {
+                let area = terminal.size()?;
+                let too_small = area.width < view::MIN_WIDTH || area.height < view::MIN_HEIGHT;
+                let allowed = matches!(key.code, KeyCode::Char('q') | KeyCode::Esc)
+                    || (app.quit_confirmation && key.code == KeyCode::Enter)
+                    || (key.code == KeyCode::Char('c')
+                        && key.modifiers.contains(KeyModifiers::CONTROL));
+                if too_small && !allowed {
+                    continue;
                 }
-                Event::Mouse(mouse) => {
-                    let area = terminal.size()?;
-                    let intent = app.mouse(mouse, area.width, area.height);
-                    if dispatch(app, worker, intent) {
-                        break;
-                    }
-                }
-                Event::Resize(_, _) => {} // draw uses the new size next pass
-                _ => {}
+                app.key(key)
             }
+            Event::Mouse(mouse) => {
+                let area = terminal.size()?;
+                app.mouse(mouse, area.width, area.height)
+            }
+            _ => Intent::None,
+        };
+        if dispatch(app, worker, intent) {
+            break;
         }
     }
     Ok(())
 }
+/// Send an intent to the worker. A request made while only the background
+/// host refresh runs cancels that refresh and waits in `queued`.
 fn dispatch(app: &mut App, worker: &mut Worker, intent: Intent) -> bool {
     match intent {
         Intent::None => {}
-        Intent::Request(action) => match worker.submit(action.clone()) {
-            Ok(id) => app.accepted(id, action),
-            Err(error) => app.status = error,
-        },
+        Intent::Request(action) => {
+            if app.background() {
+                worker.cancel();
+                app.queued = Some(action);
+                return false;
+            }
+            match worker.submit(action.clone()) {
+                Ok(id) => app.accepted(id, action),
+                Err(error) => app.status = error,
+            }
+        }
         Intent::Cancel => worker.cancel(),
         Intent::Quit => {
             worker.cancel();

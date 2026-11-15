@@ -102,13 +102,13 @@ Settings are grouped into four categories — Audio (ANC, equalizer, game mode, 
 
 A listed device is just a paired device of this OS and may be offline or a different model. Rows show the link state explicitly (`[CONNECTED]`, `[DISCONNECTED]` or `[UNKNOWN]`) and the registry-confirmed model (`model=studio-pro`) when you confirmed it for that address; enumeration never guesses a model. The list orders the current target first, then connected, disconnected and unknown devices, breaking ties by name and address. Selecting a device alone does not open a Bluetooth connection — it only updates the target and the header's Bluetooth state — and the protocol confirmation is re-derived for the selected address, so confirming one device does not confirm another.
 
-The header reports independent observations: `Bluetooth:` is the last OS host-link observation; `Control:` is this application's typed RFCOMM lifecycle. RFCOMM never overwrites an OS observation. `d` closes only control. Host observations refresh through the worker every five seconds when idle; errors do not terminate the interface. `p` opens host devices during a session, but selecting another target requires disconnecting control first. Within that list, `h` and `H` explicitly request host connect and disconnect; these are Linux BlueZ actions and are unsupported on Windows.
+The header reports independent observations: `Bluetooth:` is the last OS host-link observation; `Control:` is this application's typed RFCOMM lifecycle. RFCOMM never overwrites an OS observation. `d` closes only control. Host observations refresh through the worker every five seconds in the background: the refresh never locks input, a failed refresh changes nothing on screen, and any request you make cancels it and runs next. `p` opens the Devices page during a session, but selecting another target requires disconnecting control first. Within that list, `h` and `H` explicitly request host connect and disconnect; these are Linux BlueZ actions and are unsupported on Windows.
 
 The interface distinguishes last-read state from a proposed value. Editing a proposal is local. Fields missing or unknown in device readback cannot be written from the TUI, and proposing the current value does not send a redundant write. Applying with Enter requires device-info preflight, acknowledgement (except spatial audio: retail firmware applies the write but answers with an `85 86 87` notification instead of a `DD EE FF` ack, so only the readback verifies it), and matching readback. If a write fails or its result is uncertain, further writes are blocked until an explicit successful refresh. Do not infer failure to apply from a timeout alone.
 
-Pressing `d` while busy requests cancellation and disconnection after the current stage. Esc requests cancellation but keeps the interface open; quitting while busy asks for a second `q` or Enter and does not wait for the operation. Cancellation cannot undo bytes already sent. A setting may have changed if you disconnect or exit during a write. Query status before another attempt. Device operations use bounded timeouts, but a whole workflow can require several operations. Follow the on-screen busy/cancellation state rather than repeatedly submitting a write.
+Pressing `d` while busy requests cancellation and disconnection after the current stage. Esc requests cancellation but keeps the interface open. Quitting is immediate unless a write may be in flight; then it asks for a second `q` or Enter and does not wait for the operation. Pages can still be browsed while an operation runs; new requests wait until it finishes. Cancellation cannot undo bytes already sent. A setting may have changed if you disconnect or exit during a write. Query status before another attempt. Device operations use bounded timeouts, but a whole workflow can require several operations. Follow the on-screen busy/cancellation state rather than repeatedly submitting a write.
 
-Battery is read from the vendor device-info response. No platform battery API is used as a fallback. `A` asynchronously refreshes address-matched Linux PipeWire observations, including profile, transport codec, activity and observation age. Vendor codec queries and codec-selection writes remain disabled. Unknown fields are not replaced with guessed defaults.
+Battery is read from the vendor device-info response. No platform battery API is used as a fallback. The Audio page (`F6`) reads address-matched Linux PipeWire observations on entry and on `r`, including profile, transport codec, activity and observation age; `k` runs the separate headset codec query while connected. Unknown fields are not replaced with guessed defaults.
 
 ## Internationalization
 
@@ -363,7 +363,7 @@ ugreen tui
 
 Peer JSON contains `complete`, `evidence_source` and the connected slots. It does
 not substitute host pairing records. An incomplete query fails rather than
-inventing an empty list. In the TUI, `P` queries peers, `r` repeats the query,
+inventing an empty list. In the TUI, the Peers page (`F5`) queries peers on entry, `r` repeats the query,
 `R` refreshes core status and `1`/`2` opens a targeted-close review. New queries,
 writes and session/target changes invalidate old peer data.
 
@@ -439,10 +439,13 @@ headset's RFCOMM Bluetooth address.
 
 ### TUI feature commands
 
-Press `F` to open the registry-based feature workspace. Category tabs and
-bounded search select a feature; Enter opens narrow details or activates the
-wide view. Verified settings return to Settings. Static candidates explain the
-missing physical capture and never open a live operation. Typed forms require
+Open the Features page (`F3`) for the registry-based workspace. Tab changes the
+category and `/` starts a bounded search (Enter or Esc ends it, so letters are
+never mistaken for shortcuts). Enter activates the selection on wide terminals
+and opens its details first on narrow ones. Each entry carries a badge:
+`verified` (historical hardware evidence), `APK mapping` (enabled from static
+analysis for firmware 0.2.5) or `offline`. Verified settings hand over to
+Settings; queries run at once and their last result stays in the details panel. Typed forms require
 all values before review; Enter confirms an authorized operation and Esc cancels.
 Input bounds depend on the field, and search is limited to 64 characters.
 Mouse clicks are restricted to the rendered workspace or modal geometry.
@@ -481,46 +484,45 @@ Actual firmware `0.2.5` is required by native CLI/TUI setting preflight. Dry-run
 packet generation remains offline and unchanged. Low-level SDK callers retain
 responsibility for identity and evidence; see [feature matrix](feature-matrix.md).
 
-The feature workspace uses registry categories, search (up to 64 characters),
-typed forms and review. Static candidates explain the missing capture and never
-open a live form. `F` opens the workspace; Esc backs out of narrow details before
-closing it. The historical free-text feature panel has been replaced by those
-forms; the library compatibility parser remains available for offline callers.
+The historical free-text feature panel has been replaced by typed forms; the
+library compatibility parser remains available for offline callers. Forms cycle
+choice fields with Left/Right; choosing a peer slot fills its MAC from the last
+peer query so the review shows the exact target.
 
-`F` lists implemented controls. Unavailable operations and offline tools
-are kept in the Research page (`v`), with their explanations. Search and category tabs apply within each page.
+Operations not enabled for any firmware (reset, Finder, scalar high-quality
+decoding) are kept in the Research page (`F8`) with their explanation; they never
+open a form. Search and category tabs apply within each page.
 Browsing a historically supported control does not authorize a write: the live
 session must still pass model and firmware checks.
 
-The persistent navigation bar uses `F1` Home, `F2` Audio controls, `F3` Devices,
-`F4` Settings, `F5` Diagnostics and `F6` Research. Click the same cells to navigate;
-narrow terminals use two rows. Active writes, confirmations and editable forms
-must finish or be cancelled before switching. Home shows the latest observed
-core audio settings. From Home or Settings, `A` opens OS audio observations
-separately from vendor controls.
+The persistent navigation bar uses `F1` Home, `F2` Settings, `F3` Features,
+`F4` Devices, `F5` Peers, `F6` Audio, `F7` Diagnostics and `F8` Research; `[` and
+`]` step through them. Click the same cells to navigate; narrow terminals use two
+rows. An open dialog must be closed first; a running operation keeps running while
+you browse. Home shows the connection checklist, every current setting and the
+latest headset queries. The footer lists the keys of the current page or dialog
+and each hint is clickable; `?` shows a help screen generated from the same key map.
 
 On Linux, read-only BlueZ signals trigger a coalesced host-state refresh (at most
 once per second while idle). A five-second refresh fallback remains active if
 signals are unavailable. Listener failures retry with bounded backoff; signals
 never stand in for exact-address enumeration or headset peer discovery.
 
-Use `v` to select Devices, Audio, Headset Settings, Multipoint, Research
-or Diagnostics. `A` opens Audio and `D` opens Diagnostics; Up/Down scroll, `r`
-refreshes and Esc cancels a pending refresh or returns. Diagnostic schema field
+The Diagnostics page (`F7`) runs the doctor report on entry; Up/Down scroll, `r`
+refreshes and Esc cancels a pending refresh or returns Home. Diagnostic schema field
 names remain stable technical identifiers. Doctor reports adapter power and read
 permissions and, where readable, possible RFCOMM channel collisions from Linux
 debugfs. An absent socket observation does not prove the channel is free.
 
 ### Headset connections
 
-Press `P` on the main screen or choose Multipoint in the `v` page selector.
-This view shows the independently observed dual-device toggle and its read age.
-Opening the page queries peer names, MACs and slots over an existing control
-connection after firmware preflight. `r` refreshes peers; `R` refreshes core status.
-`d` opens the dual-device setting. `1`/`2` review targeted close for a current slot;
+Open the Peers page (`F5`). It shows the independently observed dual-device
+toggle. Opening the page queries peer names, MACs and slots over an existing
+control connection after firmware preflight (unless a result is already cached).
+`r` refreshes peers; `R` refreshes core status. `e` opens the dual-device setting. `1`/`2` review targeted close for a current slot;
 confirmation validates its MAC again and also disables dual mode. Host paired
 devices never fill this list. Independent peer disconnect, reconnect and switch
-remain unsupported; `p` then `h`/`H` only controls this PC's host link.
+remain unsupported; on the Devices page `h`/`H` only control this PC's host link.
 
 
 

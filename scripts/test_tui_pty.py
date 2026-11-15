@@ -89,18 +89,20 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('binary', type=Path, help='Default-feature ugreen release/debug executable')
     binary = parser.parse_args().binary.resolve(strict=True)
+    F = {n: k for n, k in zip(range(1, 9), [b'\x1bOP', b'\x1bOQ', b'\x1bOR', b'\x1bOS',
+                                              b'\x1b[15~', b'\x1b[17~', b'\x1b[18~', b'\x1b[19~'])}
     scenarios = [
-        ('persistent navigation', ['tui'], [b'\x1bOP', b'\x1bOQ', b'\x1bOS', b'\x1b[17~', b'\x1bOP', b'q']),
+        ('persistent navigation', ['tui'], [F[1], F[2], F[3], F[4], F[5], F[6], F[7], F[8], b']', b'[', F[1], b'q']),
         ('explicit quit', ['tui'], [b'q']),
         ('automatic TTY entry', [], [b'q']),
         ('Ctrl+C exit', ['tui'], [b'\x03']),
-        ('feature gate and editor cancellation', ['tui'], [b'F', b'codec', b'\r', b'\x1b', b'q']),
-        ('research candidate gate', ['tui'], [b'v', b'\x1b[B', b'\x1b[B', b'\x1b[B', b'\x1b[B', b'\r', b'LDAC', b'\r', b'\x1b', b'q']),
+        ('feature search, gate and form cancellation', ['tui'], [F[3], b'/', b'codec q', b'\r', b'\r', b'\x1b', b'\x1b', b'q']),
+        ('research entries never open forms', ['tui'], [F[8], b'\x1b[B', b'\x1b[B', b'\r', b'\t', b'\r', b'\x1b', b'q']),
         ('small-screen resize recovery', ['tui'], [(8, 24), b'j', (30, 110), b'q']),
-        ('headset connections gate and navigation', ['tui'], [b'P', b'r', b'd', b'q']),
-        ('peers stay offline when disconnected', ['tui'], [b'P', b'r', b'1', b'R', b'd', b'q']),
-        ('normal multipoint category is accessible', ['tui'], [b'F', b'\t\t\t\t\t\t', b'\x1b', b'q']),
+        ('peers stay offline when disconnected', ['tui'], [F[5], b'r', b'1', b'R', b'e', b'q']),
+        ('feature categories are browsable', ['tui'], [F[3], b'\t\t\t\t\t\t', b'\x1b', b'q']),
         ('address edit cancellation', ['tui'], [b'a', b'AA:BB:CC:DD:EE:FF', b'\x1b', b'q']),
+        ('help, log and options open and close', ['tui'], [b'?', b'\x1b[B', b'\x1b', b'l', b'\x1b', b's', b'\x1b[B', b'\x1b', b'q']),
     ]
     for name, args, actions in scenarios:
         scenario(binary, name, args, actions)

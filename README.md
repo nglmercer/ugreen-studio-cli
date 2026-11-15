@@ -50,8 +50,8 @@ ugreen --address AA:BB:CC:DD:EE:FF --model studio-pro codec
 ugreen tui
 ```
 
-Press `P` for headset-connected peers or browse Multipoint in the normal feature
-categories. Closing a peer also disables dual mode and requires confirmation in
+Open the Peers page (`F5`) for headset-connected peers or browse Multipoint in the
+Features page (`F3`). Closing a peer also disables dual mode and requires confirmation in
 the TUI. Reset, Finder, independent reconnect/switch and the speculative one-byte
 high-quality command remain unavailable. See [device operations](docs/usage.md#supported-device-operations)
 and [release readiness](docs/release-readiness.md) for validation scope.
@@ -60,13 +60,14 @@ and [release readiness](docs/release-readiness.md) for validation scope.
 
 The default `tui` Cargo feature uses Ratatui 0.30.2 and Crossterm 0.29.0. `ugreen tui` opens the interface explicitly. Running with no arguments opens it only when both stdin and stdout are terminals; otherwise it prints help. Explicit CLI commands stay scriptable.
 
-- `v`: page selector; `A`: Audio; `D`: Diagnostics; `F`: feature workspace; `a`: edit address; `p`: load host devices (also during a session); `m`, then `y`: confirm model protocol
-- `c`: connect; `r`: refresh status; `d`: disconnect
-- Up/Down: select a setting; Left/Right: change its proposed value
-- Enter: review a change; Enter again: confirm it; Esc: cancel a dialog
-- `l`: session log; `?`: help; `q`: quit
+- Pages: `F1` Home, `F2` Settings, `F3` Features, `F4` Devices, `F5` Peers, `F6` Audio, `F7` Diagnostics, `F8` Research; `[` / `]` step through them, or click the bar
+- `a`: edit address; `p`: Devices page; `m`, then `y`: confirm model protocol; `c`: connect; `r`: refresh the current page; `d`: disconnect
+- Settings: Up/Down select; Left/Right propose a value; Enter reviews, Enter again applies; Esc discards
+- Features and Research: Tab changes category, `/` starts a search, Enter opens (or shows details on narrow terminals)
+- `s`: options; `L`: language; `l`: session log; `?`: help generated from the key map; `q`: quit
+- The footer always lists the keys of the current page or dialog; click a hint to use it
 
-A proposed value is not a device value. A change is verified only after a valid acknowledgement and matching readback. Battery comes from device-info bytes; unavailable values remain unknown. Linux OS codec observations are available through `audio status` or TUI `A` when PipeWire reports an address-matched transport. The vendor codec query and codec controls remain gated. See [Usage](docs/usage.md) for the full workflow and failure behavior.
+A proposed value is not a device value. A change is verified only after a valid acknowledgement and matching readback. Battery comes from device-info bytes; unavailable values remain unknown. Linux OS codec observations are available through `audio status` or the TUI Audio page (`F6`) when PipeWire reports an address-matched transport. The vendor codec query and codec controls remain gated. See [Usage](docs/usage.md) for the full workflow and failure behavior.
 
 To omit the TUI dependencies and keep the CLI without terminal dependencies:
 
@@ -133,8 +134,9 @@ ugreen decode "$(cat session.hex)"
 `#` starts a comment in hex input. The [protocol notes](docs/protocol.md) explain the evidence and decoder limits.
 
 
-Persistent navigation: `F1` Home, `F2` Audio controls, `F3` Devices, `F4` Settings,
-`F5` Diagnostics and `F6` Research. The main browser keeps candidates in Research.
+Persistent navigation: `F1` Home, `F2` Settings, `F3` Features, `F4` Devices,
+`F5` Peers, `F6` Audio, `F7` Diagnostics and `F8` Research. Operations that are not
+enabled for any firmware are listed only in Research and never open a live form.
 Language changes reach the worker, and configuration persists in the native Linux
 or Windows config directory. JSON output also supports `audio devices` and its
 `audio-devices` alias. See the [progress checklist](docs/implementation-progress.md).
@@ -179,4 +181,4 @@ vendor codec, and never infer a codec from advertised support. Missing transport
 properties remain unknown. [The feature matrix](docs/feature-matrix.md) records
 implemented parts, missing work and physical-validation limits.
 
-Press `P` for Headset Connections: dual-device state and observation age are shown; peer discovery is available by default. Host paired devices are a separate list.
+The Peers page (`F5`) shows the dual-device state and queries the headset's peer list on entry; `1`/`2` reviews closing a peer. Host paired devices are a separate list (`F4`).

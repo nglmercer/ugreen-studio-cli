@@ -11,7 +11,7 @@ mock coverage does not constitute hardware or native Windows validation.
 
 ## Phase 1 — TUI
 
-- [x] Separate everyday registry browsing (`F`) from Experimental Features (`v`).
+- [x] Separate everyday registry browsing (Features, `F3`) from disabled operations (Research, `F8`).
 - [x] Keep registry search and categories scoped to the selected workspace.
 - [x] Extract browser policy into `src/tui/workspace.rs`.
 - [x] Extract feature list/detail rendering into `src/tui/view/features.rs`.
@@ -194,3 +194,48 @@ local documentation links and whitespace checks pass. Linux TUI and CLI-only
 binaries build with Rust 1.88.0. No new hardware controls were sent. Native
 Windows runtime and per-control physical validation remain open; see
 [release readiness](release-readiness.md).
+
+## TUI rebuild — November 14, 2026
+
+The interface state, input and rendering layers were rewritten; the worker,
+its safety stages and every engine test are unchanged. One page and at most one
+modal are active at a time, replacing about fifteen independent flags whose
+priority differed between key handling and rendering.
+
+Fixed in the rebuild:
+
+- The idle five-second host refresh locked input, dropped keystrokes (search
+  text, feature keys), made quitting ask for confirmation, and on failure marked
+  the snapshot stale and blocked writes. It now runs in the background, is
+  cancelled by any user request (which then runs) and a failure changes nothing.
+- Routes disagreed with what was shown: Esc from Devices left the Devices tab
+  highlighted over Settings, `F` highlighted Settings, `P` highlighted Devices,
+  F2 "Audio" and `A` "Audio" opened different screens, and arrows on Home
+  silently jumped to Settings. There are now eight pages (`F1`–`F8`, `[`/`]`)
+  and the bar always names the page on screen; the `v` page selector and the
+  `A`/`D`/`P`/`F` duplicates were removed.
+- Letters typed in the feature workspace were always search text, so `?` and the
+  footer's own shortcuts did nothing there. Search is now explicit (`/`).
+- The feature list scroll used an approximate height and could hide the
+  selection; list offsets are now persistent and shared with mouse hit testing.
+- Editing the address kept the previous target's protocol confirmation; it is
+  now per address, as for device picks.
+- Finder side fields could not be set, and peer MAC fields had to be typed by
+  hand; choice fields cycle and a chosen peer slot fills its MAC.
+- Hard-coded English in Multipoint/Diagnostics pages, stale copy claiming peer
+  queries were never sent, "Edit in Settings (s)" (s opens options) and a static
+  footer that listed unrelated keys on every page. Footers are now contextual,
+  clickable and generated from the same key map as the help screen.
+- Feature query results were only shown in the status line; the last result now
+  stays in the details panel, and Home summarizes settings, codecs, peers and OS
+  audio. Settings gains a details panel with allowed and current values.
+
+New interface prose lives in `src/i18n/tui.rs` (English and Spanish). Other
+locales derive page names and common key labels from their existing catalogs and
+fall back to English for the remaining page copy; native review is not claimed.
+
+Validation: 246 default-feature library tests (73 TUI: 27 engine, 46 UI) plus
+integration suites, and 168 CLI-only library tests pass; strict Clippy passes for
+both variants; Rust 1.88.0 and Windows MSVC all-target checks pass. All eleven
+offline PTY scenarios pass against the optimized release binary. No hardware
+operation was performed for this change.
